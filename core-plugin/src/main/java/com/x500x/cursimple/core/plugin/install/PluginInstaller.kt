@@ -81,8 +81,14 @@ class PluginInstaller(
                 sourceRepo = sourceRepo?.trim()?.takeIf { it.isNotBlank() },
                 registrySource = registrySource?.trim()?.takeIf { it.isNotBlank() },
             )
-            val previous = registryRepository.findByInstallKey(record.installKey)
-            registryRepository.saveInstalledPlugin(record)
+            val previous = try {
+                val old = registryRepository.findByInstallKey(record.installKey)
+                registryRepository.saveInstalledPlugin(record)
+                old
+            } catch (error: Exception) {
+                targetDir.deleteRecursively()
+                throw error
+            }
             removeReplacedVersion(previous, targetDir)
             PluginLogger.info(
                 "plugin.install.success",

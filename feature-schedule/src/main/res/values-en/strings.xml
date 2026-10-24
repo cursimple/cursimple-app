@@ -679,6 +679,10 @@
     <string name="schedule_event_delete_body">Delete \"%1$s\"? The timetable goes back to its usual layout.</string>
     <string name="schedule_event_delete_body_repeat">Delete \"%1$s\"? It repeats weekly, so every future week goes too. The timetable goes back to its usual layout.</string>
     <string name="schedule_event_past">Past</string>
+    <string name="schedule_overflow_title">%1$d more in this time range</string>
+    <string name="schedule_overflow_in_minutes">Starts in %1$d min</string>
+    <string name="schedule_overflow_in_hours">Starts in %1$d h %2$d min</string>
+    <string name="schedule_overflow_finished">Finished</string>
     <string name="schedule_event_group_close">Close</string>
     <plurals name="schedule_course_more_description">
         <item quantity="one">%1$d course here, tap to see it</item>

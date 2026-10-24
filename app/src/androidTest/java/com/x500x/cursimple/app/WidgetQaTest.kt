@@ -132,6 +132,131 @@ class WidgetQaTest {
         activity.finishAndWait()
     }
 
+    @Test fun transparentBackgroundKeepsContentOpaqueAndRestoresOpacity() = runBlocking {
+        val repo = (context.applicationContext as ClassScheduleApplication).appContainer.widgetPreferencesRepository
+        val old = repo.themePreferencesFlow.first()
+        try {
+            repo.clearWidgetBackgroundImage()
+            val (id, view) = bind(com.x500x.cursimple.feature.widget.CourseCapsuleWidgetReceiver::class.java, 180, 80)
+            refresh { com.x500x.cursimple.feature.widget.CourseCapsuleWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
+            capture(view, 180, 80, "capsule-opacity-before.png")
+            for (percent in listOf(0, 50, 100)) {
+                instrumentation.runOnMainSync {
+                    // Reapplying an update must also clear the old implementation's root state.
+                    view.findViewById<View>(WidgetR.id.capsule_root).apply {
+                        if (android.os.Build.VERSION.SDK_INT >= 31) alpha = 0.3f
+                        setBackgroundColor(android.graphics.Color.MAGENTA)
+                    }
+                }
+                repo.setWidgetBackgroundOpacityPercent(percent)
+                refresh { com.x500x.cursimple.feature.widget.CourseCapsuleWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
+                capture(view, 180, 80, "capsule-opacity-$percent.png")
+                instrumentation.runOnMainSync {
+                    val root = view.findViewById<View>(WidgetR.id.capsule_root)
+                    assertEquals("Background opacity must not fade the text", 1f, root.alpha)
+                    val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
+                    root.draw(Canvas(bitmap))
+                    val pixel = bitmap.getPixel(root.width / 2, root.height - (6 * context.resources.displayMetrics.density).toInt())
+                    assertTrue("The rendered background must follow the opacity setting",
+                        kotlin.math.abs(android.graphics.Color.alpha(pixel) - percent * 255 / 100) <= 1)
+                    bitmap.recycle()
+                }
+            }
+        } finally {
+            repo.setWidgetBackgroundOpacityPercent(old.backgroundOpacityPercent)
+            old.backgroundImageUri?.takeIf { old.backgroundMode == com.x500x.cursimple.core.data.widget.WidgetBackgroundMode.Image }
+                ?.let { repo.setWidgetBackgroundImageUri(it) }
+        }
+    }
+
+    @Test fun independentDarkModeColorsHeaderAndListRows() = runBlocking {
+        val repo = (context.applicationContext as ClassScheduleApplication).appContainer.widgetPreferencesRepository
+        val old = repo.themePreferencesFlow.first()
+        try {
+            repo.setWidgetBackgroundOpacityPercent(100)
+            val (id, view) = bind(com.x500x.cursimple.feature.widget.NextCourseGlanceWidgetReceiver::class.java, 330, 230)
+            for (dark in listOf(true, false)) {
+                repo.setWidgetThemeMode(if (dark) com.x500x.cursimple.core.data.widget.WidgetThemeMode.Dark else com.x500x.cursimple.core.data.widget.WidgetThemeMode.Light)
+                refresh { com.x500x.cursimple.feature.widget.NextCourseGlanceWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
+                capture(view, 330, 230, "next-independent-${if (dark) "dark" else "light"}.png")
+                instrumentation.runOnMainSync {
+                    val expected = if (dark) 0xFFE6E1E5.toInt() else 0xFF20242A.toInt()
+                    assertEquals(expected, view.findViewById<TextView>(WidgetR.id.next_course_title).currentTextColor)
+                    val list = view.findViewById<ListView>(WidgetR.id.next_course_list)
+                    assertTrue("Next-course fixture must have a row", list.childCount > 0)
+                    assertEquals(expected, list.getChildAt(0).findViewById<TextView>(WidgetR.id.next_course_name).currentTextColor)
+                    for (surface in listOf(view.findViewById<View>(WidgetR.id.widget_surface_background),
+                        list.getChildAt(0).findViewById<View>(WidgetR.id.widget_surface_background))) {
+                        assertNotNull("The card and row must both render their independent background", surface)
+                        val bitmap = Bitmap.createBitmap(surface.width, surface.height, Bitmap.Config.ARGB_8888)
+                        surface.draw(Canvas(bitmap))
+                        val background = bitmap.getPixel(bitmap.width / 2, bitmap.height / 2)
+                        assertEquals(255, android.graphics.Color.alpha(background))
+                        val contrast = androidx.core.graphics.ColorUtils.calculateContrast(expected, background)
+                        assertTrue("Unreadable independent ${if (dark) "dark" else "light"} palette: $contrast", contrast >= 4.5)
+                        bitmap.recycle()
+                    }
+                }
+            }
+        } finally {
+            repo.setWidgetThemeMode(old.widgetThemeMode)
+            repo.setWidgetBackgroundOpacityPercent(old.backgroundOpacityPercent)
+        }
+    }
+
+    @Test fun imageBackgroundBlurAndFailureKeepWidgetReadable() = runBlocking {
+        val repo = (context.applicationContext as ClassScheduleApplication).appContainer.widgetPreferencesRepository
+        val old = repo.themePreferencesFlow.first()
+        val file = File(context.filesDir, "widget-background-fixture.png")
+        val fixture = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        for (y in 0 until 64) for (x in 0 until 64) {
+            fixture.setPixel(x, y, if ((x + y) % 2 == 0) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+        }
+        file.outputStream().use { fixture.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        fixture.recycle()
+        try {
+            repo.setWidgetBackgroundOpacityPercent(100)
+            repo.setWidgetBackgroundImageTransparencyPercent(0)
+            repo.setWidgetBackgroundImageUri(android.net.Uri.fromFile(file).toString())
+            val (id, view) = bind(com.x500x.cursimple.feature.widget.CourseCapsuleWidgetReceiver::class.java, 180, 80)
+            var sharpPixel = 0
+            for (blur in listOf(false, true)) {
+                repo.setWidgetFrostedGlassEnabled(blur)
+                refresh { com.x500x.cursimple.feature.widget.CourseCapsuleWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
+                capture(view, 180, 80, "capsule-image-${if (blur) "blur" else "sharp"}.png")
+                instrumentation.runOnMainSync {
+                    val image = view.findViewById<android.widget.ImageView>(WidgetR.id.widget_background_image)
+                    assertEquals(View.VISIBLE, image.visibility)
+                    val bitmap = (image.drawable as android.graphics.drawable.BitmapDrawable).bitmap
+                    val pixel = bitmap.getPixel(bitmap.width / 2, bitmap.height / 2)
+                    if (!blur) sharpPixel = pixel
+                    else {
+                        assertTrue("Frosted background must smooth the checkerboard", pixel != sharpPixel)
+                        assertTrue(android.graphics.Color.red(pixel) in 80..180)
+                    }
+                    assertEquals(View.GONE, view.findViewById<View>(WidgetR.id.widget_background_error).visibility)
+                    assertEquals(1f, view.findViewById<View>(WidgetR.id.capsule_root).alpha)
+                }
+            }
+            repo.setWidgetBackgroundImageUri(android.net.Uri.fromFile(File(context.filesDir, "missing-widget-background.png")).toString())
+            refresh { com.x500x.cursimple.feature.widget.CourseCapsuleWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
+            capture(view, 180, 80, "capsule-image-unavailable.png")
+            instrumentation.runOnMainSync {
+                assertEquals(View.GONE, view.findViewById<View>(WidgetR.id.widget_background_image).visibility)
+                assertEquals(View.VISIBLE, view.findViewById<View>(WidgetR.id.widget_background_error).visibility)
+                assertEquals(1f, view.findViewById<View>(WidgetR.id.capsule_root).alpha)
+            }
+        } finally {
+            repo.setWidgetBackgroundOpacityPercent(old.backgroundOpacityPercent)
+            repo.setWidgetBackgroundImageTransparencyPercent(old.backgroundImageTransparencyPercent)
+            repo.setWidgetFrostedGlassEnabled(old.frostedGlassEnabled)
+            if (old.backgroundMode == com.x500x.cursimple.core.data.widget.WidgetBackgroundMode.Image && old.backgroundImageUri != null)
+                repo.setWidgetBackgroundImageUri(requireNotNull(old.backgroundImageUri))
+            else repo.clearWidgetBackgroundImage()
+            file.delete()
+        }
+    }
+
     @Test fun calendarCurrentTimeCrosshairFollowsSlotsAndWeekNavigation() = runBlocking {
         val container = (context.applicationContext as ClassScheduleApplication).appContainer
         val prefs = container.userPreferencesRepository
@@ -200,11 +325,60 @@ class WidgetQaTest {
         }
     }
 
+    @Test fun memoCanScrollPastSixtyRowsAndOpenTheLastNote() = runBlocking {
+        fun allText(view: View): List<String> = when (view) {
+            is TextView -> listOf(view.text.toString())
+            is ViewGroup -> (0 until view.childCount).flatMap { allText(view.getChildAt(it)) }
+            else -> emptyList()
+        }
+        val repo = com.x500x.cursimple.core.data.memo.DataStoreMemoRepository(context)
+        val previous = repo.notesFlow.first()
+        previous.forEach { repo.remove(it.id) }
+        val monitor = instrumentation.addMonitor(MemoTodoQuickEditActivity::class.java.name, null, false)
+        try {
+            repeat(61) { i -> repo.upsert(MemoNote("memo-scroll-$i", title = "滚动笔记 $i", body = "第 $i 条内容", updatedAt = (61 - i).toLong())) }
+            val (id, view) = bind(MemoTodoWidgetReceiver::class.java, 330, 230)
+            refresh { MemoTodoWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
+            capture(view, 330, 230, "widget-memo-sixty-one-start.png")
+            compose.waitUntil(10_000) {
+                var count = 0
+                instrumentation.runOnMainSync { count = view.findViewById<ListView>(WidgetR.id.memo_scroll_list).adapter?.count ?: 0 }
+                count == 61
+            }
+            instrumentation.runOnMainSync { view.findViewById<ListView>(WidgetR.id.memo_scroll_list).setSelection(60) }
+            compose.waitUntil(10_000) {
+                var found = false
+                instrumentation.runOnMainSync {
+                    val list = view.findViewById<ListView>(WidgetR.id.memo_scroll_list)
+                    list.measure(View.MeasureSpec.makeMeasureSpec(list.width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(list.height, View.MeasureSpec.EXACTLY))
+                    list.layout(list.left, list.top, list.right, list.bottom)
+                    found = list.lastVisiblePosition == 60 && allText(list).any { it.contains("滚动笔记 60") }
+                }
+                found
+            }
+            capture(view, 330, 230, "widget-memo-sixty-one-end.png")
+            instrumentation.runOnMainSync {
+                val list = view.findViewById<ListView>(WidgetR.id.memo_scroll_list)
+                val row = list.getChildAt(60 - list.firstVisiblePosition)
+                row.findViewById<View>(WidgetR.id.memo_row_edit).performClick()
+            }
+            val activity = instrumentation.waitForMonitorWithTimeout(monitor, 10_000)
+            assertNotNull("The last row must open its own note", activity)
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("滚动笔记 60").fetchSemanticsNodes(atLeastOneRootRequired = false).isNotEmpty() }
+            instrumentation.runOnMainSync { activity!!.finish() }
+        } finally {
+            instrumentation.removeMonitor(monitor)
+            repo.notesFlow.first().forEach { repo.remove(it.id) }
+            previous.forEach { repo.upsert(it) }
+        }
+    }
+
     @Test fun memoTodosCompleteAndEditOnTheDesktop() = runBlocking {
         ComponentWidgetAvailability.update(context, emptyList())
         assertTrue(WidgetCatalog.pickerEntries(context).any { it.id == "memo" && !it.fromComponents })
         val repo = com.x500x.cursimple.core.data.memo.DataStoreMemoRepository(context)
         val previous = repo.notesFlow.first()
+        val widgetHostScreen = ActivityScenario.launch(androidx.activity.ComponentActivity::class.java)
         previous.forEach { repo.remove(it.id) }
         val mainMonitor = instrumentation.addMonitor(MainActivity::class.java.name, null, false)
         try {
@@ -213,9 +387,16 @@ class WidgetQaTest {
                 body = "- [x] 整理代码\n- [ ] 整理实验报告\n- [ ] 提交附件", pinned = true))
             repo.upsert(MemoNote("memo-widget-plain", title = "准备参考资料", body = "带上实验讲义"))
             val (id, view) = bind(MemoTodoWidgetReceiver::class.java, 330, 230)
+            // Collection adapters need an attached host to receive layout traversals
+            // when repository observers replace their rows during desktop actions.
+            widgetHostScreen.onActivity { activity ->
+                activity.setContentView(view, ViewGroup.LayoutParams(
+                    (330 * context.resources.displayMetrics.density).toInt(),
+                    (230 * context.resources.displayMetrics.density).toInt()))
+            }
             refresh { MemoTodoWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
             capture(view, 330, 230, "widget-memo-todos.png")
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) instrumentation.runOnMainSync {
+            instrumentation.runOnMainSync {
                 // Two rows fill the widget exactly; the header must say a third waits below.
                 val subtitle = view.findViewById<android.widget.TextView>(WidgetR.id.memo_subtitle).text.toString()
                 assertEquals(AppLocale.wrap(context).getString(WidgetR.string.widget_memo_scroll_more), subtitle)
@@ -226,19 +407,11 @@ class WidgetQaTest {
             refresh { MemoTodoWidgetReceiver.updateWidgets(context, intArrayOf(smallId)) }
             capture(small, 180, 110, "widget-memo-compact.png")
             instrumentation.runOnMainSync {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                    // API 31+ keeps every open task in a scrolling list instead of fitting the first rows.
-                    val list = small.findViewById<android.widget.ListView>(WidgetR.id.memo_scroll_list)
-                    assertEquals(View.VISIBLE, list.visibility)
-                    assertEquals("Compact list must hold every open task", 3, list.adapter.count)
-                    assertTrue("Compact list must scroll to the hidden tasks", list.canScrollVertically(1))
-                    assertTrue(list.getChildAt(0).findViewById<View>(WidgetR.id.memo_checkbox).height >= 48 * context.resources.displayMetrics.density)
-                } else {
-                    val list = small.findViewById<LinearLayout>(WidgetR.id.memo_list)
-                    assertTrue("Compact checklist rendered no rows", list.childCount > 0)
-                    assertTrue("Compact checklist clipped its final row", list.getChildAt(list.childCount - 1).bottom <= list.height)
-                    assertTrue(list.getChildAt(0).findViewById<View>(WidgetR.id.memo_checkbox).height >= 48 * context.resources.displayMetrics.density)
-                }
+                val list = small.findViewById<android.widget.ListView>(WidgetR.id.memo_scroll_list)
+                assertEquals(View.VISIBLE, list.visibility)
+                assertEquals("Compact list must hold every open task", 3, list.adapter.count)
+                assertTrue("Compact list must scroll to the hidden tasks", list.canScrollVertically(1))
+                assertTrue(list.getChildAt(0).findViewById<View>(WidgetR.id.memo_checkbox).height >= 48 * context.resources.displayMetrics.density)
             }
             if (InstrumentationRegistry.getArguments().getString("memoLayoutOnly") == "true") return@runBlocking
             suspend fun confirmWidgetTask(cancelFirst: Boolean = false) {
@@ -352,6 +525,7 @@ class WidgetQaTest {
             repo.remove(created.id)
             instrumentation.removeMonitor(monitor)
         } finally {
+            widgetHostScreen.close()
             instrumentation.removeMonitor(mainMonitor)
             val previousIds = previous.map { it.id }.toSet()
             repo.notesFlow.first().filter { it.id !in previousIds }.forEach { repo.remove(it.id) }
@@ -371,6 +545,54 @@ class WidgetQaTest {
             assertNotNull("The coming course carries the live badge", label(0).background)
             assertNull("Later courses stay plain", label(1).background)
             assertTrue(list.getChildAt(0).findViewById<android.widget.TextView>(WidgetR.id.next_course_name).text.contains("程序设计"))
+        }
+    }
+
+    @Test fun capsuleCompactKeepsTimeAndUrgentBadgeReadable() = runBlocking {
+        val preferences = (context.applicationContext as ClassScheduleApplication).appContainer.userPreferencesRepository
+        try {
+            val now = LocalDateTime.of(2026, 9, 15, 11, 30)
+            preferences.setDebugForcedDateTime(now)
+            com.x500x.cursimple.core.kernel.time.BeijingTime.setForcedNow(now)
+            val (id, view) = bind(com.x500x.cursimple.feature.widget.CourseCapsuleWidgetReceiver::class.java, 100, 80)
+            refresh { com.x500x.cursimple.feature.widget.CourseCapsuleWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
+            capture(view, 100, 80, "widget-capsule-compact-urgent.png")
+            instrumentation.runOnMainSync {
+                val title = view.findViewById<TextView>(WidgetR.id.capsule_text)
+                val detail = view.findViewById<TextView>(WidgetR.id.capsule_detail)
+                val tag = view.findViewById<TextView>(WidgetR.id.capsule_tag)
+                assertEquals("程序设计", title.text.toString())
+                assertTrue(detail.text.toString().startsWith("11:35"))
+                assertTrue("Course time must occupy its own visible line", detail.height > 0 && detail.bottom <= view.height)
+                assertEquals(0xFFBA1A1A.toInt(), tag.currentTextColor)
+                val background = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
+                tag.background.setBounds(0, 0, 4, 4)
+                tag.background.draw(Canvas(background))
+                assertEquals(0xFFFBE3E3.toInt(), background.getPixel(2, 2))
+                background.recycle()
+            }
+            val later = now.withHour(12).withMinute(0)
+            preferences.setDebugForcedDateTime(later)
+            com.x500x.cursimple.core.kernel.time.BeijingTime.setForcedNow(later)
+            refresh { com.x500x.cursimple.feature.widget.CourseCapsuleWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
+            capture(view, 100, 80, "widget-capsule-compact-live.png")
+            instrumentation.runOnMainSync {
+                val tag = view.findViewById<TextView>(WidgetR.id.capsule_tag)
+                assertTrue(tag.text.contains(AppLocale.wrap(context).getString(WidgetR.string.widget_status_live)))
+                assertTrue("Urgent colors must reset", tag.currentTextColor != 0xFFBA1A1A.toInt())
+                val background = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
+                val bounds = android.graphics.Rect(tag.background.bounds)
+                tag.background.setBounds(0, 0, 4, 4)
+                tag.background.draw(Canvas(background))
+                tag.background.bounds = bounds
+                val contrast = androidx.core.graphics.ColorUtils.calculateContrast(tag.currentTextColor, background.getPixel(2, 2))
+                background.recycle()
+                assertTrue("Live badge must remain readable: $contrast", contrast >= 4.5)
+            }
+        } finally {
+            val normal = LocalDateTime.of(2026, 9, 15, 10, 0)
+            preferences.setDebugForcedDateTime(normal)
+            com.x500x.cursimple.core.kernel.time.BeijingTime.setForcedNow(normal)
         }
     }
 
@@ -490,6 +712,7 @@ class WidgetQaTest {
 
     @Test fun everyWidgetRendersAcrossSizesAndEmptyStates() = runBlocking {
         Thread.sleep(4000)
+        val widgetHostScreen = ActivityScenario.launch(androidx.activity.ComponentActivity::class.java)
         val app = context.applicationContext as ClassScheduleApplication
         val preferences = app.appContainer.userPreferencesRepository
         val widgetPreferences = app.appContainer.widgetPreferencesRepository
@@ -513,6 +736,7 @@ class WidgetQaTest {
             .replace(Regex("[^A-Za-z0-9_-]"), "_")
         val summary = org.json.JSONArray()
         val dimensions = mapOf(
+            "capsule" to listOf(100 to 80, 180 to 80, 330 to 80),
             "today" to listOf(180 to 110, 330 to 230, 420 to 280),
             "next" to listOf(180 to 110, 330 to 180, 420 to 240),
             "reminder" to listOf(180 to 110, 330 to 200, 420 to 260),
@@ -521,6 +745,7 @@ class WidgetQaTest {
         )
         suspend fun update(kind: String, id: Int) {
             when (kind) {
+                "capsule" -> com.x500x.cursimple.feature.widget.CourseCapsuleWidgetReceiver.updateWidgets(context, intArrayOf(id))
                 "today" -> com.x500x.cursimple.feature.widget.ScheduleGlanceWidgetReceiver.updateWidgets(context, intArrayOf(id))
                 "next" -> com.x500x.cursimple.feature.widget.NextCourseGlanceWidgetReceiver.updateWidgets(context, intArrayOf(id))
                 "reminder" -> com.x500x.cursimple.feature.widget.ReminderGlanceWidgetReceiver.updateWidgets(context, intArrayOf(id))
@@ -535,14 +760,38 @@ class WidgetQaTest {
                     if (node.visibility != View.VISIBLE) return
                     if (node is TextView && node.text.isNotEmpty() && node.width > 0 && node.height > 0) {
                         textCount++
+                        if (node.id == WidgetR.id.capsule_tag) {
+                            val background = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
+                            val bounds = android.graphics.Rect(node.background.bounds)
+                            node.background.setBounds(0, 0, 4, 4)
+                            node.background.draw(Canvas(background))
+                            node.background.bounds = bounds
+                            val contrast = androidx.core.graphics.ColorUtils.calculateContrast(node.currentTextColor, background.getPixel(2, 2))
+                            background.recycle()
+                            if (contrast < 4.5) issues += "$name: unreadable capsule badge contrast=$contrast"
+                        }
                         val layout = node.layout
                         val lines = minOf(layout?.lineCount ?: 0, node.maxLines)
                         if (layout != null && lines > 0 && layout.getLineBottom(lines - 1) > node.height - node.totalPaddingTop - node.totalPaddingBottom + 2) {
                             issues += "$name: clipped text ${node.resources.getResourceEntryName(node.id)} (${node.text.take(24)}) height=${node.height} padding=${node.totalPaddingTop + node.totalPaddingBottom} line=${layout.getLineBottom(lines - 1)}"
                         }
                     }
-                    if (strictList && node is ListView && node.childCount > 0 && node.getChildAt(node.childCount - 1).bottom > node.height + 2) {
-                        issues += "$name: partial final row"
+                    if (strictList && node is ListView && node.childCount > 0) {
+                        val child = node.getChildAt(node.childCount - 1)
+                        // Service adapters wrap rows and include their external bottom margin.
+                        // Check the visible card, excluding that blank trailing spacing.
+                        fun cardBottom(view: View, top: Int): Int? {
+                            if (view.id == WidgetR.id.reminder_row_root) return top + view.height
+                            if (view is ViewGroup) for (i in 0 until view.childCount) {
+                                val nested = view.getChildAt(i)
+                                cardBottom(nested, top + nested.top)?.let { return it }
+                            }
+                            return null
+                        }
+                        val bottom = cardBottom(child, child.top) ?: child.bottom
+                        if (bottom > node.height + 2) {
+                            issues += "$name: partial final row (card=$bottom, wrapper=${child.bottom}, viewport=${node.height})"
+                        }
                     }
                     if (node is ViewGroup) for (i in 0 until node.childCount) inspect(node.getChildAt(i))
                 }
@@ -556,12 +805,16 @@ class WidgetQaTest {
                 for ((index, size) in dimensions.getValue(entry.id).withIndex()) {
                     val (width, height) = size
                     val (id, view) = bind(Class.forName(entry.provider.className), width, height)
+                    widgetHostScreen.onActivity { activity ->
+                        val density = context.resources.displayMetrics.density
+                        activity.setContentView(view, ViewGroup.LayoutParams(
+                            (width * density).toInt(), (height * density).toInt()))
+                    }
                     refresh { update(entry.id, id) }
                     val name = "matrix-$profile-${entry.id}-$width-$height"
                     capture(view, width, height, "$name.png")
-                    // API 31+ memo rows scroll, so a peeking final row is intended there.
-                    val fittedMemo = entry.id == "memo" && android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S
-                    checkLayout(view, name, fittedMemo || entry.id == "reminder")
+                    // Memo rows scroll on every supported API; a peeking final row is intended.
+                    checkLayout(view, name, entry.id == "reminder")
                     if (entry.id == "reminder") instrumentation.runOnMainSync {
                         assertTrue("Reminder fixture did not produce rows", view.findViewById<ListView>(WidgetR.id.reminder_list).adapter?.count?.let { it > 0 } == true)
                     }
@@ -589,6 +842,7 @@ class WidgetQaTest {
             File(context.filesDir, "matrix-$profile-issues.txt").writeText(issues.joinToString("\n"))
             assertTrue(issues.joinToString("\n"), issues.isEmpty())
         } finally {
+            widgetHostScreen.close()
             notes.remove("matrix-note")
             oldNotes.forEach { notes.upsert(it) }
             reminderRepo.removeReminderRule("widget-matrix")
@@ -840,9 +1094,9 @@ class WidgetQaTest {
         lateinit var view: AppWidgetHostView
         instrumentation.runOnMainSync {
             view = host.createView(context, id, manager.getAppWidgetInfo(id))
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                view.updateAppWidgetSize(Bundle(), listOf(android.util.SizeF(widthDp.toFloat(), heightDp.toFloat())))
-            } else view.updateAppWidgetSize(Bundle(), widthDp, heightDp, widthDp, heightDp)
+            // The dimensions above describe widget content, as launcher options do.
+            // Exclude host padding and avoid a second options update during binding.
+            view.setPadding(0, 0, 0, 0)
         }
         return id to view
     }
@@ -864,16 +1118,48 @@ class WidgetQaTest {
     }
 
     private fun click(view: AppWidgetHostView, id: Int, waitMs: Long = 1800) {
-        instrumentation.runOnMainSync {
-            // The host view is off-screen; lay it out again so collection rows rebind to the latest data.
-            if (view.width > 0 && view.height > 0) {
-                view.measure(View.MeasureSpec.makeMeasureSpec(view.width, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(view.height, View.MeasureSpec.EXACTLY))
-                view.layout(0, 0, view.width, view.height)
+        // RemoteViews collection rows are root namespaces; parent.findViewById
+        // deliberately stops at that boundary, so inspect each visible row.
+        fun action(node: View): View? {
+            if (node.visibility != View.VISIBLE) return null
+            if (node.id == id && node.width > 0 && node.height > 0) return node
+            if (node is ViewGroup) for (index in 0 until node.childCount) {
+                action(node.getChildAt(index))?.let { return it }
             }
-            val target = view.findViewById<View>(id)
-            assertNotNull("找不到控件 $id", target)
-            target.performClick()
+            return null
+        }
+        // Off-screen collection hosts need layout to request replacement rows after refresh.
+        try { compose.waitUntil(10_000) {
+            var ready = false
+            instrumentation.runOnMainSync {
+                if (view.width > 0 && view.height > 0) {
+                    view.measure(View.MeasureSpec.makeMeasureSpec(view.width, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(view.height, View.MeasureSpec.EXACTLY))
+                    view.layout(0, 0, view.width, view.height)
+                }
+                ready = action(view) != null
+            }
+            ready
+        } } catch (error: Throwable) {
+            instrumentation.runOnMainSync {
+                val dump = StringBuilder()
+                fun inspect(node: View, depth: Int) {
+                    dump.append(" ".repeat(depth)).append(node.javaClass.simpleName)
+                        .append(" id=").append(runCatching { node.resources.getResourceEntryName(node.id) }.getOrDefault("none"))
+                        .append(" visibility=").append(node.visibility)
+                        .append(" size=").append(node.width).append('x').append(node.height)
+                    if (node is ListView) dump.append(" count=").append(node.adapter?.count).append(" children=").append(node.childCount)
+                    dump.append('\n')
+                    if (node is ViewGroup) for (index in 0 until node.childCount) inspect(node.getChildAt(index), depth + 1)
+                }
+                inspect(view, 0)
+                File(context.filesDir, "widget-click-failure.txt").writeText(dump.toString())
+            }
+            throw error
+        }
+        instrumentation.runOnMainSync {
+            val target = requireNotNull(action(view)) { "找不到控件 $id" }
+            assertTrue("控件没有响应点击 $id", target.performClick())
         }
         if (waitMs > 0) {
             Thread.sleep(waitMs)
@@ -886,6 +1172,22 @@ class WidgetQaTest {
         val w = (widthDp * density).toInt()
         val h = (heightDp * density).toInt()
         val margin = (12 * density).toInt()
+        // A service collection requests its visible rows only after its first layout.
+        compose.waitUntil(10_000) {
+            var ready = false
+            instrumentation.runOnMainSync {
+                view.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
+                view.layout(0, 0, w, h)
+                val list = view.findViewById<ListView>(WidgetR.id.memo_scroll_list)
+                ready = list == null || list.visibility != View.VISIBLE ||
+                    ((list.adapter?.count ?: 0) > 0 && list.childCount > 0 &&
+                        (0 until list.childCount).all { index ->
+                            list.getChildAt(index).findViewById<View>(WidgetR.id.memo_checkbox)?.height?.let { it > 0 } == true
+                        })
+            }
+            ready
+        }
         lateinit var bitmap: Bitmap
         instrumentation.runOnMainSync {
             if (view.layoutParams == null) view.layoutParams = ViewGroup.LayoutParams(w, h)
@@ -916,15 +1218,17 @@ class WidgetQaTest {
         lateinit var bitmap: Bitmap
         instrumentation.runOnMainSync {
             val decor = activity.window.decorView
+            assertTrue("Activity window must be visible", decor.isShown)
+            decor.invalidate()
             bitmap = Bitmap.createBitmap(decor.width, decor.height, Bitmap.Config.ARGB_8888)
             android.view.PixelCopy.request(activity.window, bitmap, { status -> result = status; ready.countDown() },
                 android.os.Handler(android.os.Looper.getMainLooper()))
         }
-        assertTrue(ready.await(5, java.util.concurrent.TimeUnit.SECONDS))
-        if (result == android.view.PixelCopy.SUCCESS) saveBitmap(bitmap, name)
+        val copied = ready.await(5, java.util.concurrent.TimeUnit.SECONDS)
+        if (copied && result == android.view.PixelCopy.SUCCESS) saveBitmap(bitmap, name)
         else {
             bitmap.recycle()
-            saveBitmap(compose.onNode(isRoot()).captureToImage().asAndroidBitmap(), name)
+            ScreenshotCapture.save(ScreenshotCapture.take(), File(context.filesDir, name))
         }
     }
 

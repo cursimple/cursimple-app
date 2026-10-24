@@ -75,7 +75,7 @@ object ClassNoticeGateway {
 
     suspend fun rescheduleEveningBriefing(app: Context, notice: ClassNoticePreferences? = null) {
         val prefs = notice ?: preferences(app)
-        if (!prefs.eveningBriefingEnabled) {
+        if (!prefs.isEnabled(ScheduledClassNoticeKind.EveningBriefing)) {
             ClassNoticeScheduler.cancelEveningBriefing(app)
             return
         }
@@ -90,7 +90,9 @@ object ClassNoticeGateway {
 
     suspend fun deliverEveningBriefing(app: Context) {
         val prefs = preferences(app)
-        if (!prefs.eveningBriefingEnabled) return
+        if (!shouldDeliverScheduledClassNotice(
+                prefs, ScheduledClassNoticeKind.EveningBriefing, ClassNoticeNotifier.canPostNotifications(app),
+            )) return
         val userPreferences = DataStoreUserPreferencesRepository(app).preferencesFlow.first()
         val termProfileRepository = DataStoreTermProfileRepository(app)
         val scheduleRepository = DataStoreScheduleRepository(app, termProfileRepository)
@@ -121,13 +123,17 @@ object ClassNoticeGateway {
         } else {
             "明天没有课程，好好休息吧！"
         }
-        ClassNoticeNotifier.notifyEveningBriefing(app, body)
-        rescheduleEveningBriefing(app, prefs)
+        // Loading tomorrow's courses can suspend; use the latest switches before posting.
+        if (shouldDeliverScheduledClassNotice(
+                preferences(app), ScheduledClassNoticeKind.EveningBriefing, ClassNoticeNotifier.canPostNotifications(app),
+            )) {
+            ClassNoticeNotifier.notifyEveningBriefing(app, body)
+        }
     }
 
     suspend fun rescheduleTransit(app: Context, notice: ClassNoticePreferences? = null) {
         val prefs = notice ?: preferences(app)
-        if (!prefs.transitReminderEnabled) {
+        if (!prefs.isEnabled(ScheduledClassNoticeKind.Transit)) {
             ClassNoticeScheduler.cancelTransitReminder(app)
             return
         }
@@ -161,7 +167,7 @@ object ClassNoticeGateway {
 
     suspend fun rescheduleExam(app: Context, notice: ClassNoticePreferences? = null) {
         val prefs = notice ?: preferences(app)
-        if (!prefs.examAlertEnabled) {
+        if (!prefs.isEnabled(ScheduledClassNoticeKind.Exam)) {
             ClassNoticeScheduler.cancelExamAlert(app)
             return
         }

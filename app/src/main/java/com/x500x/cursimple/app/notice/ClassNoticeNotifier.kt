@@ -737,13 +737,15 @@ object ClassNoticeNotifier {
         manager.createNotificationChannel(channel)
     }
 
+    internal fun canPostNotifications(context: Context): Boolean =
+        NotificationManagerCompat.from(context).areNotificationsEnabled() &&
+            (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED)
+
     fun notifyEveningBriefing(context: Context, bodyText: String) {
         val manager = NotificationManagerCompat.from(context)
-        if (!manager.areNotificationsEnabled()) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
-            PackageManager.PERMISSION_GRANTED
-        ) return
+        if (!canPostNotifications(context)) return
         ensureChannel(context)
         val openApp = PendingIntent.getActivity(
             context,
@@ -760,16 +762,16 @@ object ClassNoticeNotifier {
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
-        manager.notify(ClassNoticeScheduler.NOTIFICATION_ID_EVENING_BRIEFING, notification)
+        try {
+            manager.notify(ClassNoticeScheduler.NOTIFICATION_ID_EVENING_BRIEFING, notification)
+        } catch (error: SecurityException) {
+            ReminderLogger.warn("class_notice.evening.permission_revoked", emptyMap(), error)
+        }
     }
 
     fun notifyTransitReminder(context: Context, nextTitle: String, nextLocation: String) {
         val manager = NotificationManagerCompat.from(context)
-        if (!manager.areNotificationsEnabled()) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
-            PackageManager.PERMISSION_GRANTED
-        ) return
+        if (!canPostNotifications(context)) return
         ensureChannel(context)
         val openApp = PendingIntent.getActivity(
             context,
@@ -787,16 +789,16 @@ object ClassNoticeNotifier {
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
-        manager.notify(ClassNoticeScheduler.NOTIFICATION_ID_TRANSIT, notification)
+        try {
+            manager.notify(ClassNoticeScheduler.NOTIFICATION_ID_TRANSIT, notification)
+        } catch (error: SecurityException) {
+            ReminderLogger.warn("class_notice.transit.permission_revoked", emptyMap(), error)
+        }
     }
 
     fun notifyExamAlert(context: Context, examTitle: String, location: String, seat: String, minutesUntil: Int) {
         val manager = NotificationManagerCompat.from(context)
-        if (!manager.areNotificationsEnabled()) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
-            PackageManager.PERMISSION_GRANTED
-        ) return
+        if (!canPostNotifications(context)) return
         ensureChannel(context)
         val openApp = PendingIntent.getActivity(
             context,
@@ -815,7 +817,11 @@ object ClassNoticeNotifier {
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .build()
-        manager.notify(ClassNoticeScheduler.NOTIFICATION_ID_EXAM, notification)
+        try {
+            manager.notify(ClassNoticeScheduler.NOTIFICATION_ID_EXAM, notification)
+        } catch (error: SecurityException) {
+            ReminderLogger.warn("class_notice.exam.permission_revoked", emptyMap(), error)
+        }
     }
 
     fun systemBlocked(context: Context, preferences: ClassNoticePreferences): Boolean =

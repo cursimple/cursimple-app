@@ -116,13 +116,13 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             sizeClass: WidgetSizeClass,
             dayData: ScheduleWidgetDayData,
         ): RemoteViews {
-            val views = RemoteViews(context.packageName, R.layout.widget_schedule_today)
+            val views = RemoteViews(context.packageName, R.layout.widget_schedule_today_surface)
             // A paged-to day opens on that day; today keeps the app's own last view.
             val openDay = if (dayData.offset == 0) null else {
                 Intent().putExtra(WidgetDeepLinks.EXTRA_OPEN_SCHEDULE_DATE, dayData.targetDate.toString())
             }
 
-            views.applyWidgetBackground(context, R.id.widget_root, dayData.widgetTheme)
+            views.applyWidgetBackground(context, dayData.widgetTheme)
             views.applyOpenAppClick(context, R.id.widget_root, appWidgetId, dayData.widgetTheme, openDay)
 
             views.setTextViewText(
@@ -201,7 +201,6 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_course_list, if (hasRows) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.widget_empty, if (hasRows) View.GONE else View.VISIBLE)
             views.applyOpenAppClick(context, R.id.widget_empty, appWidgetId, dayData.widgetTheme, openDay)
-            views.applyAccentBackground(R.id.widget_empty, dayData.widgetTheme, WidgetSurfaceTone.RowVariant)
             val emptyText = dayData.moodLine ?: context.scheduleWidgetEmptyText(
                 scheduleWidgetEmptyLabel(
                     termStartMissing = dayData.termStartMissing,
@@ -212,7 +211,11 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                     showEvents = dayData.widgetTheme.showEvents,
                 ),
             )
-            views.setTextViewText(R.id.widget_empty, emptyText)
+            val empty = widgetEmptySurface(context, dayData.widgetTheme, emptyText, secondary = true)
+            empty.setTextViewTextSize(R.id.widget_empty_text, android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
+            empty.setViewPadding(R.id.widget_empty_text, 0, 0, 0, 0)
+            views.removeAllViews(R.id.widget_empty)
+            views.addView(R.id.widget_empty, empty)
             return views
         }
 

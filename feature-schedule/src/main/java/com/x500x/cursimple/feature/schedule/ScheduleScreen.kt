@@ -102,6 +102,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
@@ -1334,6 +1336,7 @@ private fun WeeklyScheduleSection(
                 androidx.compose.foundation.pager.HorizontalPager(
                     state = pagerState,
                     modifier = Modifier
+                        .testTag("schedule-week-pager")
                         .fillMaxSize()
                         .nestedScroll(edgeNestedScroll),
                     beyondViewportPageCount = 1,
@@ -1388,10 +1391,10 @@ private fun WeeklyScheduleSection(
                     }
                     val pageModifier = Modifier
                         .fillMaxSize()
+                        .testTag(if (page == pagerState.currentPage) "schedule-current-week" else "schedule-adjacent-week")
                         .graphicsLayer {
                             val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
                             val absFraction = kotlin.math.abs(pageOffset).coerceIn(0f, 1f)
-                            translationX = pageOffset * size.width * 0.12f
                             alpha = 1f - absFraction * 0.45f
                             val scale = 1f - absFraction * 0.04f
                             scaleX = scale
@@ -2583,6 +2586,9 @@ private fun ScheduleGrid(
     var addRequest by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf<GridAddRequest?>(null)
     }
+    var overflowPick by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf<Pair<DayOverflow, LocalDate>?>(null)
+    }
     val occupiedCells = androidx.compose.runtime.remember(activeEntries) {
         buildSet {
             activeEntries.forEach { entry ->
@@ -2600,15 +2606,23 @@ private fun ScheduleGrid(
         }
     }
 
-    val todayDate = LocalAppZone.current.today()
-    val todayColIndex = visibleDays.indexOfFirst { it.date == todayDate }
-    var nowTime by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(java.time.LocalTime.now()) }
-    androidx.compose.runtime.LaunchedEffect(scheduleDisplay.timelineIndicatorEnabled, isCurrentPage) {
-        if (scheduleDisplay.timelineIndicatorEnabled) {
+    val timelineZone = LocalAppZone.current
+    var timelineNow by remember(timelineZone) { mutableStateOf(BeijingTime.nowDateTimeIn(timelineZone)) }
+    androidx.compose.runtime.LaunchedEffect(scheduleDisplay.timelineIndicatorEnabled, isCurrentPage, timelineZone) {
+        if (scheduleDisplay.timelineIndicatorEnabled && isCurrentPage) {
             while (true) {
-                nowTime = java.time.LocalTime.now()
-                kotlinx.coroutines.delay(30_000)
+                timelineNow = BeijingTime.nowDateTimeIn(timelineZone)
+                kotlinx.coroutines.delay(1_000)
             }
+        }
+    }
+
+    // Which crowded course stays visible depends on the clock, so refresh it each minute on the page in view.
+    var laneNowMinute by remember(timelineZone) { mutableStateOf(BeijingTime.nowDateTimeIn(timelineZone).withSecond(0).withNano(0)) }
+    androidx.compose.runtime.LaunchedEffect(isCurrentPage, timelineZone) {
+        while (isCurrentPage) {
+            laneNowMinute = BeijingTime.nowDateTimeIn(timelineZone).withSecond(0).withNano(0)
+            kotlinx.coroutines.delay(30_000)
         }
     }
 
@@ -2657,8 +2671,15 @@ private fun ScheduleGrid(
         // Keep ordinary days at least two title characters wide when crowded days widen.
         val titleEmDp = scheduleTextStyle.courseTextSizeSp * headerDensity.fontScale
         val minColumnDp = maxOf(MIN_DAY_COLUMN_DP, titleEmDp * 2.1f + CARD_TEXT_INSET_DP)
-        // Below one title line per period (short landscape windows), one page would cut every card.
-        val minSqueezedSlotHeight = (titleEmDp * TEXT_LINE_HEIGHT_RATIO + CARD_TEXT_INSET_DP).dp
+        // Preserve both the course title and the time gutter when fitting a short window.
+        val timeLabelHeight = scheduleTextStyle.headerTextSizeSp * TEXT_LINE_HEIGHT_RATIO
+        val clockHeight = if (scheduleDisplay.nodeColumnTimeEnabled) {
+            ((scheduleTextStyle.headerTextSizeSp - 3).coerceAtLeast(8) + 2) * 2f + 2f
+        } else 0f
+        val minSqueezedSlotHeight = maxOf(
+            titleEmDp * TEXT_LINE_HEIGHT_RATIO + CARD_TEXT_INSET_DP,
+            (timeLabelHeight + clockHeight) * headerDensity.fontScale + 6f,
+        ).dp
         // Measure whether the complete period-and-event timeline fits; otherwise permit vertical scrolling.
         val periodFit = resolveScheduleGridFit(
             rowFitMode = scheduleDisplay.rowFitMode,
@@ -2670,8 +2691,13 @@ private fun ScheduleGrid(
             hasInsertedRows = timeline.hasInsertedRows,
             minSqueezedSlotHeight = minSqueezedSlotHeight,
         )
-        val fitLayout = remember(cellGroups, dayEvents, timeline, periodFit.slotHeight, dayColumnCount, gridAvailable, minColumnDp) {
-            layoutDayLanes(cellGroups, dayEvents, timeline, EVENT_MIN_HEIGHT / periodFit.slotHeight, dayColumnCount, gridAvailable.value, minColumnDp)
+        val nowUnitsByDay = remember(laneNowMinute, visibleDays, timeline) {
+            val today = laneNowMinute.toLocalDate()
+            val minuteOfDay = laneNowMinute.hour * 60 + laneNowMinute.minute
+            visibleDays.map { day -> if (day.date == today) timeline.yOf(minuteOfDay.toFloat()) else null }
+        }
+        val fitLayout = remember(cellGroups, dayEvents, timeline, periodFit.slotHeight, dayColumnCount, gridAvailable, minColumnDp, nowUnitsByDay) {
+            layoutDayLanes(cellGroups, dayEvents, timeline, EVENT_MIN_HEIGHT / periodFit.slotHeight, dayColumnCount, gridAvailable.value, minColumnDp, nowUnitsByDay)
         }
         // Rows that only fit by squeezing course names into slivers count as overflow too.
         val titleSlotHeight = remember(fitLayout, scheduleTextStyle, headerDensity.fontScale) {
@@ -2713,8 +2739,12 @@ private fun ScheduleGrid(
             if (slotHeight == periodFit.slotHeight) {
                 fitLayout
             } else {
-                layoutDayLanes(cellGroups, dayEvents, timeline, minEventUnits, dayColumnCount, gridAvailable.value, minColumnDp)
+                layoutDayLanes(cellGroups, dayEvents, timeline, minEventUnits, dayColumnCount, gridAvailable.value, minColumnDp, nowUnitsByDay)
             }
+        }
+        val hiddenItems = dayLayout.hidden
+        val foldedByDay = remember(dayLayout) {
+            dayLayout.overflows.groupBy({ it.dayIndex }, { it.count }).mapValues { it.value.sum() }
         }
         val dayEventGroups = dayLayout.dayEventGroups
         val lanes = dayLayout.lanes
@@ -2779,6 +2809,7 @@ private fun ScheduleGrid(
                         width = columnWidth(index),
                         scheduleTextStyle = scheduleTextStyle,
                         customColorsAdaptToTheme = customColorsAdaptToTheme,
+                        foldedCount = foldedByDay[index] ?: 0,
                         onDoubleTap = { onDayHeaderDoubleTap(day.date) },
                     )
                 }
@@ -2819,6 +2850,9 @@ private fun ScheduleGrid(
                     val density = androidx.compose.ui.platform.LocalDensity.current
                     val darkTheme = isDarkColorScheme()
                     val insertedTint = MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)
+                    // A faint wash on today's column makes it easy to find among narrow columns.
+                    val todayTint = MaterialTheme.colorScheme.primary.copy(alpha = 0.03f)
+                    val todayIndex = visibleDays.indexOfFirst { it.isToday }
                     val defaultOutlineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     Box(
                         modifier = Modifier
@@ -2831,6 +2865,13 @@ private fun ScheduleGrid(
                                     role = ScheduleCustomColorRole.Foreground,
                                 )
                                     .withOpacityPercent(scheduleCardStyle.gridBorderOpacityPercent)
+                                if (todayIndex >= 0) {
+                                    drawRect(
+                                        color = todayTint,
+                                        topLeft = androidx.compose.ui.geometry.Offset(columnX(todayIndex).toPx(), 0f),
+                                        size = androidx.compose.ui.geometry.Size(columnWidth(todayIndex).toPx(), size.height),
+                                    )
+                                }
                                 rows.filterIsInstance<TimelineRow.Gap>().forEach { gap ->
                                     drawRect(
                                         color = insertedTint,
@@ -2880,14 +2921,17 @@ private fun ScheduleGrid(
                             }
                             .drawWithContent {
                                 drawContent()
+                                val now = timelineNow
+                                val todayColIndex = visibleDays.indexOfFirst { it.date == now.toLocalDate() }
                                 if (scheduleDisplay.timelineIndicatorEnabled &&
+                                    isCurrentPage &&
                                     todayColIndex in 0 until dayColumnCount &&
                                     timeline.hasTimedAnchors
                                 ) {
-                                    val nowMinute = nowTime.hour * 60 + nowTime.minute
+                                    val nowMinute = now.hour * 60f + now.minute + now.second / 60f
                                     val firstMin = timeline.minMinute ?: 0
                                     val lastMin = timeline.maxMinute ?: 1440
-                                    if (nowMinute in (firstMin - 15)..(lastMin + 15)) {
+                                    if (nowMinute >= firstMin - 15 && nowMinute <= lastMin + 15) {
                                         val y = timeline.yOf(nowMinute) * slotHeight.toPx()
                                         val xStart = columnX(todayColIndex).toPx()
                                         val xEnd = xStart + columnWidth(todayColIndex).toPx()
@@ -3018,10 +3062,12 @@ private fun ScheduleGrid(
                         }
 
                         cellGroups.forEach { cell ->
+                            if (cell in hiddenItems) return@forEach
                             val sortedCourses = cell.courses
                             val count = sortedCourses.size
                             val columnDate = visibleDays.getOrNull(cell.dayIndex)?.date ?: week.weekStart
-                            val (courseTop, courseBottom) = cell.span(timeline, minEventUnits)
+                            val (courseTop, spanBottom) = cell.span(timeline, minEventUnits)
+                            val courseBottom = dayLayout.trimmedBottoms[cell] ?: spanBottom
                             val cellHeight = slotHeight * (courseBottom - courseTop) - 3.dp
                             val (cellX, cellWidth) = laneBounds(lanes[cell] ?: LanePosition(0, 1), cell.dayIndex)
                             val cellY = slotHeight * courseTop + 1.dp
@@ -3182,11 +3228,11 @@ private fun ScheduleGrid(
                         dayEventGroups.forEachIndexed { dayIndex, groups ->
                             val date = visibleDays.getOrNull(dayIndex)?.date ?: return@forEachIndexed
                             groups.forEach { group ->
-                                val (blockX, blockWidth) = laneBounds(
-                                    lanes[EventLaneKey(dayIndex, group.key)] ?: LanePosition(0, 1),
-                                    dayIndex,
-                                )
-                                val blockHeight = slotHeight * (group.bottom - group.top) - 2.dp
+                                if (EventLaneKey(dayIndex, group.key) in hiddenItems) return@forEach
+                                val eventKey = EventLaneKey(dayIndex, group.key)
+                                val (blockX, blockWidth) = laneBounds(lanes[eventKey] ?: LanePosition(0, 1), dayIndex)
+                                val groupBottom = dayLayout.trimmedBottoms[eventKey] ?: group.bottom
+                                val blockHeight = slotHeight * (groupBottom - group.top) - 2.dp
                                 val blockY = slotHeight * group.top + 1.dp
                                 // Like courses: two events split the block, more show the first above a "more" strip.
                                 val sortedEvents = group.events.sortedWith(compareBy({ it.startMinute }, { it.endMinute }))
@@ -3228,6 +3274,24 @@ private fun ScheduleGrid(
                                     }
                                 }
                             }
+                        }
+
+                        // Crowded clusters keep one item; the rest open from a "more" chip on the day's second lane.
+                        dayLayout.overflows.forEach { overflow ->
+                            val date = visibleDays.getOrNull(overflow.dayIndex)?.date ?: return@forEach
+                            val (chipX, chipWidth) = laneBounds(overflow.position, overflow.dayIndex)
+                            CourseMoreBlock(
+                                count = overflow.count,
+                                width = chipWidth,
+                                height = slotHeight * (overflow.bottom - overflow.top) - 3.dp,
+                                offsetX = chipX,
+                                offsetY = slotHeight * overflow.top + 1.dp,
+                                cornerRadius = scheduleCardStyle.courseCornerRadiusDp.dp,
+                                onClick = {
+                                    haptics.click()
+                                    overflowPick = overflow to date
+                                },
+                            )
                         }
 
                         // Retain the prior quick-add hint during fade-out rather than removing it immediately.
@@ -3316,6 +3380,25 @@ private fun ScheduleGrid(
             )
         }
 
+        overflowPick?.let { (overflow, date) ->
+            OverflowItemsDialog(
+                courses = overflow.courses,
+                events = overflow.events,
+                courseMinutes = overflow.courseMinutes,
+                nowMinute = if (date == laneNowMinute.toLocalDate()) laneNowMinute.hour * 60 + laneNowMinute.minute else null,
+                date = date,
+                onPickCourse = { picked ->
+                    overflowPick = null
+                    onCellClick(listOf(picked), date)
+                },
+                onPickEvent = { picked ->
+                    overflowPick = null
+                    onEventClick(picked, date)
+                },
+                onDismiss = { overflowPick = null },
+            )
+        }
+
         addRequest?.let { req ->
             QuickAddCourseDialog(
                 dayOfWeek = req.dayOfWeek,
@@ -3400,6 +3483,9 @@ private const val CARD_TEXT_INSET_DP = 12f
 
 /** One page is kept while every card shows at least this much of its title (about six CJK characters). */
 private const val READABLE_TITLE_EMS = 6f
+/** Grid width, in ordinary day columns per day, from which a third lane is allowed. */
+private const val WIDE_LANE_ROOM = 2.0f
+private val NARROW_CARD_WIDTH = 48.dp
 
 /** Whether the visible timetable has temporarily switched from one page to vertical scrolling. */
 object ScheduleOverflowState {
@@ -3415,7 +3501,26 @@ private class DayLaneLayout(
     val dayEventGroups: List<List<PlacedEventGroup>>,
     val lanes: Map<Any, LanePosition>,
     val columns: DayColumns,
+    /** Items of crowded clusters that are folded behind a "more" chip instead of drawn. */
+    val hidden: Set<Any> = emptySet(),
+    val overflows: List<DayOverflow> = emptyList(),
+    /** Second-lane items cut short so a "more" chip fits under them; maps to their new bottom. */
+    val trimmedBottoms: Map<Any, Float> = emptyMap(),
 )
+
+/** One "more" chip: everything that overlaps inside [top, bottom] on a day and did not fit the two lanes. */
+private class DayOverflow(
+    val dayIndex: Int,
+    val top: Float,
+    val bottom: Float,
+    val courses: List<CourseItem>,
+    val events: List<ScheduleEvent>,
+    val position: LanePosition,
+    /** When each folded course runs, by course id; absent for courses without a clock. */
+    val courseMinutes: Map<String, MinuteRange> = emptyMap(),
+) {
+    val count: Int get() = courses.size + events.size
+}
 
 /** Overlapping courses of one day, shown as a single stacked cell; [entries] starts with the one on top. */
 internal class CourseCell(val entries: List<CourseRenderEntry>) {
@@ -3465,6 +3570,8 @@ private fun layoutDayLanes(
     dayColumnCount: Int,
     availableDp: Float,
     minColumnDp: Float,
+    /** Current time in timeline units for each day that is today; decides which crowded item stays visible. */
+    nowUnitsByDay: List<Float?> = emptyList(),
 ): DayLaneLayout {
     val dayEventGroups = dayEvents.map { list ->
         val placed = list.map { event ->
@@ -3484,7 +3591,13 @@ private fun layoutDayLanes(
     // Partly overlapping course cells and event groups share a day as parallel lanes.
     val items = cellGroups.map { cell ->
         val (top, bottom) = cell.span(timeline, minEventUnits)
-        LaneItem<Any>(key = cell, top = top, bottom = bottom, order = 0) to cell.dayIndex
+        LaneItem<Any>(
+            key = cell,
+            top = top,
+            bottom = bottom,
+            order = 0,
+            priority = lanePriority(top, bottom, nowUnitsByDay.getOrNull(cell.dayIndex), cell.main.inactive),
+        ) to cell.dayIndex
     } + dayEventGroups.flatMapIndexed { dayIndex, groups ->
         groups.map { group ->
             LaneItem<Any>(
@@ -3492,12 +3605,63 @@ private fun layoutDayLanes(
                 top = group.top,
                 bottom = group.bottom,
                 order = 1,
+                priority = lanePriority(group.top, group.bottom, nowUnitsByDay.getOrNull(dayIndex)),
             ) to dayIndex
         }
     }
-    val lanes = items.groupBy({ it.second }, { it.first })
-        .values
-        .fold(emptyMap<Any, LanePosition>()) { acc, day -> acc + assignLanes(day) }
+    // A day never uses more than two lanes: crowded clusters keep the nearest items and fold the rest away.
+    val itemsByDay = items.groupBy({ it.second }, { it.first })
+    fun collapse(dayItems: List<LaneItem<Any>>, maxLanes: Int) = assignLanesCollapsing(
+        dayItems,
+        maxLanes = maxLanes,
+        chipUnits = minEventUnits,
+        minCardUnits = minEventUnits * 1.3f,
+    )
+    fun dayWeight(collapsed: CollapsedLanes<Any>) =
+        (collapsed.positions.values.maxOfOrNull { it.laneCount } ?: 1).toFloat()
+    // Two lanes per day on phones; a roomy grid (tablet, landscape) allows a third.
+    val laneCap = if (availableDp >= minColumnDp * dayColumnCount * WIDE_LANE_ROOM) WIDE_DAY_LANES else MAX_DAY_LANES
+    val wide = itemsByDay.mapValues { (_, dayItems) -> collapse(dayItems, laneCap) }
+    // A lane never gets narrower than an ordinary day column (two title characters): when the week cannot
+    // afford every busy day a second lane, the least busy ones fall back to one lane plus the chip.
+    val weights = List(dayColumnCount) { day -> wide[day]?.let(::dayWeight) ?: 1f }
+    val limits = chooseLaneLimits(
+        weights = weights,
+        itemCounts = List(dayColumnCount) { itemsByDay[it]?.size ?: 0 },
+        budgetUnits = availableDp / minColumnDp,
+        maxLanes = laneCap,
+    )
+    val lanes = HashMap<Any, LanePosition>()
+    val hidden = HashSet<Any>()
+    val trimmedBottoms = HashMap<Any, Float>()
+    val overflows = mutableListOf<DayOverflow>()
+    itemsByDay.forEach { (dayIndex, dayItems) ->
+        val limit = limits.getOrElse(dayIndex) { laneCap }
+        val collapsed = if (limit >= laneCap) wide.getValue(dayIndex) else collapse(dayItems, limit)
+        lanes += collapsed.positions
+        trimmedBottoms += collapsed.trimmedBottoms
+        collapsed.overflows.forEach { overflow ->
+            hidden.addAll(overflow.hidden)
+            val hiddenEventIds = overflow.hidden.filterIsInstance<EventLaneKey>().map { it.eventId }.toSet()
+            overflows += DayOverflow(
+                dayIndex = dayIndex,
+                top = overflow.top,
+                bottom = overflow.bottom,
+                courses = overflow.hidden.filterIsInstance<CourseCell>().flatMap { it.courses },
+                events = dayEventGroups.getOrNull(dayIndex).orEmpty()
+                    .filter { it.key in hiddenEventIds }
+                    .flatMap { it.events },
+                position = overflow.position,
+                courseMinutes = overflow.hidden.filterIsInstance<CourseCell>()
+                    .flatMap { cell -> cell.entries }
+                    .mapNotNull { entry ->
+                        timeline.courseMinutes(entry.placement.rowIndex, entry.placement.rowSpan, entry.course.clockRange())
+                            ?.let { entry.course.id to it }
+                    }
+                    .toMap(),
+            )
+        }
+    }
     val laneCounts = IntArray(dayColumnCount) { 1 }
     lanes.forEach { (key, position) ->
         val day = when (key) {
@@ -3509,7 +3673,7 @@ private fun layoutDayLanes(
     }
     // Redistribute expanded columns only while every day remains within the viewport.
     val columns = DayColumns.of(laneCounts.toList()).fitInto(availableDp = availableDp, minUnitDp = minColumnDp)
-    return DayLaneLayout(dayEventGroups, lanes, columns)
+    return DayLaneLayout(dayEventGroups, lanes, columns, hidden, overflows, trimmedBottoms)
 }
 
 /** Tallest per-period height any course card needs to show the head of its title at its lane width. */
@@ -3522,10 +3686,11 @@ private fun titleSlotHeightNeeded(
     titleSizeSp: Int,
     autoShrink: Boolean,
     fontScale: Float,
-): Float = cellGroups.maxOfOrNull { cell ->
+): Float = cellGroups.filter { it !in layout.hidden }.maxOfOrNull { cell ->
     val entry = cell.main
     val count = cell.entries.size
-    val (top, bottom) = cell.span(timeline, minEventUnits)
+    val (top, spanBottom) = cell.span(timeline, minEventUnits)
+    val bottom = layout.trimmedBottoms[cell] ?: spanBottom
     val lane = layout.lanes[cell] ?: LanePosition(0, 1)
     val cardWidth = unitWidthDp * layout.columns.width(cell.dayIndex) * laneFraction(lane).second
     val title = entry.course.titleForWeek(entry.sourceWeekIndex)
@@ -3825,11 +3990,24 @@ internal fun wrapByCharacter(text: String, maxWidth: Int, measureWidth: (String)
         while (end < codePoints.size && measureWidth(String(codePoints, start, end + 1 - start)) <= maxWidth) {
             end += 1
         }
+        // Do not cut a room number in half when a hyphen earlier on the line offers a clean break.
+        if (end < codePoints.size && isAsciiWordChar(codePoints[end - 1]) && isAsciiWordChar(codePoints[end])) {
+            val hyphen = (end - 2 downTo start + 1).firstOrNull { codePoints[it] == '-'.code }
+            if (hyphen != null) {
+                var tokenEnd = hyphen + 1
+                while (tokenEnd < codePoints.size && isAsciiWordChar(codePoints[tokenEnd])) tokenEnd += 1
+                if (tokenEnd < codePoints.size && codePoints[tokenEnd] == '-'.code) tokenEnd += 1
+                if (measureWidth(String(codePoints, hyphen + 1, tokenEnd - hyphen - 1)) <= maxWidth) end = hyphen + 1
+            }
+        }
         lines += String(codePoints, start, end - start)
         start = end
     }
     return lines.joinToString(separator = "\n")
 }
+
+private fun isAsciiWordChar(codePoint: Int): Boolean =
+    codePoint < 128 && Character.isLetterOrDigit(codePoint)
 
 /** Scale that fits a single-line location when it overflows by at most [NEAR_FIT_MIN_SCALE]. */
 internal fun nearFitLocationScale(textWidth: Int, maxWidth: Int): Float? {
@@ -3898,9 +4076,13 @@ private fun DayHeader(
     width: androidx.compose.ui.unit.Dp,
     scheduleTextStyle: ScheduleTextStylePreferences,
     customColorsAdaptToTheme: Boolean,
+    /** Courses and events folded behind this day's "more" chips; shown as a small dot. */
+    foldedCount: Int = 0,
     onDoubleTap: (() -> Unit)? = null,
 ) {
     val darkTheme = isDarkColorScheme()
+    val foldedDotColor = MaterialTheme.colorScheme.tertiary
+    val foldedDescription = if (foldedCount > 0) stringResource(R.string.schedule_overflow_title, foldedCount) else null
     val headerColor = scheduleTextStyle.resolvedHeaderTextColor(darkTheme, customColorsAdaptToTheme)
     val todayContainer = if (scheduleTextStyle.todayHeaderBackgroundColorCustomized) {
         scheduleTextStyle.resolvedTodayHeaderBackgroundColor(darkTheme, customColorsAdaptToTheme)
@@ -3916,6 +4098,13 @@ private fun DayHeader(
     val columnModifier = Modifier
         .width(width)
         .padding(horizontal = 2.dp)
+        .let {
+            if (foldedDescription == null) {
+                it
+            } else {
+                it.semantics { contentDescription = foldedDescription }
+            }
+        }
         .let {
             if (onDoubleTap == null) {
                 it
@@ -3933,6 +4122,30 @@ private fun DayHeader(
                     .padding(horizontal = 3.dp, vertical = 3.dp)
             } else {
                 it
+            }
+        }
+        .let {
+            if (foldedCount <= 0) {
+                it
+            } else {
+                val dot = if (day.isToday) todayContent else foldedDotColor
+                it.drawWithContent {
+                    drawContent()
+                    // Today's badge pads its text and rounds its corners: the dot sits at the bottom centre there.
+                    if (day.isToday) {
+                        drawCircle(
+                            color = dot,
+                            radius = 1.5.dp.toPx(),
+                            center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height + 1.5.dp.toPx()),
+                        )
+                    } else {
+                        drawCircle(
+                            color = dot,
+                            radius = 2.5.dp.toPx(),
+                            center = androidx.compose.ui.geometry.Offset(size.width - 4.dp.toPx(), 4.dp.toPx()),
+                        )
+                    }
+                }
             }
         }
     Column(
@@ -4021,6 +4234,136 @@ private fun DayHeaderTagText(
         minFontSize = 5.sp,
         modifier = modifier,
     )
+}
+
+private class OverflowRow(
+    val course: CourseItem?,
+    val event: ScheduleEvent?,
+    val start: Int?,
+    val end: Int?,
+)
+
+/** Lists what a "more" chip folded away, nearest to [nowMinute] first, so any of it can be opened. */
+@Composable
+private fun OverflowItemsDialog(
+    courses: List<CourseItem>,
+    events: List<ScheduleEvent>,
+    courseMinutes: Map<String, MinuteRange>,
+    nowMinute: Int?,
+    date: LocalDate,
+    onPickCourse: (CourseItem) -> Unit,
+    onPickEvent: (ScheduleEvent) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val rows = remember(courses, events, courseMinutes, nowMinute) {
+        val all = courses.map { OverflowRow(it, null, courseMinutes[it.id]?.start, courseMinutes[it.id]?.end) } +
+            events.map { OverflowRow(null, it, it.startMinute, it.endMinute) }
+        all.sortedBy { row ->
+            val start = row.start
+            val end = row.end
+            if (start == null || end == null) Float.MAX_VALUE else lanePriority(start.toFloat(), end.toFloat(), nowMinute?.toFloat())
+        }
+    }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text(stringResource(R.string.schedule_overflow_title, courses.size + events.size))
+                Text(
+                    text = formatPickerDate(date),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                rows.forEach { row ->
+                    val event = row.event
+                    if (event != null) {
+                        EventGroupRow(event = event, onClick = { onPickEvent(event) })
+                        return@forEach
+                    }
+                    val course = row.course ?: return@forEach
+                    androidx.compose.material3.Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onPickCourse(course) },
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(12.dp),
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = course.title,
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                val status = overflowStatusText(row.start, row.end, nowMinute)
+                                if (status != null) {
+                                    Text(
+                                        text = status.first,
+                                        modifier = Modifier.padding(start = 8.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = if (status.second) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                        fontWeight = if (status.second) FontWeight.SemiBold else FontWeight.Normal,
+                                    )
+                                }
+                            }
+                            val detail = listOfNotNull(
+                                if (row.start != null && row.end != null) clockRangeText(row.start, row.end) else null,
+                                course.location.takeIf { it.isNotBlank() },
+                                course.teacher.takeIf { it.isNotBlank() },
+                            ).joinToString(" · ")
+                            if (detail.isNotBlank()) {
+                                Text(
+                                    text = detail,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            AppOutlinedButton(onClick = onDismiss) {
+                Text(stringResource(R.string.schedule_event_group_close))
+            }
+        },
+    )
+}
+
+private fun clockRangeText(start: Int, end: Int): String =
+    "%02d:%02d–%02d:%02d".format(start / 60, start % 60, end / 60, end % 60)
+
+/** Status of a folded course relative to [nowMinute] (today only) and whether it is the live one. */
+@Composable
+private fun overflowStatusText(start: Int?, end: Int?, nowMinute: Int?): Pair<String, Boolean>? {
+    if (start == null || end == null || nowMinute == null) return null
+    return when {
+        nowMinute in start until end -> stringResource(R.string.schedule_today_current) to true
+        nowMinute < start -> {
+            val gap = start - nowMinute
+            val text = if (gap < 60) {
+                stringResource(R.string.schedule_overflow_in_minutes, gap)
+            } else {
+                stringResource(R.string.schedule_overflow_in_hours, gap / 60, gap % 60)
+            }
+            text to false
+        }
+        else -> stringResource(R.string.schedule_overflow_finished) to false
+    }
 }
 
 /** Long-press overlapping cells requires choosing the intended course first. */
@@ -4146,15 +4489,12 @@ private fun TimeCell(
         verticalArrangement = Arrangement.spacedBy(1.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
+        AutoFitHeaderText(
             text = slot.label,
             modifier = Modifier.weight(1f, fill = false),
             color = headerColor,
-            fontSize = headerSize,
+            maxFontSize = headerSize,
             fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
         )
         if (showTime) {
             Text(
@@ -4302,6 +4642,7 @@ private fun CourseBlock(
         Row(
             modifier = Modifier
                 .fillMaxSize()
+                .testTag("schedule-course-${course.id}")
                 .clip(shape)
                 .background(
                     containerColor.withOpacityPercent(
@@ -4363,14 +4704,16 @@ private fun CourseBlock(
                     .background(onColor.copy(alpha = if (inactive) 0.4f else 0.9f)),
             )
             val hasCountBadge = cellCount > 1 && !(multiSelectMode && multiSelected)
+            // Narrow lanes give up a little padding so the title keeps another character per line.
+            val sidePadding = if (width < NARROW_CARD_WIDTH) 2.dp else 3.dp
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
                     .clipToBounds()
                     .padding(
-                        start = 3.dp,
-                        end = 3.dp,
+                        start = sidePadding,
+                        end = sidePadding,
                         top = if (hasCountBadge && !verticalCentered) 16.dp else 3.dp,
                         bottom = 3.dp,
                     ),
@@ -5564,22 +5907,25 @@ internal fun shortWeekdayRes(dayOfWeek: DayOfWeek): Int = when (dayOfWeek) {
     DayOfWeek.SUNDAY -> R.string.schedule_weekday_short_sunday
 }
 
-/** Scale period-column width with labels and fonts, capped at 30 percent of available width. */
+/**
+ * Scale period-column width with labels and fonts, capped at 18 percent of available width. The label
+ * text shrinks to fit, so the column stays slim and leaves the room to the courses.
+ */
 @Composable
 private fun timeColumnWidth(availableWidth: Dp, headerTextSizeSp: Int, labels: List<String>): Dp {
     val base = when {
-        availableWidth < 360.dp -> 38.dp
-        availableWidth < 420.dp -> 42.dp
-        else -> 44.dp
+        availableWidth < 360.dp -> 28.dp
+        availableWidth < 420.dp -> 30.dp
+        else -> 32.dp
     }
     val labelWidth =
         (headerTextSizeSp * timeColumnLabelChars(labels) * TIME_COLUMN_CHAR_WIDTH_FACTOR).dp + TIME_COLUMN_PADDING
     val scale = LocalDensity.current.fontScale.coerceIn(1f, 1.8f)
-    return (maxOf(base, labelWidth) * scale).coerceAtMost(availableWidth * 0.34f)
+    return (maxOf(base, labelWidth) * scale).coerceAtMost(availableWidth * 0.18f)
 }
 
-private const val TIME_COLUMN_CHAR_WIDTH_FACTOR = 1.12f
-private val TIME_COLUMN_PADDING = 8.dp
+private const val TIME_COLUMN_CHAR_WIDTH_FACTOR = 0.72f
+private val TIME_COLUMN_PADDING = 2.dp
 
 internal data class PendingCourseDrag(
     val courseId: String,

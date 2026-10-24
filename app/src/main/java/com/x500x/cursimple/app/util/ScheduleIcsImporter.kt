@@ -10,6 +10,12 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.Duration
+import java.time.Instant
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
@@ -27,33 +33,25 @@ object ScheduleIcsImporter {
         val summary: String,
         val location: String,
         val description: String,
-        val dtStart: LocalDateTime,
-        val dtEnd: LocalDateTime,
+        val dtStart: ZonedDateTime,
+        val dtEnd: ZonedDateTime,
         val rrule: String?,
-        val exdates: List<LocalDate>,
+        val exdates: Set<Instant>,
     )
 
     fun parse(stream: InputStream): ScheduleSharePayload {
-        val content = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        val content = stream.use { String(ScheduleImportLimits.read(it), Charsets.UTF_8) }
         return parse(content)
     }
 
     fun parse(content: String): ScheduleSharePayload {
+        ScheduleImportLimits.validateText(content)
         val unfoldedLines = unfoldLines(content)
         val rawEvents = parseEvents(unfoldedLines)
-        if (rawEvents.isEmpty()) {
-            return ScheduleSharePayload(
-                schedule = TermSchedule(
-                    termId = "term-ics-${System.currentTimeMillis()}",
-                    updatedAt = LocalDate.now().toString(),
-                    dailySchedules = (1..7).map { DailySchedule(it, emptyList()) },
-                    externalImport = true,
-                ),
-            )
-        }
+        require(rawEvents.isNotEmpty()) { "ICS 文件中没有可导入的定时课程" }
 
         // Determine earliest event date as basis for term start (aligned to Monday)
-        val allDates = rawEvents.map { it.dtStart.toLocalDate() }.sorted()
+        val allDates = rawEvents.map { it.dtStart.withZoneSameInstant(BeijingTime.zone).toLocalDate() }.sorted()
         val earliestDate = allDates.first()
         val termStartMonday = earliestDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
 
@@ -78,18 +76,27 @@ object ScheduleIcsImporter {
                 event.description.contains("考试")
 
             val eventOccurrences = expandOccurrences(event, termStartMonday)
-            for (date in eventOccurrences) {
-                if (date in event.exdates) continue
+            val wallDuration = Duration.between(event.dtStart.toLocalDateTime(),
+                event.dtEnd.withZoneSameInstant(event.dtStart.zone).toLocalDateTime())
+            require(!wallDuration.isNegative && !wallDuration.isZero) { "ICS 课程结束时间必须晚于开始时间" }
+            for (sourceStart in eventOccurrences) {
+                if (sourceStart.toInstant() in event.exdates) continue
+                val start = sourceStart.withZoneSameInstant(BeijingTime.zone)
+                val end = sourceStart.toLocalDateTime().plus(wallDuration).atZone(sourceStart.zone)
+                    .withZoneSameInstant(BeijingTime.zone)
+                require(start.toLocalDate() == end.toLocalDate()) { "暂不支持跨午夜的 ICS 课程" }
+                val date = start.toLocalDate()
                 val week = ChronoUnit.WEEKS.between(termStartMonday, date).toInt() + 1
                 if (week in 1..40) {
+                    require(occurrences.size < ScheduleImportLimits.MAX_OCCURRENCES) { "课程重复次数过多" }
                     occurrences.add(
                         Occurrence(
                             title = title,
                             location = event.location,
                             teacher = teacher,
                             dayOfWeek = date.dayOfWeek.value,
-                            startTime = event.dtStart.toLocalTime(),
-                            endTime = event.dtEnd.toLocalTime(),
+                            startTime = start.toLocalTime(),
+                            endTime = end.toLocalTime(),
                             week = week,
                             isExam = isExam,
                         ),
@@ -167,6 +174,7 @@ object ScheduleIcsImporter {
                 }
                 sb.append(trimmedEnd)
             }
+            require(sb.length <= 65_536 && result.size <= 100_000) { "ICS 行数或行长度超限" }
         }
         if (sb.isNotEmpty()) {
             result.add(sb.toString())
@@ -177,30 +185,50 @@ object ScheduleIcsImporter {
     private fun parseEvents(lines: List<String>): List<RawVEvent> {
         val events = mutableListOf<RawVEvent>()
         var inEvent = false
+        var nestedDepth = 0
         var summary = ""
         var location = ""
         var description = ""
-        var dtStart: LocalDateTime? = null
-        var dtEnd: LocalDateTime? = null
+        var dtStart: ZonedDateTime? = null
+        var dtEnd: ZonedDateTime? = null
+        var duration: Duration? = null
         var rrule: String? = null
-        val exdates = mutableListOf<LocalDate>()
+        val exdates = mutableSetOf<Instant>()
+
+        require(lines.firstOrNull()?.uppercase() == "BEGIN:VCALENDAR" &&
+            lines.lastOrNull()?.uppercase() == "END:VCALENDAR") { "不是有效的 ICS 日历文件" }
 
         for (line in lines) {
             val upper = line.uppercase()
+            // Alarm descriptions and summaries belong to VALARM, not to the course.
+            if (inEvent && upper.startsWith("BEGIN:") && upper != "BEGIN:VEVENT") {
+                nestedDepth++
+                continue
+            }
+            if (nestedDepth > 0) {
+                if (upper.startsWith("END:")) nestedDepth--
+                continue
+            }
             when {
                 upper == "BEGIN:VEVENT" -> {
+                    require(!inEvent) { "ICS 事件嵌套错误" }
                     inEvent = true
                     summary = ""
                     location = ""
                     description = ""
                     dtStart = null
                     dtEnd = null
+                    duration = null
                     rrule = null
                     exdates.clear()
                 }
                 upper == "END:VEVENT" -> {
-                    if (inEvent && dtStart != null) {
-                        val validEnd = dtEnd ?: dtStart.plusMinutes(45)
+                    require(inEvent && dtStart != null) { "ICS 事件缺少有效的开始时间" }
+                    if (dtStart != null) {
+                        require(dtEnd == null || duration == null) { "ICS 结束时间与时长不能同时指定" }
+                        val validEnd = dtEnd ?: dtStart.plus(duration ?: Duration.ofMinutes(45))
+                        require(validEnd.isAfter(dtStart)) { "ICS 结束时间必须晚于开始时间" }
+                        require(events.size < ScheduleImportLimits.MAX_COURSES) { "课程数量过多" }
                         events.add(
                             RawVEvent(
                                 summary = unescape(summary),
@@ -209,7 +237,7 @@ object ScheduleIcsImporter {
                                 dtStart = dtStart,
                                 dtEnd = validEnd,
                                 rrule = rrule,
-                                exdates = exdates.toList(),
+                                exdates = exdates.toSet(),
                             ),
                         )
                     }
@@ -226,12 +254,14 @@ object ScheduleIcsImporter {
                             "SUMMARY" -> summary = propValue
                             "LOCATION" -> location = propValue
                             "DESCRIPTION" -> description = propValue
-                            "DTSTART" -> dtStart = parseDateTime(propValue)
-                            "DTEND" -> dtEnd = parseDateTime(propValue)
+                            "DTSTART" -> dtStart = parseDateTime(propValue, propKey)
+                            "DTEND" -> dtEnd = parseDateTime(propValue, propKey)
+                            "DURATION" -> duration = Duration.parse(propValue)
                             "RRULE" -> rrule = propValue
+                            "RDATE", "EXRULE", "RECURRENCE-ID" -> error("暂不支持此 ICS 例外规则：$name")
                             "EXDATE" -> {
                                 propValue.split(',').forEach { part ->
-                                    parseDateTime(part)?.toLocalDate()?.let { exdates.add(it) }
+                                    exdates.add(parseDateTime(part, propKey).toInstant())
                                 }
                             }
                         }
@@ -239,18 +269,22 @@ object ScheduleIcsImporter {
                 }
             }
         }
+        require(!inEvent) { "ICS 事件未结束" }
         return events
     }
 
-    private fun parseDateTime(raw: String): LocalDateTime? {
+    private fun parseDateTime(raw: String, property: String = "", defaultZone: ZoneId = BeijingTime.zone): ZonedDateTime {
         val clean = raw.trim().trimEnd('Z')
-        return runCatching {
-            if (clean.contains('T')) {
-                LocalDateTime.parse(clean, COMPACT_DATETIME)
-            } else {
-                LocalDate.parse(clean, COMPACT_DATE).atStartOfDay()
-            }
-        }.getOrNull()
+        require(clean.contains('T')) { "暂不支持全天 ICS 事件，请导入含上课时间的课程" }
+        val parsed = LocalDateTime.parse(clean, COMPACT_DATETIME)
+        val tzid = property.split(';').firstOrNull { it.startsWith("TZID=", ignoreCase = true) }
+            ?.substringAfter('=')?.trim('"')
+        val sourceZone = when {
+            raw.trim().endsWith('Z') -> ZoneOffset.UTC
+            tzid != null -> ZoneId.of(tzid)
+            else -> defaultZone
+        }
+        return parsed.atZone(sourceZone)
     }
 
     private fun unescape(text: String): String {
@@ -277,37 +311,47 @@ object ScheduleIcsImporter {
         return if (!description.contains("\n") && description.length <= 15) description.trim() else ""
     }
 
-    private fun expandOccurrences(event: RawVEvent, termStartMonday: LocalDate): List<LocalDate> {
+    private fun expandOccurrences(event: RawVEvent, termStartMonday: LocalDate): List<ZonedDateTime> {
         val initialDate = event.dtStart.toLocalDate()
         val rrule = event.rrule
         if (rrule.isNullOrBlank()) {
-            return listOf(initialDate)
+            return listOf(event.dtStart)
         }
 
         val rules = rrule.split(';').associate {
             val parts = it.split('=')
-            parts[0].uppercase() to parts.getOrElse(1) { "" }
+            require(parts.size == 2 && parts.all { part -> part.isNotBlank() }) { "无效的 ICS 重复规则" }
+            parts[0].uppercase() to parts[1].uppercase()
         }
 
         val freq = rules["FREQ"]
-        if (freq != "WEEKLY") {
-            return listOf(initialDate)
+        require(freq == "WEEKLY") { "暂不支持此 ICS 重复频率：$freq" }
+        require(rules.keys.all { it in setOf("FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "WKST") }) {
+            "暂不支持此 ICS 重复规则"
         }
 
-        val interval = rules["INTERVAL"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
-        val count = rules["COUNT"]?.toIntOrNull()
-        val untilDate = rules["UNTIL"]?.let { parseDateTime(it)?.toLocalDate() }
+        val interval = rules["INTERVAL"]?.let { it.toLong().also { n -> require(n > 0) { "无效的 ICS INTERVAL" } } } ?: 1L
+        val count = rules["COUNT"]?.let { it.toLong().also { n -> require(n > 0) { "无效的 ICS COUNT" } } }
+        require(count == null || rules["UNTIL"] == null) { "ICS COUNT 与 UNTIL 不能同时指定" }
+        val until = rules["UNTIL"]?.let { parseDateTime(it, defaultZone = event.dtStart.zone).toInstant() }
 
-        val dates = mutableListOf<LocalDate>()
+        val weekdays = listOf("MO", "TU", "WE", "TH", "FR", "SA", "SU")
+        val byDays = rules["BYDAY"]?.split(',')?.map {
+            require(it in weekdays) { "不支持的 ICS BYDAY：$it" }
+            weekdays.indexOf(it) + 1
+        }?.toSet() ?: setOf(initialDate.dayOfWeek.value)
+        val weekStart = rules["WKST"] ?: "MO"
+        require(weekStart in weekdays) { "无效的 ICS WKST" }
+        val firstWeek = initialDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.of(weekdays.indexOf(weekStart) + 1)))
+        val dates = mutableListOf<ZonedDateTime>()
         var curr = initialDate
-        var iter = 0
-        val maxIters = count ?: 30
-
-        while (iter < maxIters) {
-            if (untilDate != null && curr.isAfter(untilDate)) break
-            dates.add(curr)
-            curr = curr.plusWeeks(interval.toLong())
-            iter++
+        val termEnd = termStartMonday.plusWeeks(40)
+        while (dates.size.toLong() < (count ?: ScheduleImportLimits.MAX_OCCURRENCES.toLong()) && curr.isBefore(termEnd.plusDays(1))) {
+            val candidate = curr.atTime(event.dtStart.toLocalTime()).atZone(event.dtStart.zone)
+            if (until != null && candidate.toInstant().isAfter(until)) break
+            val weekIndex = ChronoUnit.WEEKS.between(firstWeek, curr)
+            if (weekIndex % interval == 0L && curr.dayOfWeek.value in byDays) dates.add(candidate)
+            curr = curr.plusDays(1)
         }
 
         return dates

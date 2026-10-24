@@ -1,5 +1,7 @@
 package com.x500x.cursimple.feature.plugin.extension
 
+import com.x500x.cursimple.feature.plugin.hardenLocalAccess
+
 import android.annotation.SuppressLint
 import android.content.Context
 import android.view.ContextThemeWrapper
@@ -33,6 +35,15 @@ object ExtensionWebViewPool {
         view.parent?.requestDisallowInterceptTouchEvent(false)
         (view.parent as? ViewGroup)?.removeView(view)
         view.stopLoading()
+        view.tag = null
+        view.webViewClient = WebViewClient()
+        view.webChromeClient = WebChromeClient()
+        view.setDownloadListener(null)
+        view.clearHistory()
+        view.settings.userAgentString = android.webkit.WebSettings.getDefaultUserAgent(view.context)
+        view.settings.javaScriptEnabled = false
+        view.settings.domStorageEnabled = false
+        view.hardenLocalAccess()
         view.removeJavascriptInterface("CurSimpleExtensionUi")
         view.loadDataWithBaseURL("https://cursimple-extension.invalid/", "<html></html>", "text/html", "UTF-8", null)
         if (pooled == null) pooled = view else view.destroy()
@@ -42,6 +53,7 @@ object ExtensionWebViewPool {
     private fun newWebView(context: Context): WebView = ComponentWebView(
         ContextThemeWrapper(context.applicationContext, context.theme),
     ).apply {
+        hardenLocalAccess()
         // Fill the assigned region so WebView percentage and vh heights remain nonzero.
         layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         settings.useWideViewPort = true

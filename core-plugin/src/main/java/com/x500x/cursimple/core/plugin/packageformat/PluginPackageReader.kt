@@ -13,32 +13,32 @@ class PluginPackageReader(
     private val maxUncompressedBytes: Long = DEFAULT_MAX_UNCOMPRESSED_BYTES,
 ) {
     fun read(bytes: ByteArray): PluginPackageLayout {
+        pluginRequire(bytes.size <= maxUncompressedBytes, R.string.plugin_error_package_size_exceeded, maxUncompressedBytes)
         val files = linkedMapOf<String, ByteArray>()
+        val paths = mutableSetOf<String>()
+        var entryCount = 0
         var totalBytes = 0L
         ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
-                if (!entry.isDirectory) {
-                    val normalizedPath = normalizePluginPackagePath(entry.name)
-                    pluginRequire(
-                        normalizedPath !in files,
-                        R.string.plugin_error_package_duplicate_file,
-                        normalizedPath,
-                    )
-                    pluginRequire(
-                        files.size < maxFileCount,
-                        R.string.plugin_error_package_file_count_exceeded,
-                        maxFileCount,
-                    )
-                    val content = pluginRequireNotNull(
-                        zip.readAtMostBytes(maxUncompressedBytes - totalBytes),
-                        R.string.plugin_error_package_size_exceeded,
-                        maxUncompressedBytes,
-                    )
-                    totalBytes += content.size.toLong()
-                    files[normalizedPath] = content
-                }
+                pluginRequire(++entryCount <= maxFileCount, R.string.plugin_error_package_file_count_exceeded, maxFileCount)
+                val normalizedPath = normalizePluginPackagePath(if (entry.isDirectory) entry.name.removeSuffix("/") else entry.name)
+                pluginRequire(paths.add(normalizedPath), R.string.plugin_error_package_duplicate_file, normalizedPath)
+                val content = pluginRequireNotNull(
+                    zip.readAtMostBytes(maxUncompressedBytes - totalBytes),
+                    R.string.plugin_error_package_size_exceeded,
+                    maxUncompressedBytes,
+                )
+                totalBytes += content.size.toLong()
+                if (!entry.isDirectory) files[normalizedPath] = content
                 zip.closeEntry()
+            }
+        }
+        files.keys.forEach { path ->
+            var parent = path.substringBeforeLast('/', "")
+            while (parent.isNotEmpty()) {
+                pluginRequire(parent !in files, R.string.plugin_error_package_illegal_path, path)
+                parent = parent.substringBeforeLast('/', "")
             }
         }
         val layout = PluginPackageLayout(normalizePackageRoot(files))
@@ -71,6 +71,7 @@ class PluginPackageReader(
 }
 
 internal fun normalizePluginPackagePath(rawPath: String): String {
+    pluginRequire(rawPath.length <= 1024 && '\u0000' !in rawPath, R.string.plugin_error_package_illegal_path, "path")
     val path = rawPath.replace('\\', '/').trim()
     pluginRequire(path.isNotBlank(), R.string.plugin_error_package_blank_path)
     pluginRequire(!path.startsWith("/"), R.string.plugin_error_package_absolute_path, rawPath)
@@ -90,7 +91,7 @@ internal fun normalizePluginPackagePath(rawPath: String): String {
 }
 
 internal fun requireSafePluginId(id: String): String {
-    pluginRequire(SAFE_PLUGIN_ID.matches(id), R.string.plugin_error_plugin_id_charset, id)
+    pluginRequire(id.length in 1..128 && id != "." && id != ".." && SAFE_PLUGIN_ID.matches(id), R.string.plugin_error_plugin_id_charset, id)
     return id
 }
 

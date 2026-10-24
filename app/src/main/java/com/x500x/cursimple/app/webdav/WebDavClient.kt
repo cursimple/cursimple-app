@@ -57,7 +57,7 @@ class WebDavClient(
         )
         return runWebDav {
             webDav(config).get(url).use { stream ->
-                stream.readBytes()
+                com.x500x.cursimple.app.util.ScheduleImportLimits.read(stream, 50 * 1024 * 1024)
             }
         }
     }

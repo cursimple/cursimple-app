@@ -1,5 +1,11 @@
 package com.x500x.cursimple.app.provider
 
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Binder
+import android.net.Uri
+import android.provider.DocumentsContract
+import android.system.OsConstants
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.ProviderInfo
@@ -18,6 +24,7 @@ import java.io.FileNotFoundException
 import com.x500x.cursimple.R
 
 class PrivateFilesDocumentsProvider : DocumentsProvider() {
+    private lateinit var authority: String
     private lateinit var packageName: String
     private lateinit var dataDir: File
     private var userDeDataDir: File? = null
@@ -30,6 +37,7 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
 
     override fun attachInfo(context: Context, info: ProviderInfo) {
         super.attachInfo(context, info)
+        authority = info.authority
         packageName = context.packageName
         appInfo = context.applicationInfo
         dataDir = requireNotNull(context.filesDir.parentFile)
@@ -95,7 +103,8 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
                 } else {
                     "$normalizedParentId/${child.name}"
                 }
-                addDocument(cursor, childId, child)
+                // A private file manager must not turn symlinks into grants outside its roots.
+                runCatching { resolveDocument(childId) }.getOrNull()?.let { addDocument(cursor, childId, it) }
             }
         return cursor
     }
@@ -106,10 +115,26 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
         signal: CancellationSignal?,
     ): ParcelFileDescriptor {
         ensureEnabled()
-        val file = resolveDocument(documentId, checkExists = false)
-            ?: throw FileNotFoundException(documentId)
-        if (file.isDirectory) throw FileNotFoundException(documentId)
-        return ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode))
+        val file = resolveDocument(documentId) ?: throw FileNotFoundException(documentId)
+        if (!file.isFile) throw FileNotFoundException(documentId)
+        val parsed = ParcelFileDescriptor.parseMode(mode)
+        var flags = when (parsed and ParcelFileDescriptor.MODE_READ_WRITE) {
+            ParcelFileDescriptor.MODE_READ_ONLY -> OsConstants.O_RDONLY
+            ParcelFileDescriptor.MODE_WRITE_ONLY -> OsConstants.O_WRONLY
+            else -> OsConstants.O_RDWR
+        }
+        if (parsed and ParcelFileDescriptor.MODE_TRUNCATE != 0) flags = flags or OsConstants.O_TRUNC
+        if (parsed and ParcelFileDescriptor.MODE_APPEND != 0) flags = flags or OsConstants.O_APPEND
+        if (android.os.Build.VERSION.SDK_INT >= 27) flags = flags or OsConstants.O_CLOEXEC
+        signal?.throwIfCanceled()
+        return try {
+            val fd = Os.open(file.path, flags or OsConstants.O_NOFOLLOW, 0)
+            try {
+                ParcelFileDescriptor.dup(fd)
+            } finally { Os.close(fd) }
+        } catch (error: android.system.ErrnoException) {
+            throw FileNotFoundException(documentId).apply { initCause(error) }
+        }
     }
 
     override fun createDocument(parentDocumentId: String, mimeType: String, displayName: String): String {
@@ -125,7 +150,8 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
     override fun deleteDocument(documentId: String) {
         ensureEnabled()
         val file = resolveDocument(documentId) ?: throw FileNotFoundException(appContext.getString(R.string.provider_root_delete_denied))
-        val deleted = if (file.isDirectory) file.deleteRecursively() else file.delete()
+        requireMutableDocument(file)
+        val deleted = deleteWithoutFollowingLinks(file)
         check(deleted) { appContext.getString(R.string.provider_delete_failed) }
     }
 
@@ -136,6 +162,7 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
     override fun renameDocument(documentId: String, displayName: String): String {
         ensureEnabled()
         val file = resolveDocument(documentId) ?: throw FileNotFoundException(appContext.getString(R.string.provider_root_rename_denied))
+        requireMutableDocument(file)
         val parent = file.parentFile ?: throw FileNotFoundException(documentId)
         val target = uniqueFile(parent, displayName.sanitizeFileName().ifBlank { file.name })
         check(file.renameTo(target)) { appContext.getString(R.string.provider_rename_failed) }
@@ -149,6 +176,7 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
     ): String {
         ensureEnabled()
         val source = resolveDocument(sourceDocumentId) ?: throw FileNotFoundException(sourceDocumentId)
+        requireMutableDocument(source)
         val targetDir = resolveDocument(targetParentDocumentId) ?: throw FileNotFoundException(targetParentDocumentId)
         if (!targetDir.isDirectory) throw FileNotFoundException(targetParentDocumentId)
         val target = File(targetDir, source.name)
@@ -162,16 +190,27 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
     }
 
     override fun isChildDocument(parentDocumentId: String, documentId: String): Boolean {
-        val parent = parentDocumentId.trimEnd('/')
-        val child = documentId.trimEnd('/')
-        return child == parent || child.startsWith("$parent/")
+        ensureEnabled()
+        return runCatching {
+            resolveDocument(parentDocumentId)
+            resolveDocument(documentId)
+            documentId == parentDocumentId || documentId.startsWith("$parentDocumentId/")
+        }.getOrDefault(false)
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
         if (!method.startsWith(MT_METHOD_PREFIX)) return super.call(method, arg, extras)
         ensureEnabled()
-        val documentId = extras?.documentIdFromUri() ?: return Bundle().withResult(false, appContext.getString(R.string.provider_missing_uri))
-        val file = resolveDocument(documentId, checkExists = false)
+        val uri = extras?.documentUri() ?: throw SecurityException("Invalid document URI")
+        val uid = Binder.getCallingUid()
+        if (uid != android.os.Process.myUid() &&
+            appContext.checkCallingPermission("android.permission.MANAGE_DOCUMENTS") != PackageManager.PERMISSION_GRANTED &&
+            appContext.checkUriPermission(uri, Binder.getCallingPid(), uid, Intent.FLAG_GRANT_WRITE_URI_PERMISSION) != PackageManager.PERMISSION_GRANTED
+        ) throw SecurityException("Write permission required")
+        val documentId = DocumentsContract.getDocumentId(uri)
+        if (method == METHOD_CREATE_SYMLINK) return Bundle().withResult(false, "Symbolic links are not supported")
+        val file = resolveDocument(documentId)
+        file?.let { requireMutableDocument(it) }
         val out = Bundle()
         when (method) {
             METHOD_SET_LAST_MODIFIED -> {
@@ -182,7 +221,9 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
             METHOD_SET_PERMISSIONS -> {
                 val target = file ?: return out.withResult(false, appContext.getString(R.string.provider_file_missing))
                 runCatching {
-                    Os.chmod(target.path, extras.getInt("permissions"))
+                    val permissions = extras.getInt("permissions")
+                    require(permissions >= 0 && permissions and 0x1C0 == permissions) { "Only owner permissions are supported" }
+                    Os.chmod(target.path, permissions)
                 }.onSuccess {
                     out.putBoolean("result", true)
                 }.onFailure {
@@ -190,16 +231,6 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
                 }
             }
 
-            METHOD_CREATE_SYMLINK -> {
-                val target = file ?: return out.withResult(false, appContext.getString(R.string.provider_file_missing))
-                runCatching {
-                    Os.symlink(extras.getString("path").orEmpty(), target.path)
-                }.onSuccess {
-                    out.putBoolean("result", true)
-                }.onFailure {
-                    out.withResult(false, it.message.orEmpty())
-                }
-            }
 
             else -> out.withResult(false, appContext.getString(R.string.provider_method_unsupported, method))
         }
@@ -258,29 +289,39 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
     }
 
     private fun resolveDocument(documentId: String, checkExists: Boolean = true): File? {
-        val normalizedId = documentId.trimEnd('/')
-        if (normalizedId == packageName) return null
-        if (!normalizedId.startsWith("$packageName/")) throw FileNotFoundException(documentId)
-        val relative = normalizedId.removePrefix("$packageName/")
-        val rootName = relative.substringBefore('/')
-        val subPath = relative.substringAfter('/', "")
-        val rootType = rootDirs.firstOrNull { it.id == rootName } ?: throw FileNotFoundException(documentId)
-        val rootDir = rootType.dir() ?: throw FileNotFoundException(documentId)
-        val target = if (subPath.isBlank()) rootDir else File(rootDir, subPath)
-        val canonicalRoot = rootDir.canonicalFile
-        val canonicalTarget = if (checkExists) {
-            target.canonicalFile
-        } else {
-            target.parentFile?.canonicalFile?.let { File(it, target.name) } ?: target.absoluteFile
+        if (documentId == packageName) return null
+        val segments = documentId.split('/')
+        if (segments.firstOrNull() != packageName || segments.size < 2 ||
+            segments.any { it.isBlank() || it == "." || it == ".." || it.contains('\u0000') || it.contains('\\') }
+        ) throw FileNotFoundException(documentId)
+        val rootType = rootDirs.firstOrNull { it.id == segments[1] } ?: throw FileNotFoundException(documentId)
+        val root = rootType.dir()?.canonicalFile ?: throw FileNotFoundException(documentId)
+        var target = root
+        for ((index, segment) in segments.drop(2).withIndex()) {
+            target = File(target, segment)
+            val stat = runCatching { Os.lstat(target.path) }.getOrNull()
+            if (stat != null && OsConstants.S_ISLNK(stat.st_mode)) throw FileNotFoundException(documentId)
+            if (stat == null && (checkExists || index != segments.size - 3)) throw FileNotFoundException(documentId)
         }
-        if (canonicalTarget != canonicalRoot && !canonicalTarget.path.startsWith(canonicalRoot.path + File.separator)) {
+        val canonicalTarget = target.canonicalFile
+        if (canonicalTarget != root && !canonicalTarget.path.startsWith(root.path + File.separator)) {
             throw FileNotFoundException(documentId)
         }
-        if (checkExists) {
-            runCatching { Os.lstat(target.path) }
-                .getOrElse { throw FileNotFoundException(documentId) }
-        }
+        if (checkExists && !target.exists()) throw FileNotFoundException(documentId)
         return target
+    }
+
+    private fun requireMutableDocument(file: File) {
+        if (rootDisplayName(file) != null) throw FileNotFoundException("Root modification denied")
+    }
+
+    private fun deleteWithoutFollowingLinks(file: File): Boolean {
+        val stat = Os.lstat(file.path)
+        if (OsConstants.S_ISDIR(stat.st_mode)) {
+            val children = file.listFiles() ?: return false
+            if (!children.all { deleteWithoutFollowingLinks(it) }) return false
+        }
+        return file.delete()
     }
 
     private fun RootType.dir(): File? = when (this) {
@@ -331,8 +372,10 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
     }
 
-    private fun String.sanitizeFileName(): String =
-        replace('/', '_').replace('\\', '_').ifBlank { "untitled" }
+    private fun String.sanitizeFileName(): String {
+        require(this != "." && this != ".." && !contains('\u0000') && length <= 255) { "Invalid file name" }
+        return replace('/', '_').replace('\\', '_').ifBlank { "untitled" }
+    }
 
     private fun String.mtExtras(): String? = runCatching {
         val stat = Os.lstat(this)
@@ -344,14 +387,11 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
         }
     }.getOrNull()
 
-    private fun Bundle.documentIdFromUri(): String? {
+    private fun Bundle.documentUri(): Uri? {
         @Suppress("DEPRECATION")
-        val uri = getParcelable<android.net.Uri>("uri") ?: return null
-        val segments = uri.pathSegments
-        return when {
-            segments.size >= 4 -> segments[3]
-            segments.size >= 2 -> segments[1]
-            else -> null
+        val uri = getParcelable<Uri>("uri") ?: return null
+        return uri.takeIf {
+            it.scheme == "content" && it.authority == authority && DocumentsContract.isDocumentUri(appContext, it)
         }
     }
 

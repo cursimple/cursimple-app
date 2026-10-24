@@ -1292,7 +1292,7 @@ private fun FootnoteText(text: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ThirdPartyImportSheet(
+internal fun ThirdPartyImportSheet(
     onDismiss: () -> Unit,
     onImportIcs: () -> Unit,
     onImportWakeUp: () -> Unit,
@@ -1308,6 +1308,7 @@ private fun ThirdPartyImportSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(top = 4.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),

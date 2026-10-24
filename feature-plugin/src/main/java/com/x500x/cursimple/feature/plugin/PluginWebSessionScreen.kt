@@ -1394,6 +1394,7 @@ private fun WebView.configurePluginWebView(
 }
 
 private fun WebView.applyPluginBrowserSettings(userAgent: String) {
+    hardenLocalAccess()
     settings.javaScriptEnabled = true
     settings.javaScriptCanOpenWindowsAutomatically = true
     settings.domStorageEnabled = true

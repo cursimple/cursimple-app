@@ -649,6 +649,10 @@
     <string name="schedule_event_delete_body">删掉「%1$s」？课表会自动恢复原来的排版。</string>
     <string name="schedule_event_delete_body_repeat">删掉「%1$s」？这是每周重复的事务，以后每一周的都会一起删掉，课表会自动恢复原来的排版。</string>
     <string name="schedule_event_past">已过去</string>
+    <string name="schedule_overflow_title">这段时间还有 %1$d 项</string>
+    <string name="schedule_overflow_in_minutes">%1$d 分钟后开始</string>
+    <string name="schedule_overflow_in_hours">%1$d 小时 %2$d 分钟后开始</string>
+    <string name="schedule_overflow_finished">已结束</string>
     <string name="schedule_event_group_close">关闭</string>
     <plurals name="schedule_course_more_description">
         <item quantity="other">这里有 %1$d 门课程，点开查看全部</item>

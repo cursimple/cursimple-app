@@ -126,6 +126,7 @@ object ClassNoticePlanner {
             for (i in 0 until classes.size - 1) {
                 val c1 = classes[i]
                 val c2 = classes[i + 1]
+                if (c2.startAt.isBefore(c1.endAt)) continue
                 val loc1 = c1.displayLocation().trim()
                 val loc2 = c2.displayLocation().trim()
                 if (loc1.isNotEmpty() && loc2.isNotEmpty() && loc1 != loc2) {

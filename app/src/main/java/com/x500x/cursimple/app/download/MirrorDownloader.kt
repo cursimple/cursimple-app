@@ -436,6 +436,7 @@ class MirrorDownloader(
 
     private fun readBytes(input: InputStream, contentLength: Long, onProgress: (Long, Long) -> Unit): ByteArray {
         val total = contentLength.takeIf { it >= 0L } ?: -1L
+        if (total > MAX_IN_MEMORY_BYTES) throw IOException("Response exceeds in-memory download limit")
         if (Thread.currentThread().isInterrupted) throw CancellationException("Download cancelled")
         onProgress(0L, total)
         val output = ByteArrayOutputStream()
@@ -447,6 +448,7 @@ class MirrorDownloader(
             val read = input.read(buffer)
             if (Thread.currentThread().isInterrupted) throw CancellationException("Download cancelled")
             if (read < 0) break
+            if (downloaded + read > MAX_IN_MEMORY_BYTES) throw IOException("Response exceeds in-memory download limit")
             output.write(buffer, 0, read)
             downloaded += read
             val now = System.nanoTime() / 1_000_000L
@@ -474,7 +476,9 @@ class MirrorDownloader(
                 try {
                     val text = response.use {
                         check(it.isSuccessful) { "HTTP ${it.code}" }
-                        it.body.string()
+                        val body = it.body
+                        val bytes = body.byteStream().use { input -> readBytes(input, body.contentLength()) { _, _ -> } }
+                        bytes.toString(body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8)
                     }
                     if (continuation.isActive) continuation.resume(text)
                 } catch (error: Exception) {
@@ -560,6 +564,7 @@ class MirrorDownloader(
     }
 
     private companion object {
+        private const val MAX_IN_MEMORY_BYTES = 64L * 1024 * 1024
         const val NETWORK_TIMEOUT_MILLIS = 8_000
         const val PROBE_TIMEOUT_MILLIS = 4_000
         private const val DOWNLOAD_BUFFER_BYTES = 64 * 1024

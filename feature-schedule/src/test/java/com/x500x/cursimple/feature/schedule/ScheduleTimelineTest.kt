@@ -249,4 +249,120 @@ class ScheduleTimelineTest {
         val tiny = DayColumns.of(listOf(2, 1, 1, 1, 1, 1, 1)).fitInto(250f, 36f)
         assertTrue(tiny.isUniform)
     }
+
+    @Test
+    fun collapsing_twoOverlapsKeepTwoLanesAndNothingFolds() {
+        val result = assignLanesCollapsing(
+            listOf(LaneItem("a", 0f, 2f, 0), LaneItem("b", 1f, 3f, 0), LaneItem("c", 3f, 4f, 0)),
+        )
+        assertEquals(LanePosition(0, 2), result.positions["a"])
+        assertEquals(LanePosition(1, 2), result.positions["b"])
+        // c starts after both end, so it is a new cluster and takes the full width again.
+        assertEquals(LanePosition(0, 1), result.positions["c"])
+        assertTrue(result.overflows.isEmpty())
+        assertTrue(result.trimmedBottoms.isEmpty())
+    }
+
+    @Test
+    fun collapsing_threeAtOnceKeepsTwoNearestAndFoldsTheRest() {
+        val result = assignLanesCollapsing(
+            listOf(
+                LaneItem("early", 0f, 3f, 0, priority = 5f),
+                LaneItem("now", 1f, 3f, 0, priority = 0f),
+                LaneItem("late", 2f, 4f, 0, priority = 9f),
+            ),
+        )
+        // Nearest on the left, next nearest on the right, the last one behind the chip below it.
+        assertEquals(LanePosition(0, MAX_DAY_LANES), result.positions["now"])
+        assertEquals(LanePosition(1, MAX_DAY_LANES), result.positions["early"])
+        assertEquals(2, result.positions.size)
+        val chip = result.overflows.single()
+        assertEquals(listOf("late"), chip.hidden)
+        assertEquals(4f, chip.bottom)
+        assertEquals(3.5f, chip.top)
+        assertTrue(result.trimmedBottoms.isEmpty())
+    }
+
+    @Test
+    fun collapsing_rightCardIsCutShortToMakeRoomForTheChip() {
+        // "a" and "d" do not overlap, so both stay in the left lane; "b" takes the right lane, "c" folds.
+        val result = assignLanesCollapsing(
+            listOf(
+                LaneItem("a", 0f, 2f, 0, priority = 0f),
+                LaneItem("b", 1f, 4f, 0, priority = 3f),
+                LaneItem("c", 1f, 4f, 0, priority = 4f),
+                LaneItem("d", 3f, 4f, 0, priority = 1f),
+            ),
+        )
+        assertEquals(LanePosition(0, MAX_DAY_LANES), result.positions["a"])
+        assertEquals(LanePosition(0, MAX_DAY_LANES), result.positions["d"])
+        assertEquals(LanePosition(1, MAX_DAY_LANES), result.positions["b"])
+        assertEquals(listOf("c"), result.overflows.single().hidden)
+        assertEquals(3.5f, result.trimmedBottoms["b"])
+    }
+
+    @Test
+    fun collapsing_rightCardTooShortForTheChipFoldsInstead() {
+        val result = assignLanesCollapsing(
+            listOf(LaneItem("x1", 0f, 1f, 0), LaneItem("x2", 0f, 1f, 0), LaneItem("x3", 0f, 1f, 0), LaneItem("y", 5f, 6f, 0)),
+        )
+        assertEquals(LanePosition(0, 2), result.positions["x1"])
+        assertEquals(LanePosition(0, 1), result.positions["y"])
+        assertEquals(setOf("x2", "x3"), result.overflows.single().hidden.toSet())
+    }
+
+    @Test
+    fun collapsing_singleLaneKeepsNearestFullWidthAndFoldsTheRest() {
+        val result = assignLanesCollapsing(
+            listOf(LaneItem("a", 0f, 3f, 0), LaneItem("b", 1f, 3f, 0), LaneItem("c", 2f, 4f, 0)),
+            maxLanes = 1,
+        )
+        assertEquals(LanePosition(0, 1), result.positions["a"])
+        assertEquals(setOf("b", "c"), result.overflows.single().hidden.toSet())
+        assertEquals(LanePosition(0, 1), result.overflows.single().position)
+    }
+
+    @Test
+    fun laneLimits_dropTheLeastBusyDaysFirstUntilTheWeekFits() {
+        val weights = listOf(1f, 2f, 2f, 1f, 2f)
+        val counts = listOf(0, 3, 5, 0, 4)
+        // The week needs eight units but only six fit: the two least busy wide days give up their second lane.
+        assertEquals(listOf(2, 1, 2, 2, 1), chooseLaneLimits(weights, counts, budgetUnits = 6f))
+        // Plenty of room keeps every day as is.
+        assertEquals(List(5) { 2 }, chooseLaneLimits(weights, counts, budgetUnits = 20f))
+    }
+
+    @Test
+    fun collapsing_wideGridKeepsThreeLanesAndFoldsTheFourth() {
+        val result = assignLanesCollapsing(
+            listOf(
+                LaneItem("a", 0f, 4f, 0), LaneItem("b", 0f, 4f, 0), LaneItem("c", 0f, 4f, 0), LaneItem("d", 0f, 4f, 0),
+            ),
+            maxLanes = 3,
+        )
+        assertEquals(setOf(0, 1, 2), result.positions.values.map { it.lane }.toSet())
+        assertTrue(result.positions.values.all { it.laneCount == 3 })
+        assertEquals(LanePosition(2, 3), result.overflows.single().position)
+        assertEquals(listOf("d"), result.overflows.single().hidden)
+    }
+
+    @Test
+    fun laneLimits_wideGridDropsOneLaneAtATime() {
+        // Three busy days need nine units but only eight fit: the least busy loses one lane, not two.
+        assertEquals(listOf(3, 2, 3), chooseLaneLimits(listOf(3f, 3f, 3f), listOf(5, 2, 4), budgetUnits = 8f, maxLanes = 3))
+    }
+
+    @Test
+    fun lanePriority_prefersOngoingThenUpcomingThenFinished() {
+        val ongoing = lanePriority(top = 2f, bottom = 4f, nowUnits = 3f)
+        val upcoming = lanePriority(top = 6f, bottom = 8f, nowUnits = 3f)
+        val soonerUpcoming = lanePriority(top = 4f, bottom = 5f, nowUnits = 3f)
+        val finished = lanePriority(top = 0f, bottom = 1f, nowUnits = 3f)
+        assertTrue(ongoing < soonerUpcoming)
+        assertTrue(soonerUpcoming < upcoming)
+        assertTrue(upcoming < finished)
+        // Another day has no clock, so the earliest start wins; inactive courses always go last.
+        assertTrue(lanePriority(1f, 2f, null) < lanePriority(2f, 3f, null))
+        assertTrue(lanePriority(9f, 10f, 3f) < lanePriority(2f, 4f, 3f, inactive = true))
+    }
 }

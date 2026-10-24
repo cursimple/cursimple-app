@@ -46,7 +46,7 @@ private class NextCourseListFactory(
 
     override fun getViewAt(position: Int): RemoteViews {
         val data = rows.getOrNull(position)
-            ?: return RemoteViews(context.packageName, R.layout.widget_next_course_row)
+            ?: return RemoteViews(context.packageName, R.layout.widget_next_course_row_surface)
         return buildNextCourseRow(context, data, themeAccent, widgetTheme)
     }
 
@@ -66,12 +66,12 @@ internal fun buildNextCourseRow(
     themeAccent: ThemeAccent,
     widgetTheme: WidgetThemePreferences,
 ): RemoteViews {
-    val row = RemoteViews(context.packageName, R.layout.widget_next_course_row)
+    val row = RemoteViews(context.packageName, R.layout.widget_next_course_row_surface)
     // The live or next course stands out like the timetable widget's live row. Launchers reuse rows, so set both states.
     row.applyAccentBackground(
-        R.id.next_course_row_root,
         widgetTheme,
         if (data.isFocus) WidgetSurfaceTone.RowVariant else WidgetSurfaceTone.Row,
+        isDark = resolveWidgetIsDark(context, widgetTheme.widgetThemeMode),
     )
     row.applyOpenAppFillInIntent(R.id.next_course_row_root, widgetTheme)
     row.setTextViewText(R.id.next_course_label, data.label)
@@ -89,9 +89,10 @@ internal fun buildNextCourseRow(
         R.id.next_course_period,
         widgetSlotCellText(data.slotLabel, data.nodeNumbers, fallback = data.period),
     )
-    row.setTextColor(R.id.next_course_period, widgetAccentTextColor(widgetTheme))
+    row.setTextColor(R.id.next_course_period, widgetAccentTextColor(widgetTheme, resolveWidgetIsDark(context, widgetTheme.widgetThemeMode)))
     row.setTextViewText(R.id.next_course_name, data.title)
     row.setTextViewText(R.id.next_course_time, data.time)
     row.setTextViewText(R.id.next_course_sub, data.sub)
+    row.applyWidgetTextColors(context, widgetTheme)
     return row
 }

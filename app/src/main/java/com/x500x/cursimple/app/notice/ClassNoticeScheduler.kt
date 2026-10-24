@@ -386,38 +386,46 @@ class ClassNoticeReceiver : BroadcastReceiver() {
             if (id != 0) ClassNoticeNotifier.cancel(context, id) else ClassNoticeNotifier.cancel(context)
             return
         }
-        if (intent.action == ClassNoticeScheduler.ACTION_EVENING_BRIEFING) {
+        val kind = when (intent.action) {
+            ClassNoticeScheduler.ACTION_EVENING_BRIEFING -> ScheduledClassNoticeKind.EveningBriefing
+            ClassNoticeScheduler.ACTION_TRANSIT -> ScheduledClassNoticeKind.Transit
+            ClassNoticeScheduler.ACTION_EXAM -> ScheduledClassNoticeKind.Exam
+            else -> null
+        }
+        if (kind != null) {
+            val app = context.applicationContext
             val pending = goAsync()
             CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
                 try {
-                    ClassNoticeGateway.deliverEveningBriefing(context.applicationContext)
+                    if (kind == ScheduledClassNoticeKind.EveningBriefing) {
+                        ClassNoticeGateway.deliverEveningBriefing(app)
+                    } else if (shouldDeliverScheduledClassNotice(
+                            ClassNoticeGateway.preferences(app), kind, ClassNoticeNotifier.canPostNotifications(app),
+                        )) {
+                        if (kind == ScheduledClassNoticeKind.Transit) {
+                            val title = intent.getStringExtra(ClassNoticeScheduler.EXTRA_TRANSIT_TITLE).orEmpty()
+                            val location = intent.getStringExtra(ClassNoticeScheduler.EXTRA_TRANSIT_LOCATION).orEmpty()
+                            if (title.isNotBlank()) ClassNoticeNotifier.notifyTransitReminder(app, title, location)
+                        } else {
+                            val title = intent.getStringExtra(ClassNoticeScheduler.EXTRA_EXAM_TITLE).orEmpty()
+                            val location = intent.getStringExtra(ClassNoticeScheduler.EXTRA_EXAM_LOCATION).orEmpty()
+                            val seat = intent.getStringExtra(ClassNoticeScheduler.EXTRA_EXAM_SEAT).orEmpty()
+                            val minutes = intent.getIntExtra(ClassNoticeScheduler.EXTRA_EXAM_MINUTES, 45)
+                            if (title.isNotBlank()) ClassNoticeNotifier.notifyExamAlert(app, title, location, seat, minutes)
+                        }
+                    }
+                } catch (error: Throwable) {
+                    ReminderLogger.warn("class_notice.deliver.failure", mapOf("kind" to kind), error)
                 } finally {
-                    pending.finish()
+                    // Re-read all settings under the scheduling lock; preserve other enabled notices.
+                    try {
+                        ClassNoticeGateway.reschedule(app)
+                    } catch (error: Throwable) {
+                        ReminderLogger.warn("class_notice.reschedule.failure", mapOf("kind" to kind), error)
+                    } finally {
+                        pending.finish()
+                    }
                 }
-            }
-            return
-        }
-        if (intent.action == ClassNoticeScheduler.ACTION_TRANSIT) {
-            val title = intent.getStringExtra(ClassNoticeScheduler.EXTRA_TRANSIT_TITLE).orEmpty()
-            val location = intent.getStringExtra(ClassNoticeScheduler.EXTRA_TRANSIT_LOCATION).orEmpty()
-            if (title.isNotBlank()) {
-                ClassNoticeNotifier.notifyTransitReminder(context, title, location)
-            }
-            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
-                runCatching { ClassNoticeGateway.rescheduleTransit(context.applicationContext) }
-            }
-            return
-        }
-        if (intent.action == ClassNoticeScheduler.ACTION_EXAM) {
-            val title = intent.getStringExtra(ClassNoticeScheduler.EXTRA_EXAM_TITLE).orEmpty()
-            val location = intent.getStringExtra(ClassNoticeScheduler.EXTRA_EXAM_LOCATION).orEmpty()
-            val seat = intent.getStringExtra(ClassNoticeScheduler.EXTRA_EXAM_SEAT).orEmpty()
-            val minutes = intent.getIntExtra(ClassNoticeScheduler.EXTRA_EXAM_MINUTES, 45)
-            if (title.isNotBlank()) {
-                ClassNoticeNotifier.notifyExamAlert(context, title, location, seat, minutes)
-            }
-            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
-                runCatching { ClassNoticeGateway.rescheduleExam(context.applicationContext) }
             }
             return
         }
@@ -458,14 +466,20 @@ class ClassNoticeReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             try {
+                val theme = ClassNoticeGateway.theme(app)
                 val preferences = ClassNoticeGateway.preferences(app)
-                if (!preferences.enabled) return@launch
+                if (!shouldDeliverScheduledClassNotice(
+                        preferences, ScheduledClassNoticeKind.Course, ClassNoticeNotifier.canPostNotifications(app),
+                    )) {
+                    ClassNoticeGateway.reschedule(app)
+                    return@launch
+                }
                 if (stale) {
                     ReminderLogger.info("class_notice.deliver.skip_stale", mapOf("course" to content.courseTitle))
                     ClassNoticeGateway.reschedule(app)
                     return@launch
                 }
-                ClassNoticeNotifier.notify(app, content, preferences, ClassNoticeGateway.theme(app), forward = true)
+                ClassNoticeNotifier.notify(app, content, preferences, theme, forward = true)
                 if (!content.inProgress) {
                     ClassNoticeScheduler.recordLastPosted(app, key)
                 }

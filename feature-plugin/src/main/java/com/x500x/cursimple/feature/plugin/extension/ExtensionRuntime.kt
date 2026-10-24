@@ -1,5 +1,7 @@
 package com.x500x.cursimple.feature.plugin.extension
 
+import com.x500x.cursimple.feature.plugin.hardenLocalAccess
+
 import android.annotation.SuppressLint
 import android.content.Context
 import android.webkit.CookieManager
@@ -120,6 +122,7 @@ class ExtensionRuntime(
         val nativeScope = CoroutineScope(coroutineContext + nativeJob)
         var injected = false
         try {
+            webView.hardenLocalAccess()
             webView.settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
@@ -297,11 +300,12 @@ object ExtensionUrls {
 
     fun isAllowed(url: String, allowedHosts: List<String>): Boolean {
         val uri = runCatching { URI(url) }.getOrNull() ?: return false
-        if (uri.scheme != "https") return false
+        if (uri.scheme != "https" || uri.rawUserInfo != null) return false
         val host = uri.host?.lowercase() ?: return false
         return allowedHosts.any { allowed ->
             val normalized = allowed.trim().lowercase()
-            host == normalized || host.endsWith(".$normalized")
+            normalized.isNotEmpty() && normalized.matches(Regex("[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?")) &&
+                (host == normalized || host.endsWith(".$normalized"))
         }
     }
 
@@ -358,9 +362,9 @@ internal fun buildExtensionScript(request: ExtensionRunRequest, token: String, u
   }
   function hostAllowed(url) {
     var host;
-    try { var u = new URL(url, location.href); if (u.protocol !== "https:") return false; host = u.hostname.toLowerCase(); }
+    try { var u = new URL(url, location.href); if (u.protocol !== "https:" || u.username || u.password) return false; host = u.hostname.toLowerCase(); }
     catch (_) { return false; }
-    return CONFIG.allowedHosts.some(function (h) { h = String(h).toLowerCase(); return host === h || host.endsWith("." + h); });
+    return CONFIG.allowedHosts.some(function (h) { h = String(h).trim().toLowerCase(); return /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(h) && (host === h || host.endsWith("." + h)); });
   }
   function log(level, args) {
     var text;

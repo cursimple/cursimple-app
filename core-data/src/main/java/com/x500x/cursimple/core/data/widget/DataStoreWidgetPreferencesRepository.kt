@@ -382,11 +382,7 @@ class DataStoreWidgetPreferencesRepository(
         var previousImageUri: String? = null
         store.edit { preferences ->
             previousImageUri = preferences[KEY_WIDGET_BACKGROUND_IMAGE_URI]
-            preferences.remove(KEY_WIDGET_THEME_ACCENT)
-            preferences.remove(KEY_WIDGET_BACKGROUND_MODE)
-            preferences.remove(KEY_WIDGET_BACKGROUND_IMAGE_URI)
-            preferences.remove(KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK)
-            preferences.remove(KEY_WIDGET_SHOW_EVENTS)
+            preferences.removeWidgetThemePreferences()
         }
         releasePersistedReadPermission(previousImageUri)
     }
@@ -413,7 +409,7 @@ class DataStoreWidgetPreferencesRepository(
         }
     }
 
-    private companion object {
+    internal companion object {
         val KEY_WIDGET_DAY_OFFSET = intPreferencesKey("widget_day_offset")
         val KEY_WIDGET_DAY_OFFSET_ANCHOR = stringPreferencesKey("widget_day_offset_anchor")
         val KEY_TIMING_PROFILE_JSON = stringPreferencesKey("widget_timing_profile_json")
@@ -436,6 +432,17 @@ class DataStoreWidgetPreferencesRepository(
 
         /** Shared-offset instance ID, matching INVALID_APPWIDGET_ID. */
         const val SHARED_WIDGET_ID = 0
+
+        internal fun MutablePreferences.removeWidgetThemePreferences() {
+            remove(KEY_WIDGET_THEME_ACCENT)
+            remove(KEY_WIDGET_BACKGROUND_MODE)
+            remove(KEY_WIDGET_BACKGROUND_IMAGE_URI)
+            remove(KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK)
+            remove(KEY_WIDGET_SHOW_EVENTS)
+            remove(KEY_WIDGET_BACKGROUND_OPACITY_PERCENT)
+            remove(KEY_WIDGET_FROSTED_GLASS_ENABLED)
+            remove(KEY_WIDGET_THEME_MODE)
+        }
 
         fun widgetDayOffsetKey(appWidgetId: Int) = intPreferencesKey("widget_day_offset__$appWidgetId")
 

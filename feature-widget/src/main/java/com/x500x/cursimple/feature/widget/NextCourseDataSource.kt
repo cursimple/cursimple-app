@@ -14,11 +14,15 @@ import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import com.x500x.cursimple.core.data.widget.courseSlotLabelText
 import com.x500x.cursimple.core.data.widget.resolveAccent
 import com.x500x.cursimple.core.kernel.model.CourseCategory
+import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.allCoursesWith
+import com.x500x.cursimple.core.kernel.model.typedClock
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import kotlinx.coroutines.flow.first
 import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 internal data class NextCourseRow(
     val id: String,
@@ -34,6 +38,8 @@ internal data class NextCourseRow(
      * Optional numeric span when the timing profile supplies a slot; otherwise use [period].
      */
     val nodeNumbers: String = "",
+    val startAt: LocalDateTime? = null,
+    val endAt: LocalDateTime? = null,
 ) {
     val stableId: Long = id.hashCode().toLong()
 }
@@ -46,6 +52,18 @@ internal data class NextCourseWidgetData(
     val rows: List<NextCourseRow>,
 ) {
     val themeAccent: ThemeAccent = widgetTheme.themeAccent
+}
+
+internal fun nextCourseDateTimes(
+    course: CourseItem,
+    timingProfile: TermTimingProfile?,
+    targetDate: LocalDate,
+): Pair<LocalDateTime, LocalDateTime>? {
+    val typed = course.typedClock()
+    val start = typed?.first ?: timingProfile?.courseStartTime(course) ?: return null
+    val end = typed?.second ?: timingProfile?.courseEndTime(course) ?: return null
+    if (!start.isBefore(end)) return null
+    return targetDate.atTime(start) to targetDate.atTime(end)
 }
 
 internal object NextCourseDataSource {
@@ -122,8 +140,8 @@ internal object NextCourseDataSource {
         val badgeText: String? = when {
             live != null -> appContext.getString(R.string.widget_status_live)
             firstUpcoming != null -> {
-                val startTime = timingProfile?.courseStartTime(firstUpcoming)
-                val mins = startTime?.let { Duration.between(now, it).toMinutes() }
+                val startAt = nextCourseDateTimes(firstUpcoming, timingProfile, targetDate)?.first
+                val mins = startAt?.let { Duration.between(today.atTime(now), it).toMinutes() }
                 if (mins != null && mins in 1..600) appContext.countdownText(mins) else null
             }
             else -> null
@@ -188,7 +206,8 @@ internal object NextCourseDataSource {
         val rows = visibleEntries.map { entry ->
             val course = entry.course
             val period = appContext.widgetNodeRangeText(course.time.startNode, course.time.endNode)
-            val timeRange = timingProfile?.courseClockRange(course, separator = " – ") ?: period
+            val dateTimes = nextCourseDateTimes(course, timingProfile, targetDate)
+            val timeRange = dateTimes?.let { "${it.first.toLocalTime()} – ${it.second.toLocalTime()}" } ?: period
             val exam = course.category == CourseCategory.Exam
             val label = appContext.getString(widgetCourseStatusRes(entry.status, exam))
             val sub = listOf(course.location, course.teacher)
@@ -210,6 +229,8 @@ internal object NextCourseDataSource {
                     course.time.endNode,
                 ),
                 nodeNumbers = widgetNodeNumbersText(timingProfile, course.time.startNode, course.time.endNode),
+                startAt = dateTimes?.first,
+                endAt = dateTimes?.second,
             )
         }
 

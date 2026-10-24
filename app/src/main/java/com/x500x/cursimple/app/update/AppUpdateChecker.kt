@@ -257,7 +257,7 @@ class AppUpdateChecker(
         }
         return connection.use { conn ->
             if (conn.responseCode != 200) return@use null
-            val body = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            val body = conn.inputStream.use { readUpdateBody(it) }
             val json = runCatching { JSONObject(body) }.getOrNull() ?: return@use null
             if (json.optBoolean("noRelease", false)) return@use UpdateFeed.NoRelease
             json.takeIf {
@@ -551,10 +551,15 @@ class AppUpdateChecker(
             UpdateSourceResponse(
                 sourceName = candidate.sourceName,
                 statusCode = status,
-                body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty(),
+                body = stream?.use { readUpdateBody(it) }.orEmpty(),
                 latencyMillis = Long.MAX_VALUE,
             )
         }
+    }
+
+    private fun readUpdateBody(stream: java.io.InputStream): String {
+        val limits = com.x500x.cursimple.app.util.ScheduleImportLimits
+        return limits.read(stream).toString(Charsets.UTF_8).also { limits.validateText(it, json = true) }
     }
 
     private fun isJsonObjectBody(body: String): Boolean =

@@ -3,7 +3,20 @@
     android:id="@+id/memo_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_bg_card">
+    android:background="@drawable/widget_bg_card_outline"
+    android:clipToOutline="true"
+    android:foreground="@drawable/widget_bg_card_ripple">
+
+    <ImageView
+        android:id="@+id/widget_surface_background"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no"
+        android:contentDescription="@null"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_bg_card_tintable" />
 
     <ImageView
         android:id="@+id/widget_background_image"

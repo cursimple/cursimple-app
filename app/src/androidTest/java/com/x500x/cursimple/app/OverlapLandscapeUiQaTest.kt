@@ -2,6 +2,9 @@ package com.x500x.cursimple.app
 
 import android.app.UiAutomation
 import androidx.compose.ui.test.*
+import org.junit.Before
+import org.junit.After
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import com.x500x.cursimple.app.theme.ClassScheduleTheme
@@ -33,7 +36,9 @@ class OverlapLandscapeUiQaTest {
     private val args get() = InstrumentationRegistry.getArguments()
     private val context get() = instrumentation.targetContext
 
-    private val monday = LocalDate.now(ZoneId.systemDefault()).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    private val monday = LocalDate.of(2026, 9, 14)
+    @Before fun fixedClock() { BeijingTime.setForcedNow(monday.atTime(12, 0)) }
+    @After fun restoreClock() { BeijingTime.setForcedNow(null) }
     private val termStart = monday.minusWeeks(6)
     private val timing = TermTimingProfile(termStart.toString(), listOf(
         ClassSlotTime(1, 2, "08:00", "09:35"), ClassSlotTime(3, 4, "10:05", "11:40"),
@@ -67,9 +72,11 @@ class OverlapLandscapeUiQaTest {
     @Test fun overlappingCoursesSitAtTheirOwnTimes() {
         assumeTrue(args.getString("overlapQa") == "true")
         show()
+        card("mllab").performScrollTo()
         save("week")
-        val db = node("数据库上机").fetchSemanticsNode().boundsInRoot
-        val ml = node("机器学习").fetchSemanticsNode().boundsInRoot
+        val db = card("dblab").fetchSemanticsNode().boundsInRoot
+        val ml = card("mllab").fetchSemanticsNode().boundsInRoot
+        assertTrue("Both lab cards must be visible", db.width > 0f && ml.width > 0f)
         // Side by side at their own clock positions instead of halves of one stacked cell.
         assertTrue("lab cards must share the day side by side: $db / $ml", ml.left >= db.right - 1f || db.left >= ml.right - 1f)
         assertTrue("later course must start lower: $db / $ml", ml.top > db.top + 10f)
@@ -79,11 +86,12 @@ class OverlapLandscapeUiQaTest {
         assumeTrue(args.getString("overlapQa") == "true")
         show()
         save("short-top")
-        compose.onAllNodes(hasScrollAction()).onFirst().performTouchInput { swipeUp() }
+        card("asm3").performScrollTo()
         compose.waitForIdle()
         save("short-bottom")
         // The last evening course must become fully visible inside the window.
-        val bottom = node("汇编语言实").fetchSemanticsNode().boundsInRoot.bottom
+        card("asm3").assertIsDisplayed()
+        val bottom = card("asm3").fetchSemanticsNode().boundsInRoot.bottom
         val height = context.resources.displayMetrics.heightPixels
         assertTrue("last period must scroll into view: $bottom / $height", bottom <= height)
     }
@@ -107,9 +115,9 @@ class OverlapLandscapeUiQaTest {
         compose.waitForIdle()
     }
 
-    private fun node(title: String): SemanticsNodeInteraction {
-        val all = compose.onAllNodesWithText(title, substring = true)
-        return (0 until all.fetchSemanticsNodes().size).map { all[it] }.firstOrNull { it.isDisplayed() } ?: all.onFirst()
+    private fun card(id: String): SemanticsNodeInteraction {
+        return compose.onNode(hasTestTag("schedule-course-$id") and
+            hasAnyAncestor(hasTestTag("schedule-current-week")), useUnmergedTree = true)
     }
 
     private fun save(name: String) {

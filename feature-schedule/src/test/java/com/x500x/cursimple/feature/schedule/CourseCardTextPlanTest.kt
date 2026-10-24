@@ -130,6 +130,15 @@ class CourseCardTextPlanTest {
     }
 
     @Test
+    fun `窄列里房间号不被拦腰切断，优先在连字符处换行`() {
+        assertEquals("@东-13\n-C-\n315", wrap("@东-13-C-315", maxWidth = 50))
+        // A token that cannot fit on any line still splits by character without losing text.
+        val tight = wrap("@东-13-C-315", maxWidth = 20)
+        assertEquals("@东-13-C-315", tight.replace("\n", ""))
+        assertTrue(tight.lines().all { it.length <= 2 })
+    }
+
+    @Test
     fun `一行放得下时原样返回`() {
         assertEquals("@东-16", wrap("@东-16", maxWidth = 60))
     }

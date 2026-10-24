@@ -34,6 +34,11 @@
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
 
+        <service
+            android:name=".MemoTodoRemoteViewsService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
         <!--
             Each widget is registered twice:
               * a generic AOSP receiver, and

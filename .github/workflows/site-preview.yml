@@ -2,57 +2,52 @@ name: Site Preview (pre)
 
 on:
   push:
-    branches:
-      - pre
-    paths:
-      - "site/**"
-      - ".github/workflows/site-preview.yml"
+    branches: [pre]
   workflow_dispatch:
 
 concurrency:
   group: site-preview-pre
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
   statuses: write
-  pull-requests: write
-  deployments: write
 
 jobs:
   preview:
+    if: github.ref == 'refs/heads/pre'
     runs-on: ubuntu-latest
-    env:
-      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 5
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: "20"
+          node-version: "22"
 
-      - name: Verify static site
+      - name: Verify static site and preview cleanup
         run: |
           node --check site/i18n.js
           node --check site/releases.js
           node --check site/main.js
           node --test site/tests/*.test.cjs
           node site/check-links.cjs
+          python3 -B -m unittest discover -s scripts/tests -v
 
       - name: Deploy to Netlify
         id: netlify
-        if: env.NETLIFY_AUTH_TOKEN != '' && env.NETLIFY_SITE_ID != ''
-        uses: nwtgck/actions-netlify@v3.0
+        uses: nwtgck/actions-netlify@4cbaf4c08f1a7bfa537d6113472ef4424e4eb654 # v3.0
         with:
           publish-dir: './site'
           production-branch: main
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          deploy-message: "Preview from pre (${{ github.sha }})"
+          production-deploy: false
+          alias: pre
+          deploy-message: "CurSimple pre preview ${{ github.sha }}"
+          fails-without-credentials: true
+          enable-github-deployment: false
           enable-commit-status: false
           enable-commit-comment: false
           enable-pull-request-comment: false
@@ -60,105 +55,39 @@ jobs:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 
-      - name: Teardown previous Netlify deploys (Physical Deletion)
-        if: env.NETLIFY_AUTH_TOKEN != '' && env.NETLIFY_SITE_ID != '' && steps.netlify.outputs.deploy-url != ''
+      - name: Validate immutable preview URL
         shell: bash
+        env:
+          PREVIEW_URL: ${{ steps.netlify.outputs.deploy-url }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re
+          url = os.environ['PREVIEW_URL']
+          if not re.fullmatch(r'https://[0-9a-f]{24}--[a-z0-9-]+\.netlify\.app/?', url):
+              raise ValueError('Invalid immutable Netlify URL')
+          PY
+
+      - name: Physically delete older pre previews
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
           CURRENT_DEPLOY_URL: ${{ steps.netlify.outputs.deploy-url }}
-        run: |
-          CURRENT_DEPLOY_ID=$(echo "$CURRENT_DEPLOY_URL" | sed -E 's|^https?://([^.-]+)--.*|\1|')
-          echo "Current active deploy ID: $CURRENT_DEPLOY_ID"
-          echo "Current active deploy URL: $CURRENT_DEPLOY_URL"
+        run: python3 -B scripts/cleanup_netlify_previews.py
 
-          echo "Querying existing deploys for site $NETLIFY_SITE_ID..."
-          DEPLOYS=$(curl -s -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
-            "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/deploys?per_page=50" || echo "[]")
-
-          COUNT=0
-          DELETED=0
-          for old_id in $(echo "$DEPLOYS" | jq -r '.[].id // empty'); do
-            COUNT=$((COUNT + 1))
-            if [ -n "$old_id" ] && [ "$old_id" != "$CURRENT_DEPLOY_ID" ]; then
-              echo "Permanently deleting previous deploy: $old_id"
-              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
-                -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
-                "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/deploys/$old_id" || true)
-              echo "Delete $old_id result: HTTP $HTTP_CODE"
-              if [ "$HTTP_CODE" = "204" ] || [ "$HTTP_CODE" = "200" ]; then
-                DELETED=$((DELETED + 1))
-              fi
-            fi
-          done
-          echo "Total deploys scanned: $COUNT, previous deploys deleted: $DELETED"
-
-      - name: Deploy to Instant Preview (ShipStatic Fallback)
-        id: instant
-        if: steps.netlify.outputs.deploy-url == ''
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Deploying site preview via ShipStatic fallback..."
-          OUTPUT=$(npx --yes @shipstatic/ship ./site --json)
-          URL=$(echo "$OUTPUT" | jq -r '.url // empty')
-          if [ -z "$URL" ]; then
-            echo "Failed to get deployment URL from ShipStatic"
-            exit 1
-          fi
-          echo "deploy-url=$URL" >> $GITHUB_OUTPUT
-
-      - name: Resolve Preview URL
-        id: info
-        shell: bash
-        run: |
-          NETLIFY_URL="${{ steps.netlify.outputs.deploy-url }}"
-          INSTANT_URL="${{ steps.instant.outputs.deploy-url }}"
-          if [ -n "$NETLIFY_URL" ]; then
-            echo "url=$NETLIFY_URL" >> $GITHUB_OUTPUT
-            echo "provider=Netlify" >> $GITHUB_OUTPUT
-          else
-            echo "url=$INSTANT_URL" >> $GITHUB_OUTPUT
-            echo "provider=ShipStatic" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Report Preview URL
+      - name: Report ready preview URL
         shell: bash
         env:
-          PREVIEW_URL: ${{ steps.info.outputs.url }}
-          PROVIDER: ${{ steps.info.outputs.provider }}
+          PREVIEW_URL: ${{ steps.netlify.outputs.deploy-url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "============================================="
-          echo "🚀 Site preview deployed successfully!"
-          echo "URL: $PREVIEW_URL"
-          echo "Provider: $PROVIDER"
-          echo "============================================="
-
-          cat <<EOF >> $GITHUB_STEP_SUMMARY
-          ## 🚀 官网临时预览已就绪 (Site Preview Ready)
-
-          | 项目 | 信息 |
-          |---|---|
-          | 🌐 **最新预览链接** | [**$PREVIEW_URL**]($PREVIEW_URL) |
-          | 🛠️ **部署服务** | $PROVIDER |
-          | 🌿 **分支** | \`pre\` |
-          | 🔖 **当前提交** | [\`${{ github.sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }}) |
-
-          > 🧹 **物理清除生效**：已通过 API 物理销毁此前所有旧版本部署，访问历史链接直接返回 404，云端无残留。
-          EOF
-
-          # Set commit status for current commit
-          gh api repos/${{ github.repository }}/statuses/${{ github.sha }} \
-            -f state=success \
-            -f target_url="$PREVIEW_URL" \
-            -f description="预览网页已就绪 ($PROVIDER)" \
-            -f context="site/preview" || true
-
-          # Post commit comment for current commit
-          gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments \
-            -f body="### 🚀 官网最新预览已就绪 (Site Preview)
-
-          - 🌐 **最新预览链接**: $PREVIEW_URL
-          - 🛠️ **部署方式**: $PROVIDER
-          - 🌿 **分支**: \`pre\` (\`${{ github.sha }}\`)" || true
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          url = os.environ['PREVIEW_URL']
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write(f'官网 pre 预览：[打开预览]({url})\n')
+          PY
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -f state=success -f target_url="$PREVIEW_URL" \
+            -f description="pre 预览已就绪" -f context="site/preview"

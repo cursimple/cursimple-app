@@ -2,6 +2,5 @@
 <!-- Rounded white base for runtime accent tinting. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
     <solid android:color="#FFFFFFFF" />
-    <stroke android:width="1dp" android:color="#1A000000" />
     <corners android:radius="24dp" />
 </shape>

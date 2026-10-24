@@ -24,7 +24,9 @@ internal class GridTimeline private constructor(
 
     fun slotBottom(slotIndex: Int): Float = slotRows[slotIndex]?.let { it.top + it.height } ?: (slotIndex + 1f)
 
-    fun yOf(minute: Int): Float {
+    fun yOf(minute: Int): Float = yOf(minute.toFloat())
+
+    fun yOf(minute: Float): Float {
         if (anchors.isEmpty()) return 0f
         val first = anchors.first()
         if (minute <= first.startMinute!!) return first.top
@@ -34,7 +36,7 @@ internal class GridTimeline private constructor(
             val end = row.endMinute!!
             if (minute < start) return previousBottom
             if (minute <= end) {
-                val fraction = (minute - start).toFloat() / (end - start).coerceAtLeast(1)
+                val fraction = (minute - start) / (end - start).coerceAtLeast(1)
                 return row.top + row.height * fraction
             }
             previousBottom = row.top + row.height
@@ -47,6 +49,14 @@ internal class GridTimeline private constructor(
         if (clock == null) return slotTop(rowIndex) to slotBottom(rowIndex + rowSpan - 1)
         val top = yOf(clock.start)
         return top to maxOf(yOf(clock.end), top + minUnits).coerceAtMost(maxOf(totalUnits, top + minUnits))
+    }
+
+    /** Minutes a course occupies: its typed [clock], else the start of its first and end of its last period. */
+    fun courseMinutes(rowIndex: Int, rowSpan: Int, clock: MinuteRange?): MinuteRange? {
+        if (clock != null) return clock
+        val start = slotRows[rowIndex]?.startMinute ?: return null
+        val end = slotRows[rowIndex + rowSpan - 1]?.endMinute ?: return null
+        return MinuteRange(start, end)
     }
 
     fun slotIndexAt(units: Float): Int? {
@@ -192,7 +202,14 @@ internal fun clockMinute(raw: String): Int? {
 internal fun DisplaySlot.clock(): SlotClock = SlotClock(clockMinute(startTime), clockMinute(endTime))
 
 /** Assign parallel lanes to overlapping courses and events, placing courses first. */
-internal data class LaneItem<K>(val key: K, val top: Float, val bottom: Float, val order: Int)
+internal data class LaneItem<K>(
+    val key: K,
+    val top: Float,
+    val bottom: Float,
+    val order: Int,
+    /** Lower is shown first when a crowded cluster has to fold items away. */
+    val priority: Float = 0f,
+)
 
 internal data class LanePosition(val lane: Int, val laneCount: Int)
 
@@ -222,6 +239,125 @@ internal fun <K> assignLanes(items: List<LaneItem<K>>): Map<K, LanePosition> {
     }
     flush()
     return result
+}
+
+/** A day holds at most this many lanes, so a seven-day week never exceeds 14 columns. */
+internal const val MAX_DAY_LANES = 2
+
+/** Tablets and landscape have room for a third lane per day. */
+internal const val WIDE_DAY_LANES = 3
+
+/** The "more" chip of a crowded cluster: sits on the last lane over [top, bottom] and holds [hidden]. */
+internal data class LaneOverflow<K>(
+    val top: Float,
+    val bottom: Float,
+    val hidden: List<K>,
+    val position: LanePosition,
+)
+
+internal data class CollapsedLanes<K>(
+    val positions: Map<K, LanePosition>,
+    val overflows: List<LaneOverflow<K>>,
+    /** Last-lane items shortened so the chip fits below them; maps to their new bottom. */
+    val trimmedBottoms: Map<K, Float> = emptyMap(),
+)
+
+/**
+ * Like [assignLanes], but never uses more than [maxLanes] lanes (at most [WIDE_DAY_LANES]). A cluster that
+ * fits keeps its lanes. In a cluster that needs more, the nearest items (lowest priority value) fill the
+ * lanes, left first, and the rest fold into one chip at the bottom of the last lane. The last lane's items
+ * that the chip covers are shortened by [chipUnits]. With several lanes, an item that would be left
+ * shorter than [minCardUnits] folds away instead; with a single lane it keeps its height and the chip
+ * overlays its bottom edge.
+ */
+internal fun <K> assignLanesCollapsing(
+    items: List<LaneItem<K>>,
+    maxLanes: Int = MAX_DAY_LANES,
+    chipUnits: Float = 0.5f,
+    minCardUnits: Float = 0.6f,
+): CollapsedLanes<K> {
+    val epsilon = 0.001f
+    val laneLimit = maxLanes.coerceIn(1, WIDE_DAY_LANES)
+    fun LaneItem<K>.overlaps(other: LaneItem<K>) = top < other.bottom - epsilon && other.top < bottom - epsilon
+    val positions = HashMap<K, LanePosition>()
+    val overflows = mutableListOf<LaneOverflow<K>>()
+    val trimmed = HashMap<K, Float>()
+    for (cluster in clusterByOverlap(items, { it.top }, { it.bottom })) {
+        val lanes = assignLanes(cluster)
+        if ((lanes.values.maxOfOrNull { it.laneCount } ?: 1) <= laneLimit) {
+            positions += lanes
+            continue
+        }
+        val laneItems = List(laneLimit) { mutableListOf<LaneItem<K>>() }
+        val hidden = mutableListOf<LaneItem<K>>()
+        for (item in cluster.sortedWith(compareBy({ it.priority }, { it.top }, { it.order }))) {
+            val lane = laneItems.firstOrNull { l -> l.none { it.overlaps(item) } }
+            if (lane != null) lane += item else hidden += item
+        }
+        val chipBottom = cluster.maxOf { it.bottom }
+        val chipTop = chipBottom - chipUnits
+        val lastLane = laneItems.last()
+        for (item in lastLane.toList()) {
+            val room = chipTop - item.top
+            when {
+                item.bottom <= chipTop + epsilon -> Unit
+                room >= minCardUnits -> trimmed[item.key] = chipTop
+                laneLimit > 1 -> {
+                    lastLane -= item
+                    hidden += item
+                }
+            }
+        }
+        laneItems.forEachIndexed { lane, list ->
+            list.forEach { positions[it.key] = LanePosition(lane, laneLimit) }
+        }
+        overflows += LaneOverflow(
+            top = chipTop,
+            bottom = chipBottom,
+            hidden = hidden.sortedWith(compareBy({ it.top }, { it.order })).map { it.key },
+            position = LanePosition(laneLimit - 1, laneLimit),
+        )
+    }
+    return CollapsedLanes(positions, overflows, trimmed)
+}
+
+/**
+ * Pick how many lanes each day may use. Every day starts with [maxLanes]; while the weights need more than
+ * [budgetUnits] columns, the day with the fewest items that still uses more than one lane loses one lane
+ * (its overlaps fold into the chip), later days first on ties.
+ */
+internal fun chooseLaneLimits(
+    weights: List<Float>,
+    itemCounts: List<Int>,
+    budgetUnits: Float,
+    maxLanes: Int = MAX_DAY_LANES,
+): List<Int> {
+    val limits = MutableList(weights.size) { maxLanes }
+    val current = weights.toMutableList()
+    while (current.sum() > budgetUnits) {
+        val day = current.indices
+            .filter { current[it] > 1f }
+            .minWithOrNull(compareBy({ itemCounts[it] }, { -it }))
+            ?: break
+        limits[day] = (limits[day] - 1).coerceAtLeast(1)
+        current[day] = minOf(current[day], limits[day].toFloat())
+    }
+    return limits
+}
+
+/**
+ * Rank an item for staying visible in a crowded cluster. Ongoing comes first, then upcoming by how soon
+ * it starts, then finished ones; with no [nowUnits] (other days) the earliest start wins. Items that are
+ * not active this week go last.
+ */
+internal fun lanePriority(top: Float, bottom: Float, nowUnits: Float?, inactive: Boolean = false): Float {
+    val base = when {
+        nowUnits == null -> top
+        nowUnits >= top && nowUnits < bottom -> 0f
+        top > nowUnits -> top - nowUnits
+        else -> 1_000f + (nowUnits - bottom)
+    }
+    return base + if (inactive) 10_000f else 0f
 }
 
 /** Express lanes as column fractions; every overlap gets equal width without occlusion. */
@@ -264,10 +400,11 @@ internal class DayColumns private constructor(private val weights: List<Float>) 
     }
 
     companion object {
-        const val MAX_COLUMN_WEIGHT = 3
+        const val MAX_COLUMN_WEIGHT = WIDE_DAY_LANES
 
         fun of(laneCounts: List<Int>): DayColumns =
             DayColumns(laneCounts.map { it.coerceIn(1, MAX_COLUMN_WEIGHT).toFloat() })
+
     }
 }
 

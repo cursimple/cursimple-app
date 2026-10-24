@@ -216,3 +216,39 @@ test('手动选择 GitHub 直连会被记住，下次打开仍是直连', async 
   const again = await runPage({ saved });
   assert.equal(again.lists['[data-dl]'][0].href, APK);
 });
+
+test('公告拒绝可执行协议、凭证 URL 和 HTML 注入，代码示例保持纯文本', async () => {
+  const md = '# 安全公告\n\n' + [
+    '[run](javascript:alert%281%29)',
+    '[encoded](java&#x73;cript:alert%281%29)',
+    '[vb](vbscript:msgbox%281%29)',
+    '[credential](https://user:password@example.com/)',
+    '![inline](data:image/svg+xml,evil)',
+    '<img src=x onerror=alert(1)>',
+    '`[example](javascript:alert%281%29)`',
+    '',
+    '![standalone](javascript:alert%281%29)',
+  ].join('\n');
+  const page = await runPage({ notesFetch: async () => ({ ok: true, text: async () => md }) });
+  const html = page.get('#clSlides').innerHTML;
+  assert.doesNotMatch(html, /(?:href|src)="(?:javascript:|vbscript:|data:|https:\/\/user:)/i);
+  assert.doesNotMatch(html, /<img\b/);
+  assert.ok(html.includes('&lt;img src=x onerror=alert(1)&gt;'));
+  assert.ok(html.includes('<code>[example](javascript:alert%281%29)</code>'));
+  assert.ok(html.includes('standalone'));
+});
+
+test('公告安全 URL 保留相对路径、查询参数和图片，Markdown 不修改生成的属性', async () => {
+  const md = '# 公告\n\n[download](https://example.com/a?x=1&y=2)\n' +
+    '[relative](../help.html)\n[stars](https://example.com/**safe**)\n' +
+    '![quote\"alt](https://example.com/inline.png?x=1&y=2)\n\n' +
+    '![standalone](https://raw.githubusercontent.com/owner/repo/main/shot.png)';
+  const page = await runPage({ notesFetch: async () => ({ ok: true, text: async () => md }) });
+  const html = page.get('#clSlides').innerHTML;
+  assert.ok(html.includes('href="https://example.com/a?x=1&amp;y=2"'));
+  assert.ok(html.includes('href="http://localhost/cursimple-app/help.html"'));
+  assert.ok(html.includes('href="https://example.com/**safe**"'));
+  assert.ok(html.includes('src="https://example.com/inline.png?x=1&amp;y=2" alt="quote&quot;alt"'));
+  assert.ok(html.includes('src="https://cdn.jsdelivr.net/gh/owner/repo@main/shot.png"'));
+  assert.doesNotMatch(html, /amp;amp;|href="[^"\n]*<strong>/);
+});

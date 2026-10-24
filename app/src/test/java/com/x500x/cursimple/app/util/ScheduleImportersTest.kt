@@ -4,8 +4,79 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.Before
+import org.junit.After
+import com.x500x.cursimple.core.kernel.time.BeijingTime
+import java.time.ZoneId
 
 class ScheduleImportersTest {
+    @Before fun setZone() { BeijingTime.setOverrideZone(ZoneId.of("Asia/Shanghai")) }
+    @After fun restoreZone() { BeijingTime.setOverrideZone(null) }
+
+    private fun icsEvent(body: String) = ScheduleIcsImporter.parse(
+        "BEGIN:VCALENDAR\nBEGIN:VEVENT\nSUMMARY:测试课\n$body\nEND:VEVENT\nEND:VCALENDAR",
+    ).schedule!!.dailySchedules.flatMap { it.courses }
+
+    @Test fun `UTC weekly BYDAY is evaluated before timezone day conversion`() {
+        val course = icsEvent("DTSTART:20260907T170000Z\nDTEND:20260907T180000Z\nRRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=2").single()
+        assertEquals(2, course.time.dayOfWeek)
+        assertEquals("01:00", course.reminderStartTime)
+        assertEquals(listOf(1, 2), course.weeks)
+    }
+
+    @Test fun `weekly TZID recurrence preserves source wall time across DST`() {
+        val courses = icsEvent("DTSTART;TZID=America/New_York:20261026T090000\nDTEND;TZID=America/New_York:20261026T100000\nRRULE:FREQ=WEEKLY;COUNT=2")
+        assertEquals(setOf("21:00", "22:00"), courses.map { it.reminderStartTime }.toSet())
+        assertEquals(listOf(1), courses.single { it.reminderStartTime == "21:00" }.weeks)
+        assertEquals(listOf(2), courses.single { it.reminderStartTime == "22:00" }.weeks)
+    }
+
+    @Test fun `multi weekday COUNT over forty is not silently truncated`() {
+        val courses = icsEvent("DTSTART:20260907T080000\nDTEND:20260907T090000\nRRULE:FREQ=WEEKLY;BYDAY=MO,WE;COUNT=60")
+        assertEquals(60, courses.sumOf { it.weeks.size })
+        assertTrue(courses.all { it.weeks.last() == 30 })
+    }
+
+    @Test fun `UNTIL clock is inclusive and EXDATE removes the exact instant`() {
+        val courses = icsEvent("DTSTART:20260907T080000\nDURATION:PT1H\nRRULE:FREQ=WEEKLY;UNTIL=20260921T075959\nEXDATE:20260914T080000")
+        assertEquals(listOf(1), courses.single().weeks)
+        assertEquals("09:00", courses.single().reminderEndTime)
+    }
+
+    @Test fun `malformed empty and unsupported ICS report failure`() {
+        for (body in listOf("garbage", "BEGIN:VCALENDAR\nEND:VCALENDAR",
+            "BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:bad\nEND:VEVENT\nEND:VCALENDAR",
+            "BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:20260907T080000\nRRULE:FREQ=DAILY\nEND:VEVENT\nEND:VCALENDAR")) {
+            assertTrue(body, runCatching { ScheduleIcsImporter.parse(body) }.isFailure)
+        }
+    }
+
+    @Test fun `nested alarm content cannot replace the course metadata`() {
+        val course = icsEvent("DTSTART:20260907T080000\nDTEND:20260907T090000\nDESCRIPTION:教师:张老师\nBEGIN:VALARM\nSUMMARY:错误标题\nDESCRIPTION:提醒\nEND:VALARM").single()
+        assertEquals("测试课", course.title)
+        assertEquals("张老师", course.teacher)
+    }
+
+    @Test fun `ICS UTC and TZID clocks are converted to the timetable timezone`() {
+        for (start in listOf("DTSTART:20260907T000000Z", "DTSTART;TZID=Europe/London:20260907T010000")) {
+            val payload = ScheduleIcsImporter.parse("BEGIN:VCALENDAR\nBEGIN:VEVENT\nSUMMARY:时区课\n$start\nDTEND:20260907T020000Z\nEND:VEVENT\nEND:VCALENDAR")
+            val course = payload.schedule!!.dailySchedules.flatMap { it.courses }.single()
+            assertEquals("08:00", course.reminderStartTime)
+            assertEquals("10:00", course.reminderEndTime)
+        }
+    }
+
+    @Test fun `weekly BYDAY count counts occurrences across multiple weekdays`() {
+        val payload = ScheduleIcsImporter.parse("BEGIN:VCALENDAR\nBEGIN:VEVENT\nSUMMARY:双日课\nDTSTART:20260907T080000\nDTEND:20260907T090000\nRRULE:FREQ=WEEKLY;BYDAY=MO,WE;COUNT=4\nEND:VEVENT\nEND:VCALENDAR")
+        val courses = payload.schedule!!.dailySchedules.flatMap { it.courses }
+        assertEquals(setOf(1, 3), courses.map { it.time.dayOfWeek }.toSet())
+        assertTrue(courses.all { it.weeks == listOf(1, 2) })
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `invalid WakeUp input reports failure rather than a successful empty timetable`() {
+        ScheduleWakeUpImporter.parseJson("not a course package")
+    }
 
     @Test
     fun testIcsImporterParsesEventsAndWeeks() {

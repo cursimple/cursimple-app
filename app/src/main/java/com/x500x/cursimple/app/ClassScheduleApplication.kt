@@ -13,6 +13,8 @@ import com.x500x.cursimple.app.holiday.holidaySyncYears
 import com.x500x.cursimple.core.data.AppLocale
 import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
 import com.x500x.cursimple.app.notice.AlarmPreNoticeScheduler
+import com.x500x.cursimple.app.notice.ClassNoticeGateway
+import com.x500x.cursimple.app.notice.classNoticeScheduleChanged
 import android.os.Build
 import com.x500x.cursimple.app.reminder.AlarmRuntimeMaintenance
 import com.x500x.cursimple.app.reminder.AlarmSyncScheduler
@@ -155,6 +157,18 @@ class ClassScheduleApplication : Application() {
 
         // Remove the obsolete foreground guard notification channel.
         removeLegacyKeepAliveChannel()
+
+        appScope.launch {
+            appContainer.bootstrapJob.join()
+            // Observe persisted scheduling inputs, including restores and timing parameter changes.
+            appContainer.userPreferencesRepository.preferencesFlow
+                .map { it.classNotice }
+                .distinctUntilChanged { previous, current -> !classNoticeScheduleChanged(previous, current) }
+                .collect {
+                    runCatching { ClassNoticeGateway.reschedule(this@ClassScheduleApplication) }
+                        .onFailure { error -> ReminderLogger.warn("class_notice.settings.reschedule.failure", emptyMap(), error) }
+                }
+        }
 
         appScope.launch {
             appContainer.bootstrapJob.join()

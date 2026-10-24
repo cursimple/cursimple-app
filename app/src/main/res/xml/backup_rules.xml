@@ -16,4 +16,6 @@
     <exclude domain="file" path="notification-outbox/" />
     <exclude domain="sharedpref" path="notice_display_tests.xml" />
     <exclude domain="sharedpref" path="native_notice_expiry.xml" />
+    <exclude domain="root" path="app_webview/" />
+    <exclude domain="sharedpref" path="private_files_provider.xml" />
 </full-backup-content>

@@ -981,6 +981,7 @@ internal fun CourseMoreBlock(
     )
     Row(
         modifier = Modifier
+            .testTag("schedule-course-more")
             .offset(offsetX, offsetY)
             .width(width)
             .height(height)
@@ -1052,7 +1053,7 @@ internal fun ScheduleEventGroupDialog(
 }
 
 @Composable
-private fun EventGroupRow(event: ScheduleEvent, onClick: () -> Unit) {
+internal fun EventGroupRow(event: ScheduleEvent, onClick: () -> Unit) {
     val colors = eventColors(event)
     val shape = RoundedCornerShape(12.dp)
     Row(

@@ -56,7 +56,7 @@ private class ReminderListFactory(
 
     override fun getViewAt(position: Int): RemoteViews {
         val data = rows.getOrNull(position)
-            ?: return RemoteViews(context.packageName, R.layout.widget_reminder_row)
+            ?: return RemoteViews(context.packageName, R.layout.widget_reminder_row_surface)
         return buildReminderRow(context, data, widgetTheme, compact)
     }
 
@@ -76,11 +76,11 @@ internal fun buildReminderRow(
     widgetTheme: WidgetThemePreferences,
     compact: Boolean = false,
 ): RemoteViews {
-    val row = RemoteViews(context.packageName, if (compact) R.layout.widget_reminder_compact_row else R.layout.widget_reminder_row)
-    row.applyAccentBackground(R.id.reminder_row_root, widgetTheme, WidgetSurfaceTone.Row)
+    val row = RemoteViews(context.packageName, if (compact) R.layout.widget_reminder_compact_row_surface else R.layout.widget_reminder_row_surface)
+    row.applyAccentBackground(widgetTheme, WidgetSurfaceTone.Row, resolveWidgetIsDark(context, widgetTheme.widgetThemeMode))
     row.applyOpenAppFillInIntent(R.id.reminder_row_root, widgetTheme)
     row.setTextViewText(R.id.reminder_time, if (compact) "${data.dateLabel} ${data.timeLabel}" else data.timeLabel)
-    row.setTextColor(R.id.reminder_time, widgetAccentTextColor(widgetTheme))
+    row.setTextColor(R.id.reminder_time, widgetAccentTextColor(widgetTheme, resolveWidgetIsDark(context, widgetTheme.widgetThemeMode)))
     row.setTextViewText(R.id.reminder_row_title, data.title)
     row.setContentDescription(R.id.reminder_row_root, "${data.title}, ${data.dateLabel} ${data.timeLabel}, ${data.message}")
     if (!compact) {
@@ -88,13 +88,14 @@ internal fun buildReminderRow(
         row.setTextViewText(R.id.reminder_row_message, data.message)
         row.setTextViewText(R.id.reminder_countdown, data.countdown)
     }
+    row.applyWidgetTextColors(context, widgetTheme)
     return row
 }
 
 internal data class ReminderWidgetLayout(val rows: List<ReminderRowData>, val compact: Boolean)
 
 internal fun reminderWidgetHeader(context: Context, data: ReminderWidgetData, compact: Boolean): RemoteViews =
-    RemoteViews(context.packageName, R.layout.widget_reminder).apply {
+    RemoteViews(context.packageName, R.layout.widget_reminder_surface).apply {
         setTextViewText(R.id.reminder_title, context.getString(R.string.widget_label_reminder))
         setViewVisibility(R.id.reminder_badge, if (data.totalCount > 0) View.VISIBLE else View.GONE)
         setTextViewText(R.id.reminder_badge, context.getString(R.string.widget_reminder_badge_count, data.totalCount))

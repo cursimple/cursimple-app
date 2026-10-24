@@ -1,9 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/reminder_root"
+    android:id="@+id/next_course_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_bg_card">
+    android:background="@drawable/widget_bg_card_outline"
+    android:clipToOutline="true"
+    android:foreground="@drawable/widget_bg_card_ripple">
+
+    <ImageView
+        android:id="@+id/widget_surface_background"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no"
+        android:contentDescription="@null"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_bg_card_tintable" />
 
     <ImageView
         android:id="@+id/widget_background_image"
@@ -22,7 +35,6 @@
         android:visibility="gone" />
 
     <LinearLayout
-        android:id="@+id/reminder_content"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
@@ -35,26 +47,18 @@
             android:orientation="horizontal">
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🔔"
-                android:textSize="13sp" />
-
-            <TextView
-                android:id="@+id/reminder_title"
+                android:id="@+id/next_course_title"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
                 android:layout_weight="1"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:text="@string/widget_label_reminder"
                 android:textColor="#20242A"
                 android:textSize="14sp"
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/reminder_badge"
+                android:id="@+id/next_course_badge"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="@drawable/widget_bg_badge"
@@ -70,7 +74,7 @@
 
         <!-- Wrap short lists so empty space remains app-clickable; use row-masked ripples rather than rectangular list selection. -->
         <ListView
-            android:id="@+id/reminder_list"
+            android:id="@+id/next_course_list"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
@@ -85,18 +89,15 @@
             android:scrollbarStyle="outsideOverlay"
             android:scrollbars="vertical" />
 
-        <TextView
-            android:id="@+id/reminder_empty"
+        <FrameLayout
+            android:id="@+id/next_course_empty"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_marginTop="8dp"
             android:layout_weight="1"
-            android:background="@drawable/widget_bg_surface_variant"
-            android:gravity="center"
-            android:padding="12dp"
-            android:textColor="#20242A"
-            android:textSize="13sp"
-            android:textStyle="bold"
+            android:background="@drawable/widget_bg_surface_outline"
+            android:clipToOutline="true"
+            android:foreground="@drawable/widget_bg_surface_ripple"
             android:visibility="gone" />
     </LinearLayout>
 

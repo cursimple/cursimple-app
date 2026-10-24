@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Retain the previous IDs; new runtime layouts force host reinflation on migration. -->
+    <item type="layout" name="widget_schedule_today">@layout/widget_schedule_today_surface</item>
+    <item type="layout" name="widget_next_course">@layout/widget_next_course_surface</item>
+    <item type="layout" name="widget_reminder">@layout/widget_reminder_surface</item>
+    <item type="layout" name="widget_calendar">@layout/widget_calendar_surface</item>
+    <item type="layout" name="widget_memo">@layout/widget_memo_surface</item>
+    <item type="layout" name="widget_course_capsule">@layout/widget_course_capsule_surface</item>
+    <item type="layout" name="widget_schedule_course_row">@layout/widget_schedule_course_row_surface</item>
+    <item type="layout" name="widget_next_course_row">@layout/widget_next_course_row_surface</item>
+    <item type="layout" name="widget_reminder_row">@layout/widget_reminder_row_surface</item>
+    <item type="layout" name="widget_reminder_compact_row">@layout/widget_reminder_compact_row_surface</item>
+</resources>

@@ -117,9 +117,9 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
             data: CalendarWidgetData,
             bodySize: Pair<Float, Float>,
         ): RemoteViews {
-            val views = RemoteViews(context.packageName, R.layout.widget_calendar)
+            val views = RemoteViews(context.packageName, R.layout.widget_calendar_surface)
             val theme = data.widgetTheme
-            views.applyWidgetBackground(context, R.id.calendar_root, theme)
+            views.applyWidgetBackground(context, theme)
             views.applyOpenAppClick(context, R.id.calendar_root, appWidgetId, theme)
 
             val week = data.mode == CalendarWidgetMode.Week
@@ -166,6 +166,7 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
                 heightDp = measuredBody.second,
                 density = density,
                 labels = renderLabels(context, data),
+                isDark = resolveWidgetIsDark(context, theme.widgetThemeMode),
             )
             views.setImageViewBitmap(R.id.calendar_grid, bitmap)
             bindHitArea(context, views, appWidgetId, data, density, measuredBody.second)

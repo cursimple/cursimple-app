@@ -168,7 +168,7 @@ open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
         ): RemoteViews {
             val layout = reminderWidgetLayout(context, appWidgetId, data)
             val views = reminderWidgetHeader(context, data, layout.compact)
-            views.applyWidgetBackground(context, R.id.reminder_root, data.widgetTheme)
+            views.applyWidgetBackground(context, data.widgetTheme)
             views.applyOpenAppClick(context, R.id.reminder_root, appWidgetId, data.widgetTheme)
             val visibleRows = layout.rows
             val hasRows = visibleRows.isNotEmpty()
@@ -193,13 +193,14 @@ open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
             views.setViewVisibility(R.id.reminder_list, if (hasRows) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.reminder_empty, if (hasRows) View.GONE else View.VISIBLE)
             views.applyOpenAppClick(context, R.id.reminder_empty, appWidgetId, data.widgetTheme)
-            views.applyAccentBackground(R.id.reminder_empty, data.widgetTheme, WidgetSurfaceTone.RowVariant)
             val compact = layout.compact
             val emptyText = if (compact) data.emptyTitle else data.emptySubtitle?.let { "${data.emptyTitle}\n$it" } ?: data.emptyTitle
-            views.setInt(R.id.reminder_empty, "setMaxLines", if (compact) 1 else 3)
-            views.setViewPadding(R.id.reminder_empty, 8, if (compact) 0 else 12, 8, if (compact) 0 else 12)
-            views.setTextViewTextSize(R.id.reminder_empty, android.util.TypedValue.COMPLEX_UNIT_SP, if (compact) 11f else 13f)
-            views.setTextViewText(R.id.reminder_empty, emptyText)
+            val empty = widgetEmptySurface(context, data.widgetTheme, emptyText)
+            empty.setInt(R.id.widget_empty_text, "setMaxLines", if (compact) 1 else 3)
+            empty.setViewPadding(R.id.widget_empty_text, 8, if (compact) 0 else 12, 8, if (compact) 0 else 12)
+            empty.setTextViewTextSize(R.id.widget_empty_text, android.util.TypedValue.COMPLEX_UNIT_SP, if (compact) 11f else 13f)
+            views.removeAllViews(R.id.reminder_empty)
+            views.addView(R.id.reminder_empty, empty)
             return views
         }
 

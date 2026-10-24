@@ -8,6 +8,7 @@
     <string name="widget_capsule_name">Course capsule</string>
     <string name="widget_capsule_description">Compact capsule showing next class and classroom at a glance</string>
     <string name="widget_capsule_tag_urgent">[Starting Soon]</string>
+    <string name="widget_capsule_tag_empty">[No classes]</string>
     <string name="widget_label_reminder">Class alarms</string>
 
     <string name="widget_catalog_next_description">Current and next class at a glance, with time and place</string>
@@ -192,4 +193,5 @@ Add your next task in Notes</string>
     <string name="widget_memo_save_failed">Could not save. Please try again.</string>
     <string name="widget_memo_add_action">Add task</string>
     <string name="widget_memo_empty_compact">Tap + to add a task</string>
+    <string name="widget_loading_text">Loading…</string>
 </resources>

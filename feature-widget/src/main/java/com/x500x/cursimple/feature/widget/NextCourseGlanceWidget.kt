@@ -99,8 +99,8 @@ open class NextCourseGlanceWidgetReceiver : AppWidgetProvider() {
             appWidgetId: Int,
             data: NextCourseWidgetData,
         ): RemoteViews {
-            val views = RemoteViews(context.packageName, R.layout.widget_next_course)
-            views.applyWidgetBackground(context, R.id.next_course_root, data.widgetTheme)
+            val views = RemoteViews(context.packageName, R.layout.widget_next_course_surface)
+            views.applyWidgetBackground(context, data.widgetTheme)
             views.applyOpenAppClick(context, R.id.next_course_root, appWidgetId, data.widgetTheme)
             views.setTextViewText(R.id.next_course_title, data.headerLabel)
             if (data.badgeText != null) {
@@ -132,8 +132,8 @@ open class NextCourseGlanceWidgetReceiver : AppWidgetProvider() {
             views.setViewVisibility(R.id.next_course_list, if (hasRows) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.next_course_empty, if (hasRows) View.GONE else View.VISIBLE)
             views.applyOpenAppClick(context, R.id.next_course_empty, appWidgetId, data.widgetTheme)
-            views.applyAccentBackground(R.id.next_course_empty, data.widgetTheme, WidgetSurfaceTone.RowVariant)
-            views.setTextViewText(R.id.next_course_empty, data.emptyTitle)
+            views.removeAllViews(R.id.next_course_empty)
+            views.addView(R.id.next_course_empty, widgetEmptySurface(context, data.widgetTheme, data.emptyTitle))
             return views
         }
 

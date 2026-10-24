@@ -352,7 +352,7 @@ internal fun ExtensionOwnedDocument(
     } }
     // Keep bridge and WebView settings alive across owned-page changes.
     DisposableEffect(webView, bridge) {
-        webView.settings.apply { javaScriptEnabled = true; domStorageEnabled = true; textZoom = 100; manifest.userAgent?.let { userAgentString = it } }
+        webView.settings.apply { javaScriptEnabled = true; domStorageEnabled = true; textZoom = 100; userAgentString = manifest.userAgent ?: android.webkit.WebSettings.getDefaultUserAgent(webView.context) }
         CookieManager.getInstance().setAcceptCookie(true)
         bridge.attachToView()
         webView.setBackgroundColor(colors.background.toArgb())

@@ -18,7 +18,15 @@ data class PluginPackageLayout(
         )
     }
 
-    fun readText(path: String): String = requireFile(path).toString(Charsets.UTF_8)
+    fun readText(path: String): String {
+        val bytes = requireFile(path)
+        if (path in setOf(MANIFEST_FILE, CHECKSUMS_FILE, SIGNATURE_FILE)) {
+            require(bytes.size <= 1024 * 1024) { "Plugin metadata exceeds 1 MiB" }
+        }
+        return bytes.toString(Charsets.UTF_8).also {
+            if (path in setOf(MANIFEST_FILE, CHECKSUMS_FILE, SIGNATURE_FILE)) requireBoundedPluginJson(it)
+        }
+    }
 
     fun decodeManifest(json: Json): PluginManifest {
         return json.decodeFromString(readText(MANIFEST_FILE))

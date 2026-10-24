@@ -8,6 +8,7 @@
     <string name="widget_capsule_name">微型課程膠囊</string>
     <string name="widget_capsule_description">極簡單課膠囊，一眼查看下一節課程與教室</string>
     <string name="widget_capsule_tag_urgent">[即將上課]</string>
+    <string name="widget_capsule_tag_empty">[無課程]</string>
     <string name="widget_label_reminder">課程鬧鐘</string>
 
     <string name="widget_catalog_next_description">緊湊顯示當前與下一節課程，附時間和地點</string>
@@ -192,4 +193,5 @@
     <string name="widget_memo_save_failed">儲存失敗，請稍後重試</string>
     <string name="widget_memo_add_action">新增待辦</string>
     <string name="widget_memo_empty_compact">點＋新增待辦</string>
+    <string name="widget_loading_text">正在讀取…</string>
 </resources>

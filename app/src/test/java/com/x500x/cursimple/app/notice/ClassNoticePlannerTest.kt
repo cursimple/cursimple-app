@@ -16,6 +16,16 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 class ClassNoticePlannerTest {
+
+    @Test fun `overlapping courses must not schedule departure after the next class starts`() {
+        val first = course("长课", 1, 1, 2, "一教101", listOf(1))
+        val second = course("重叠课", 1, 1, 2, "西区实验楼", listOf(1))
+            .copy(reminderStartTime = "09:00", reminderEndTime = "10:00")
+        assertNull(ClassNoticePlanner.nextTransit(
+            LocalDateTime.of(2026, 9, 7, 8, 0), listOf(first, second), profile, termStart,
+            emptyList(), HolidayCalendarSettings.NONE,
+        ))
+    }
     @Test
     fun `moved course retains location for the source teaching week`() {
         val moved = course("实验课", 1, 1, 2, weeks = listOf(1)).copy(weekLocations = mapOf(1 to "原周实验室", 2 to "目标周实验室"))

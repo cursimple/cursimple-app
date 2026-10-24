@@ -3,6 +3,7 @@ package com.x500x.cursimple.app.util
 import android.Manifest
 import android.content.ContentUris
 import android.content.ContentValues
+import android.content.ContentProviderOperation
 import android.content.Context
 import android.content.pm.PackageManager
 import android.provider.CalendarContract
@@ -112,7 +113,7 @@ object SystemCalendarExporter {
         calendarId: Long,
         storedLegacyIds: Set<Long> = emptySet(),
     ): List<ExistingCalendarEvent> {
-        if (!hasWritePermission(context)) return emptyList()
+        check(hasWritePermission(context)) { "Calendar permission denied" }
         val projection = arrayOf(
             CalendarContract.Events._ID,
             CalendarContract.Events.SYNC_DATA1,
@@ -128,8 +129,7 @@ object SystemCalendarExporter {
         )
         val selection = "${CalendarContract.Events.CALENDAR_ID} = ?"
         val selectionArgs = arrayOf(calendarId.toString())
-        return runCatching {
-            context.contentResolver.query(
+        return context.contentResolver.query(
                 CalendarContract.Events.CONTENT_URI,
                 projection,
                 selection,
@@ -143,11 +143,10 @@ object SystemCalendarExporter {
                         val desc = cursor.getString(2).orEmpty()
                         val uid = when {
                             syncData1.startsWith(CURSIMPLE_UID_PREFIX) -> syncData1
-                            desc.contains(UID_TAG_START) -> {
-                                desc.substringAfter(UID_TAG_START).substringBefore(UID_TAG_END).trim()
-                            }
-                            id in storedLegacyIds -> "cursimple:legacy:$id"
-                            else -> null
+                            else -> desc.lineSequence().firstOrNull {
+                                it.startsWith(UID_TAG_START + CURSIMPLE_UID_PREFIX) && it.endsWith(UID_TAG_END)
+                            }?.removePrefix(UID_TAG_START)?.removeSuffix(UID_TAG_END)
+                                ?: if (id in storedLegacyIds) "cursimple:legacy:$id" else null
                         }
                         if (uid != null) {
                             add(
@@ -168,8 +167,7 @@ object SystemCalendarExporter {
                         }
                     }
                 }
-            }.orEmpty()
-        }.getOrDefault(emptyList())
+            } ?: error("Calendar query failed")
     }
 
     /**
@@ -187,138 +185,75 @@ object SystemCalendarExporter {
         if (!hasWritePermission(context)) return SystemCalendarWriteResult.PermissionDenied
         plan.failureReason?.let { return SystemCalendarWriteResult.MissingConfig(it) }
 
-        val resolver = context.contentResolver
-        val storedRecord = SystemCalendarExportStore.read(context)
-        val storedIds = if (storedRecord != null && storedRecord.calendarId == calendarId) {
-            storedRecord.eventIds.toSet()
-        } else {
-            emptySet()
-        }
-
-        val existingEvents = queryCurSimpleEvents(context, calendarId, storedIds)
-        val existingByUid = existingEvents.filterNot { it.uid.startsWith("cursimple:legacy:") }.associateBy { it.uid }
-
-        val drafts = mutableListOf<CalendarEventDraft>()
-        var occurrenceCount = 0
-        for (planned in plan.courses) {
-            val description = context.eventDescription(planned.course, planned.slotLabel)
-            drafts.addAll(planned.toCalendarDrafts(zone, description))
-            occurrenceCount += planned.occurrenceCount()
-        }
-
-        val targetUids = drafts.map { it.uid }.toSet()
-        val activeIds = mutableListOf<Long>()
-        var insertedCount = 0
-        var updatedCount = 0
-        var deletedCount = 0
-
-        try {
-            // Delete removed or obsolete events
-            for (existing in existingEvents) {
-                if (existing.uid !in targetUids) {
-                    val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, existing.id)
-                    val removed = runCatching { resolver.delete(uri, null, null) }.getOrDefault(0)
-                    if (removed > 0) deletedCount++
-                }
+        return try {
+            val record = SystemCalendarExportStore.read(context)
+            val legacyIds = record?.takeIf { it.calendarId == calendarId }?.eventIds.orEmpty().toSet()
+            val existing = queryCurSimpleEvents(context, calendarId, legacyIds)
+            val existingByUid = existing.sortedBy { it.id }.associateBy { it.uid }
+            val drafts = plan.courses.flatMap { planned ->
+                planned.toCalendarDrafts(zone, context.eventDescription(planned.course, planned.slotLabel))
             }
-
-            // Insert or update target drafts
+            require(drafts.map { it.uid }.distinct().size == drafts.size) { "Duplicate course identifiers" }
+            val targetUids = drafts.map { it.uid }.toSet()
+            val operations = arrayListOf<ContentProviderOperation>()
+            val activeIds = mutableListOf<Long>()
+            val insertIndexes = mutableListOf<Int>()
+            var deleted = 0
+            var updated = 0
+            // Drop obsolete rows and reconcile duplicate UIDs from older or interrupted exports.
+            existing.filter { it.uid !in targetUids || existingByUid[it.uid]?.id != it.id }.forEach { event ->
+                operations += ContentProviderOperation.newDelete(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, event.id))
+                    .withExpectedCount(1).build()
+                deleted++
+            }
             for (draft in drafts) {
-                val fullDescription = if (draft.description.isNotBlank()) {
-                    "${draft.description}\n$UID_TAG_START${draft.uid}$UID_TAG_END"
-                } else {
-                    "$UID_TAG_START${draft.uid}$UID_TAG_END"
+                val description = listOf(draft.description.takeIf { it.isNotBlank() }, "$UID_TAG_START${draft.uid}$UID_TAG_END")
+                    .filterNotNull().joinToString("\n")
+                val start = draft.start.atZone(zone).toInstant().toEpochMilli()
+                val end = if (draft.rrule == null) draft.start.plusMinutes(draft.durationMinutes).atZone(zone).toInstant().toEpochMilli() else null
+                val duration = if (draft.rrule != null) "PT${draft.durationMinutes}M" else null
+                val exdate = draft.exdatesUtc.takeIf { it.isNotEmpty() }?.joinToString(",")
+                // SYNC_DATA1 is read for old exports only: normal apps may not write sync-adapter columns.
+                val values = ContentValues().apply {
+                    put(CalendarContract.Events.TITLE, draft.title)
+                    put(CalendarContract.Events.EVENT_TIMEZONE, zone.id)
+                    put(CalendarContract.Events.DTSTART, start)
+                    put(CalendarContract.Events.DESCRIPTION, description)
+                    put(CalendarContract.Events.EVENT_LOCATION, draft.location)
+                    put(CalendarContract.Events.DTEND, end)
+                    put(CalendarContract.Events.DURATION, duration)
+                    put(CalendarContract.Events.RRULE, draft.rrule)
+                    put(CalendarContract.Events.EXDATE, exdate)
                 }
-                val startMillis = draft.start.atZone(zone).toInstant().toEpochMilli()
-                val durationStr = if (draft.rrule != null) "PT${draft.durationMinutes}M" else null
-                val endMillis = if (draft.rrule == null) {
-                    draft.start.plusMinutes(draft.durationMinutes).atZone(zone).toInstant().toEpochMilli()
-                } else null
-                val exdateStr = if (draft.exdatesUtc.isNotEmpty()) draft.exdatesUtc.joinToString(",") else null
-
-                val existing = existingByUid[draft.uid]
-                if (existing != null) {
-                    // Check if anything changed
-                    val changed = existing.title != draft.title ||
-                        existing.location != draft.location ||
-                        existing.description != fullDescription ||
-                        existing.dtstart != startMillis ||
-                        existing.dtend != endMillis ||
-                        existing.duration != durationStr ||
-                        existing.rrule != draft.rrule ||
-                        existing.exdate != exdateStr ||
-                        existing.timezone != zone.id
-
-                    if (changed) {
-                        val values = ContentValues().apply {
-                            put(CalendarContract.Events.TITLE, draft.title)
-                            put(CalendarContract.Events.EVENT_TIMEZONE, zone.id)
-                            put(CalendarContract.Events.DTSTART, startMillis)
-                            put(CalendarContract.Events.DESCRIPTION, fullDescription)
-                            put(CalendarContract.Events.EVENT_LOCATION, draft.location)
-                            put(CalendarContract.Events.SYNC_DATA1, draft.uid)
-                            if (draft.rrule == null) {
-                                put(CalendarContract.Events.DTEND, endMillis)
-                                putNull(CalendarContract.Events.DURATION)
-                                putNull(CalendarContract.Events.RRULE)
-                                putNull(CalendarContract.Events.EXDATE)
-                            } else {
-                                putNull(CalendarContract.Events.DTEND)
-                                put(CalendarContract.Events.DURATION, durationStr)
-                                put(CalendarContract.Events.RRULE, draft.rrule)
-                                if (exdateStr != null) {
-                                    put(CalendarContract.Events.EXDATE, exdateStr)
-                                } else {
-                                    putNull(CalendarContract.Events.EXDATE)
-                                }
-                            }
-                        }
-                        val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, existing.id)
-                        resolver.update(uri, values, null, null)
-                        updatedCount++
-                    }
-                    activeIds.add(existing.id)
+                val old = existingByUid[draft.uid]
+                if (old == null) {
+                    values.put(CalendarContract.Events.CALENDAR_ID, calendarId)
+                    insertIndexes += operations.size
+                    operations += ContentProviderOperation.newInsert(CalendarContract.Events.CONTENT_URI).withValues(values).build()
                 } else {
-                    // Insert new event
-                    val values = ContentValues().apply {
-                        put(CalendarContract.Events.CALENDAR_ID, calendarId)
-                        put(CalendarContract.Events.TITLE, draft.title)
-                        put(CalendarContract.Events.EVENT_TIMEZONE, zone.id)
-                        put(CalendarContract.Events.DTSTART, startMillis)
-                        put(CalendarContract.Events.DESCRIPTION, fullDescription)
-                        put(CalendarContract.Events.EVENT_LOCATION, draft.location)
-                        put(CalendarContract.Events.SYNC_DATA1, draft.uid)
-                        if (draft.rrule == null) {
-                            put(CalendarContract.Events.DTEND, endMillis)
-                        } else {
-                            put(CalendarContract.Events.DURATION, durationStr)
-                            put(CalendarContract.Events.RRULE, draft.rrule)
-                            if (exdateStr != null) {
-                                put(CalendarContract.Events.EXDATE, exdateStr)
-                            }
-                        }
+                    activeIds += old.id
+                    if (old.title != draft.title || old.location != draft.location || old.description != description ||
+                        old.dtstart != start || old.dtend != end || old.duration != duration || old.rrule != draft.rrule ||
+                        old.exdate != exdate || old.timezone != zone.id) {
+                        operations += ContentProviderOperation.newUpdate(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, old.id))
+                            .withValues(values).withExpectedCount(1).build()
+                        updated++
                     }
-                    val uri = resolver.insert(CalendarContract.Events.CONTENT_URI, values)
-                    val id = uri?.let(ContentUris::parseId) ?: continue
-                    activeIds.add(id)
-                    insertedCount++
                 }
             }
+            // CalendarProvider applies a batch transactionally; failures leave the prior export intact.
+            if (operations.isNotEmpty()) {
+                val results = context.contentResolver.applyBatch(CalendarContract.AUTHORITY, operations)
+                insertIndexes.forEach { index -> activeIds += ContentUris.parseId(checkNotNull(results[index].uri)) }
+            }
+            SystemCalendarExportStore.record(context, calendarId, activeIds)
+            SystemCalendarWriteResult.Success(activeIds.size, plan.courses.sumOf { it.occurrenceCount() }, plan.skipped,
+                inserted = insertIndexes.size, updated = updated, deleted = deleted)
         } catch (e: SecurityException) {
-            return SystemCalendarWriteResult.PermissionDenied
+            SystemCalendarWriteResult.PermissionDenied
         } catch (e: Exception) {
-            return SystemCalendarWriteResult.Failed(e.message)
+            SystemCalendarWriteResult.Failed(e.message)
         }
-
-        SystemCalendarExportStore.record(context, calendarId, activeIds)
-        return SystemCalendarWriteResult.Success(
-            eventCount = activeIds.size,
-            occurrenceCount = occurrenceCount,
-            skipped = plan.skipped,
-            inserted = insertedCount,
-            updated = updatedCount,
-            deleted = deletedCount,
-        )
     }
 
     /** Compatibility write delegate that uses incremental sync. */
@@ -336,25 +271,17 @@ object SystemCalendarExporter {
     fun clearAll(context: Context, calendarId: Long? = null): SystemCalendarUndoResult {
         if (!hasWritePermission(context)) return SystemCalendarUndoResult.PermissionDenied
         val storedRecord = SystemCalendarExportStore.read(context)
-        val targetCalendarId = calendarId ?: storedRecord?.calendarId
-
-        val idsToDelete = mutableSetOf<Long>()
-        storedRecord?.eventIds?.let { idsToDelete.addAll(it) }
-
-        if (targetCalendarId != null) {
-            val queried = queryCurSimpleEvents(context, targetCalendarId, idsToDelete)
-            idsToDelete.addAll(queried.map { it.id })
-        }
-
-        if (idsToDelete.isEmpty()) {
-            SystemCalendarExportStore.clear(context)
-            return SystemCalendarUndoResult.NothingToUndo
-        }
-
+        val targetCalendarId = calendarId ?: storedRecord?.calendarId ?: return SystemCalendarUndoResult.NothingToUndo
         return try {
-            val removed = removeEvents(context, idsToDelete.toList())
-            SystemCalendarExportStore.clear(context)
-            SystemCalendarUndoResult.Success(removed)
+            val legacyIds = storedRecord?.takeIf { it.calendarId == targetCalendarId }?.eventIds.orEmpty().toSet()
+            val events = queryCurSimpleEvents(context, targetCalendarId, legacyIds)
+            val operations = ArrayList(events.map { event ->
+                ContentProviderOperation.newDelete(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, event.id))
+                    .withExpectedCount(1).build()
+            })
+            if (operations.isNotEmpty()) context.contentResolver.applyBatch(CalendarContract.AUTHORITY, operations)
+            if (storedRecord?.calendarId == targetCalendarId) SystemCalendarExportStore.clear(context)
+            if (events.isEmpty()) SystemCalendarUndoResult.NothingToUndo else SystemCalendarUndoResult.Success(events.size)
         } catch (e: SecurityException) {
             SystemCalendarUndoResult.PermissionDenied
         } catch (e: Exception) {
@@ -363,15 +290,6 @@ object SystemCalendarExporter {
     }
 
     fun undo(context: Context): SystemCalendarUndoResult = clearAll(context, null)
-
-    private fun removeEvents(context: Context, ids: List<Long>): Int {
-        var removed = 0
-        for (id in ids) {
-            val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id)
-            removed += runCatching { context.contentResolver.delete(uri, null, null) }.getOrDefault(0)
-        }
-        return removed
-    }
 
     private fun Context.eventDescription(course: CourseItem, slotLabel: String?): String {
         val parts = mutableListOf<String>()

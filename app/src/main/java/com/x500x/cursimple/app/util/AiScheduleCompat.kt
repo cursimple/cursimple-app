@@ -8,7 +8,9 @@ import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.DailySchedule
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -17,7 +19,6 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.time.LocalDate
 import java.util.UUID
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 /**
  * Compatibility parser and runtime for XiaoAi Schedule (小爱课程表 / AISchedule) rules & outputs.
@@ -27,6 +28,7 @@ object AiScheduleCompat {
     private val jsonParser = Json { ignoreUnknownKeys = true; isLenient = true }
 
     fun parseJson(jsonText: String): ScheduleSharePayload {
+        ScheduleImportLimits.validateText(jsonText, json = true)
         val element = runCatching { jsonParser.parseToJsonElement(jsonText.trim()) }.getOrNull()
             ?: return ScheduleSharePayload(schedule = emptySchedule())
 
@@ -44,6 +46,7 @@ object AiScheduleCompat {
             else -> JsonArray(emptyList())
         }
 
+        require(coursesArray.size <= ScheduleImportLimits.MAX_COURSES) { "课程数量过多" }
         val courses = mutableListOf<CourseItem>()
 
         for (itemElem in coursesArray) {
@@ -74,15 +77,15 @@ object AiScheduleCompat {
                     val secObj = s as? JsonObject
                     if (secObj != null) {
                         val num = secObj["section"]?.jsonPrimitive?.intOrNull
-                        if (num != null && num > 0) sectionNumbers.add(num)
+                        if (num != null && num in 1..48) sectionNumbers.add(num)
                     } else {
                         val num = s.jsonPrimitive.intOrNull
-                        if (num != null && num > 0) sectionNumbers.add(num)
+                        if (num != null && num in 1..48) sectionNumbers.add(num)
                     }
                 }
             }
-            val startNode = sectionNumbers.minOrNull() ?: optInt("startNode", 1).coerceAtLeast(1)
-            val endNode = sectionNumbers.maxOrNull() ?: optInt("endNode", startNode).coerceAtLeast(startNode)
+            val startNode = sectionNumbers.minOrNull() ?: optInt("startNode", 1).coerceIn(1, 48)
+            val endNode = sectionNumbers.maxOrNull() ?: optInt("endNode", startNode).coerceIn(startNode, 48)
 
             // Parse weeks
             val weeks = mutableListOf<Int>()
@@ -152,51 +155,70 @@ object AiScheduleCompat {
         jsCode: String,
         htmlContent: String,
     ): Result<ScheduleSharePayload> = withContext(Dispatchers.Main) {
-        suspendCoroutine { continuation ->
-            val webView = WebView(context.applicationContext)
-            webView.settings.javaScriptEnabled = true
+        try {
+            ScheduleImportLimits.validateText(jsCode)
+            ScheduleImportLimits.validateText(htmlContent)
+        } catch (error: IllegalArgumentException) {
+            return@withContext Result.failure(error)
+        }
+        withTimeoutOrNull(15_000L) {
+            suspendCancellableCoroutine { continuation ->
+                val webView = WebView(context.applicationContext)
+                webView.settings.apply {
+                    allowFileAccess = false
+                    allowContentAccess = false
+                    @Suppress("DEPRECATION")
+                    allowFileAccessFromFileURLs = false
+                    @Suppress("DEPRECATION")
+                    allowUniversalAccessFromFileURLs = false
+                    blockNetworkLoads = true
+                    mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                    javaScriptEnabled = true
+                }
 
-            // Escape htmlContent into valid JS string literal
-            val escapedHtml = org.json.JSONObject.quote(htmlContent)
-            val script = """
-                (function() {
-                    try {
-                        $jsCode
-                        if (typeof scheduleHtmlParser === 'function') {
-                            var result = scheduleHtmlParser($escapedHtml);
-                            return JSON.stringify(result);
-                        } else {
-                            return JSON.stringify({ error: "scheduleHtmlParser function not found" });
+                continuation.invokeOnCancellation { webView.post { webView.stopLoading(); webView.destroy() } }
+
+                // Escape htmlContent into valid JS string literal
+                val escapedHtml = org.json.JSONObject.quote(htmlContent)
+                val script = """
+                    (function() {
+                        try {
+                            $jsCode
+                            if (typeof scheduleHtmlParser === 'function') {
+                                var result = scheduleHtmlParser($escapedHtml);
+                                var serialized = JSON.stringify(result);
+                                if (serialized && serialized.length > ${ScheduleImportLimits.MAX_BYTES}) {
+                                    throw new Error('Parser output exceeds import limit');
+                                }
+                                return serialized;
+                            } else {
+                                return JSON.stringify({ error: "scheduleHtmlParser function not found" });
+                            }
+                        } catch (e) {
+                            return JSON.stringify({ error: e.toString() });
                         }
-                    } catch (e) {
-                        return JSON.stringify({ error: e.toString() });
+                    })();
+                """.trimIndent()
+
+                webView.evaluateJavascript(script) { result ->
+                    if (!continuation.isActive) return@evaluateJavascript
+                    webView.destroy()
+                    if (result == null || result == "null" || result == "\"null\"") {
+                        continuation.resume(Result.failure(IllegalArgumentException("小爱课程表脚本解析无返回")))
+                        return@evaluateJavascript
                     }
-                })();
-            """.trimIndent()
-
-            webView.evaluateJavascript(script) { result ->
-                webView.destroy()
-                if (result == null || result == "null" || result == "\"null\"") {
-                    continuation.resume(Result.failure(IllegalArgumentException("小爱课程表脚本解析无返回")))
-                    return@evaluateJavascript
-                }
-                val rawJson = if (result.startsWith("\"") && result.endsWith("\"")) {
-                    result.substring(1, result.length - 1).replace("\\\"", "\"").replace("\\\\", "\\")
-                } else {
-                    result
-                }
-
-                if (rawJson.contains("\"error\":")) {
-                    continuation.resume(Result.failure(IllegalArgumentException("脚本执行出错: $rawJson")))
-                } else {
-                    runCatching {
+                    continuation.resume(runCatching {
+                        ScheduleImportLimits.validateText(result)
+                        val rawJson = if (result.startsWith("\"")) jsonParser.decodeFromString<String>(result) else result
+                        ScheduleImportLimits.validateText(rawJson, json = true)
+                        val output = jsonParser.parseToJsonElement(rawJson)
+                        if (output is JsonObject && "error" in output) {
+                            throw IllegalArgumentException("脚本执行出错: ${output["error"]}")
+                        }
                         parseJson(rawJson)
-                    }.fold(
-                        onSuccess = { continuation.resume(Result.success(it)) },
-                        onFailure = { continuation.resume(Result.failure(it)) },
-                    )
+                    })
                 }
             }
-        }
+        } ?: Result.failure(java.util.concurrent.TimeoutException("小爱课程表脚本执行超时"))
     }
 }
