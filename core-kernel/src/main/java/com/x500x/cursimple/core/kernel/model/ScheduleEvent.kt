@@ -27,6 +27,10 @@ data class ScheduleEvent(
     /** Dates picked week by week; when set they are the only days the event occurs. */
     @SerialName("weekDates") val weekDates: List<String> = emptyList(),
     @SerialName("colorArgb") val colorArgb: Long? = null,
+    /** With [colorArgb]: blend from the fill to this color, top to bottom. */
+    @SerialName("colorEndArgb") val colorEndArgb: Long? = null,
+    /** Outline color (ARGB); null keeps the default soft outline. */
+    @SerialName("borderArgb") val borderArgb: Long? = null,
     @SerialName("source") val source: ScheduleEventSource? = null,
 ) {
     val localDate: LocalDate? get() = runCatching { LocalDate.parse(date) }.getOrNull()

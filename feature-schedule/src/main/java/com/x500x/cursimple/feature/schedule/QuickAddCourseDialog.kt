@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents
 import com.x500x.cursimple.core.kernel.model.DEFAULT_TERM_WEEK_COUNT
 import com.x500x.cursimple.feature.plugin.ui.AppAssistChip
 import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
@@ -87,6 +88,9 @@ fun QuickAddCourseDialog(
     // Leave new-course weeks unset rather than assuming current-to-term-end coverage.
     var startWeekText by rememberSaveable { mutableStateOf("") }
     var endWeekText by rememberSaveable { mutableStateOf("") }
+    var parity by rememberSaveable { mutableStateOf(WeekParity.All) }
+    var customWeeksRaw by rememberSaveable { mutableStateOf("") }
+    var pickingWeeks by rememberSaveable { mutableStateOf(false) }
     var category by rememberSaveable { mutableStateOf(CourseCategory.Course) }
     var byClock by rememberSaveable { mutableStateOf(false) }
     val tappedClock = remember(slotTimes, startNode, endNode) { clockForNodes(slotTimes, startNode, endNode) }
@@ -102,11 +106,16 @@ fun QuickAddCourseDialog(
     val weekTeachersMap = remember(weekTeachersRaw) { decodeWeekLocations(weekTeachersRaw) }
     val startWeek = startWeekText.toIntOrNull()
     val endWeek = endWeekText.toIntOrNull()
-    val weeksValid = startWeek != null && endWeek != null &&
-        startWeek in 1..maxWeekCount && endWeek in startWeek..maxWeekCount
+    val customWeeks = remember(customWeeksRaw, maxWeekCount) { decodeCustomWeeks(customWeeksRaw, maxWeekCount) }
+    val weeks = if (parity == WeekParity.Custom) {
+        customWeeks.takeIf { it.isNotEmpty() }
+    } else {
+        manualCourseWeeksOrNull(startWeek, endWeek, parity, maxWeekCount)
+    }
+    val weeksValid = weeks != null
     val canSave = titleTrimmed.isNotBlank() && weeksValid && (!byClock || clockValid)
     val conflictWarning = remember(
-        existingCourses, dayOfWeek, nodes, startWeek, endWeek, weeksValid, category, maxWeekCount,
+        existingCourses, dayOfWeek, nodes, weeks, category, maxWeekCount,
     ) {
         addCourseConflictWarning(
             draftCourseConflicts(
@@ -114,7 +123,7 @@ fun QuickAddCourseDialog(
                 dayOfWeek = dayOfWeek,
                 startNode = nodes.first,
                 endNode = nodes.second,
-                weeks = if (weeksValid) (startWeek!!..endWeek!!).toList() else null,
+                weeks = weeks,
                 category = category,
                 maxWeekCount = maxWeekCount,
             ),
@@ -144,7 +153,8 @@ fun QuickAddCourseDialog(
     var eventRepeatUntil by rememberSaveable { mutableStateOf<String?>(null) }
     val weekAnchor = remember { eventWeekAnchor(termStartDate, eventDateDefault) }
     var eventPickedWeeks by rememberSaveable { mutableStateOf(emptyList<Int>()) }
-    var eventColorArgb by rememberSaveable { mutableStateOf<Long?>(null) }
+    var eventAppearance by rememberSaveable(stateSaver = ItemAppearanceSaver) { mutableStateOf(ItemAppearance()) }
+    var courseAppearance by rememberSaveable(stateSaver = ItemAppearanceSaver) { mutableStateOf(ItemAppearance()) }
     var eventSubmitted by remember { mutableStateOf(false) }
 
     val eventStartMinute = clockMinute(eventStart)
@@ -158,11 +168,12 @@ fun QuickAddCourseDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
+        KeepDialogAboveKeyboard()
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 24.dp)
-                .heightIn(max = 640.dp),
+                .heightIn(max = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.88f).dp),
             shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 4.dp,
@@ -282,8 +293,8 @@ fun QuickAddCourseDialog(
                         onRepeatUntilChange = { eventRepeatUntil = it },
                         pickedWeeks = eventPickedWeeks,
                         onPickedWeeksChange = { eventPickedWeeks = it },
-                        colorArgb = eventColorArgb,
-                        onColorArgbChange = { eventColorArgb = it },
+                        appearance = eventAppearance,
+                        onAppearanceChange = { eventAppearance = it },
                         submitted = eventSubmitted,
                         weekAnchor = weekAnchor,
                         weekLimit = maxOf(maxWeekCount, eventPickedWeeks.maxOrNull() ?: 0),
@@ -309,21 +320,6 @@ fun QuickAddCourseDialog(
                             weekTitles = weekTitlesMap,
                             onPickWeekTitles = { pickingWeekTitles = true },
                         )
-                        CourseLocationField(
-                            location = location,
-                            onLocationChange = { location = it },
-                            weekLocations = weekLocationsMap,
-                            onPickWeekLocations = { pickingWeekLocations = true },
-                            suggestions = reuse.locations,
-                        )
-                        CourseTeacherField(
-                            teacher = teacher,
-                            onTeacherChange = { teacher = it },
-                            weekTeachers = weekTeachersMap,
-                            onPickWeekTeachers = { pickingWeekTeachers = true },
-                            suggestions = reuse.teachers,
-                        )
-
                         if (onConfirmEvent == null) {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 AppAssistChip(
@@ -367,29 +363,58 @@ fun QuickAddCourseDialog(
                             }
                         }
 
-                        CourseTimeModeChips(byClock = byClock, onByClock = { byClock = it })
-                        if (byClock) CourseClockFields(clockStart, clockEnd, onStartChange = { clockStart = it }, onEndChange = { clockEnd = it })
+                        CourseWeeksSection(
+                            parity = parity,
+                            onParityChange = { p ->
+                                parity = p
+                                if (p == WeekParity.Custom) {
+                                    if (customWeeksRaw.isBlank()) {
+                                        customWeeksRaw = encodeCustomWeeks(
+                                            manualCourseWeeksOrNull(startWeek, endWeek, WeekParity.All, maxWeekCount).orEmpty(),
+                                        )
+                                    }
+                                    pickingWeeks = true
+                                }
+                            },
+                            startWeekText = startWeekText,
+                            onStartWeekChange = { startWeekText = it },
+                            endWeekText = endWeekText,
+                            onEndWeekChange = { endWeekText = it },
+                            customWeeks = customWeeks,
+                            onEditCustomWeeks = { pickingWeeks = true },
+                            weeks = weeks,
+                            maxWeekCount = maxWeekCount,
+                        )
+                        CourseFormSection(title = stringResource(R.string.schedule_add_course_time_label)) {
+                            CourseTimeModeChips(byClock = byClock, onByClock = { byClock = it })
+                            if (byClock) CourseClockFields(clockStart, clockEnd, onStartChange = { clockStart = it }, onEndChange = { clockEnd = it })
+                        }
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedTextField(
-                                value = startWeekText,
-                                onValueChange = { startWeekText = it.filter(Char::isDigit).take(2) },
-                                label = { Text(stringResource(R.string.schedule_week_start_label)) },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                                modifier = Modifier.weight(1f),
+                        CourseFormSection(title = stringResource(R.string.schedule_course_place_section)) {
+                            CourseLocationField(
+                                location = location,
+                                onLocationChange = { location = it },
+                                weekLocations = weekLocationsMap,
+                                onPickWeekLocations = { pickingWeekLocations = true },
+                                suggestions = reuse.locations,
                             )
-                            OutlinedTextField(
-                                value = endWeekText,
-                                onValueChange = { endWeekText = it.filter(Char::isDigit).take(2) },
-                                label = { Text(stringResource(R.string.schedule_week_end_label)) },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                                modifier = Modifier.weight(1f),
+                            CourseTeacherField(
+                                teacher = teacher,
+                                onTeacherChange = { teacher = it },
+                                weekTeachers = weekTeachersMap,
+                                onPickWeekTeachers = { pickingWeekTeachers = true },
+                                suggestions = reuse.teachers,
                             )
                         }
 
                         conflictWarning?.let { CourseConflictWarning(warning = it) }
+
+                        ItemAppearanceSection(
+                            appearance = courseAppearance,
+                            onChange = { courseAppearance = it },
+                            autoColor = courseColor(title, LocalScheduleAccents.current.coursePalette).container,
+                            previewTitle = title,
+                        )
                     }
                 }
 
@@ -415,11 +440,13 @@ fun QuickAddCourseDialog(
                                     endTime = eventEnd,
                                     location = location.trim(),
                                     note = eventNote.trim(),
-                                    colorArgb = eventColorArgb,
+                                    colorArgb = eventAppearance.fill,
+                                    colorEndArgb = eventAppearance.fillEnd,
+                                    borderArgb = eventAppearance.border,
                                 ).withRepeat(eventRepeat, eventRepeatUntil, eventPickedWeeks, weekAnchor)
                                 onConfirmEvent?.invoke(event)
                             } else {
-                            val weeks = (startWeek!!..endWeek!!).toList()
+                            val weeks = weeks ?: return@Button
                             val course = CourseItem(
                                 id = "manual-" + UUID.randomUUID().toString().take(12),
                                 title = titleTrimmed,
@@ -445,6 +472,9 @@ fun QuickAddCourseDialog(
                                 ),
                                 reminderStartTime = formatMinuteOfDay(clockStart).takeIf { byClock },
                                 reminderEndTime = formatMinuteOfDay(clockEnd).takeIf { byClock },
+                                colorArgb = courseAppearance.fill,
+                                colorEndArgb = courseAppearance.fillEnd,
+                                borderArgb = courseAppearance.border,
                             )
                             onConfirm(course)
                         }
@@ -455,15 +485,21 @@ fun QuickAddCourseDialog(
         }
     }
 
-    if (pickingWeekTitles) {
-        val startWeek = startWeekText.toIntOrNull()
-        val endWeek = endWeekText.toIntOrNull()
-        WeekTitleDialog(
-            weeks = if (startWeek != null && endWeek != null && startWeek in 1..endWeek) {
-                (startWeek..endWeek).toList()
-            } else {
-                (1..maxWeekCount).toList()
+    if (pickingWeeks) {
+        WeekMatrixDialog(
+            maxWeekCount = maxWeekCount,
+            selected = customWeeks.toSet(),
+            onConfirm = { picked ->
+                customWeeksRaw = encodeCustomWeeks(picked)
+                pickingWeeks = false
             },
+            onDismiss = { pickingWeeks = false },
+        )
+    }
+
+    if (pickingWeekTitles) {
+        WeekTitleDialog(
+            weeks = weeks ?: (1..maxWeekCount).toList(),
             courseTitle = title.trim(),
             baseTitle = title.trim(),
             weekTitles = weekTitlesMap,
@@ -478,7 +514,7 @@ fun QuickAddCourseDialog(
 
     if (pickingWeekTeachers) {
         WeekTeacherDialog(
-            weeks = if (weeksValid) (startWeek!!..endWeek!!).toList() else (1..maxWeekCount).toList(),
+            weeks = weeks ?: (1..maxWeekCount).toList(),
             courseTitle = title.trim(),
             baseTeacher = teacher.trim(),
             weekTeachers = weekTeachersMap,
@@ -492,14 +528,8 @@ fun QuickAddCourseDialog(
     }
 
     if (pickingWeekLocations) {
-        val startWeek = startWeekText.toIntOrNull()
-        val endWeek = endWeekText.toIntOrNull()
         WeekLocationDialog(
-            weeks = if (startWeek != null && endWeek != null && startWeek in 1..endWeek) {
-                (startWeek..endWeek).toList()
-            } else {
-                (1..maxWeekCount).toList()
-            },
+            weeks = weeks ?: (1..maxWeekCount).toList(),
             courseTitle = title.trim(),
             baseLocation = location.trim(),
             weekLocations = weekLocationsMap,

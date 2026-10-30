@@ -57,6 +57,12 @@ data class CourseItem(
      * list; removing it instead would let the next sync bring the course back.
      */
     @SerialName("purged") val purged: Boolean = false,
+    /** Own fill color (ARGB); null follows the palette or a color picked in the course detail. */
+    @SerialName("colorArgb") val colorArgb: Long? = null,
+    /** With [colorArgb]: blend from the fill to this color, top to bottom. */
+    @SerialName("colorEndArgb") val colorEndArgb: Long? = null,
+    /** Outline color (ARGB); null draws no outline. */
+    @SerialName("borderArgb") val borderArgb: Long? = null,
 )
 
 @Serializable

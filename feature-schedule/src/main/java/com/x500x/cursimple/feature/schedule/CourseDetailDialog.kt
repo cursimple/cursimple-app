@@ -179,6 +179,12 @@ fun CourseDetailDialog(
     readOnly: Boolean = false,
     scheduleCardStyle: ScheduleCardStylePreferences = ScheduleCardStylePreferences(),
     onSetCustomCourseColor: (String, Long?) -> Unit = { _, _ -> },
+    /** All notes; the ones in this course's notebook are shown as its homework and to-dos. */
+    memos: List<com.x500x.cursimple.core.kernel.model.MemoNote> = emptyList(),
+    onSaveMemo: (com.x500x.cursimple.core.kernel.model.MemoNote) -> Unit = {},
+    attendance: com.x500x.cursimple.core.data.attendance.AttendanceData = com.x500x.cursimple.core.data.attendance.AttendanceData(),
+    onMarkAttendance: (String, String, com.x500x.cursimple.core.data.attendance.AttendanceStatus?) -> Unit = { _, _, _ -> },
+    onSetAbsenceAllowance: (String, Int?) -> Unit = { _, _ -> },
 ) {
     if (courses.isEmpty()) return
     // Reset selection when course IDs change so an old index cannot select another cell's course.
@@ -194,10 +200,11 @@ fun CourseDetailDialog(
     var editing by remember(course.id) { mutableStateOf(false) }
     var confirmRestore by remember(course.id) { mutableStateOf(false) }
     val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
-    val customColor = scheduleCardStyle.customCourseColors[course.id]
+    val legacyColor = scheduleCardStyle.customCourseColors[course.id]
         ?: scheduleCardStyle.customCourseColors[course.title]
-    val palette = remember(course.title, course.category, accents, customColor) {
-        courseColor(course.title, accents.coursePalette, customColor)
+    val customColor = course.colorArgb ?: legacyColor
+    val palette = remember(course.title, course.category, accents, customColor, course.colorEndArgb) {
+        courseColor(course.title, accents.coursePalette, customColor, course.colorEndArgb)
     }
     val headerContainer = if (course.category == CourseCategory.Exam) {
         MaterialTheme.colorScheme.errorContainer
@@ -510,9 +517,15 @@ fun CourseDetailDialog(
                                 convertsToManual = !manual,
                                 sourceWeekNumber = sourceWeekNumber,
                                 viewingCurrentWeek = visibleWeekNumber != null && visibleWeekNumber == currentWeekNumber,
+                                legacyColorArgb = legacyColor,
                                 onCancel = { editing = false },
                                 onSave = {
                                     onSaveCourse(it)
+                                    // The editor now owns the colors; drop the older per-title pick so it cannot resurface.
+                                    if (legacyColor != null) {
+                                        onSetCustomCourseColor(course.id, null)
+                                        onSetCustomCourseColor(course.title, null)
+                                    }
                                     editing = false
                                 },
                             )
@@ -548,7 +561,30 @@ fun CourseDetailDialog(
                                 readOnly = readOnly,
                             )
 
-                            if (!readOnly && course.category != CourseCategory.Exam) {
+                            CourseTodosSection(
+                                course = course,
+                                todos = remember(memos, course.title) { courseTodosFor(memos, course) },
+                                onSave = onSaveMemo,
+                                classDate = targetDate,
+                                readOnly = readOnly,
+                                today = LocalAppZone.current.today(),
+                            )
+
+                            if (!readOnly && course.category == CourseCategory.Course && !course.reminderOnly) {
+                                val limitToast = stringResource(R.string.attendance_limit_toast)
+                                val toastContext = LocalContext.current
+                                CourseAttendanceSection(
+                                    course = course,
+                                    sessionDate = targetDate,
+                                    today = LocalAppZone.current.today(),
+                                    attendance = attendance,
+                                    onMark = onMarkAttendance,
+                                    onSetAllowance = onSetAbsenceAllowance,
+                                    onLimitReached = { Toast.makeText(toastContext, limitToast, Toast.LENGTH_SHORT).show() },
+                                )
+                            }
+
+                            if (!readOnly && course.category != CourseCategory.Exam && course.colorArgb == null) {
                                 CourseCustomColorSection(
                                     selectedArgb = customColor,
                                     palette = accents.coursePalette,
@@ -674,6 +710,7 @@ private fun CourseEditSection(
     convertsToManual: Boolean,
     sourceWeekNumber: Int? = null,
     viewingCurrentWeek: Boolean = false,
+    legacyColorArgb: Long? = null,
     onCancel: () -> Unit,
     onSave: (CourseItem) -> Unit,
 ) {
@@ -725,6 +762,7 @@ private fun CourseEditSection(
             modifier = Modifier.fillMaxWidth(),
             slotTimes = slotTimes,
             sourceWeekNumber = sourceWeekNumber,
+            legacyColorArgb = legacyColorArgb,
         )
 
         if (hasFieldEdits && sourceWeekNumber != null) {
@@ -864,14 +902,14 @@ private fun CourseFactsCard(
                         }?.value
                         if (!seat.isNullOrBlank()) {
                             Text(
-                                text = "考场座位号：$seat",
+                                text = stringResource(R.string.schedule_exam_seat_line, seat),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onErrorContainer,
                             )
                         }
                         Text(
-                            text = "请备齐身份证、学生证与准考证，提前到达考场",
+                            text = stringResource(R.string.schedule_exam_bring_items),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f),
                         )

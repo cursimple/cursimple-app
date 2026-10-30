@@ -88,7 +88,8 @@ internal fun eventColors(event: ScheduleEvent): CoursePaletteEntry {
     val argb = event.colorArgb
     if (argb != null) {
         val container = Color(argb.toInt())
-        val on = if (container.luminance() > 0.5f) Color(0xFF1F2A24) else Color.White
+        // A blend reads against the mix of both ends, so the text stays legible across the whole block.
+        val on = readableOn(blendedFill(container, event.colorEndArgb?.let { Color(it.toInt()) }))
         return CoursePaletteEntry(container, on)
     }
     return courseColor("event:${event.title}", LocalScheduleAccents.current.coursePalette)
@@ -122,8 +123,18 @@ internal fun EventBlock(
             .height(height)
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface)
-            .background(colors.container.copy(alpha = 0.94f))
-            .border(BorderStroke(1.dp, colors.onContainer.copy(alpha = 0.28f)), shape)
+            .then(
+                if (event.colorArgb != null && event.colorEndArgb != null) {
+                    Modifier.background(fillBrush(colors.container, Color(event.colorEndArgb!!.toInt()), 0.94f))
+                } else {
+                    Modifier.background(colors.container.copy(alpha = 0.94f))
+                },
+            )
+            .border(
+                event.borderArgb?.let { BorderStroke(1.5.dp, Color(it.toInt())) }
+                    ?: BorderStroke(1.dp, colors.onContainer.copy(alpha = 0.28f)),
+                shape,
+            )
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         val slim = width < 44.dp
@@ -155,7 +166,13 @@ internal fun EventBlock(
                 }
                 val timeText = if (narrow) event.startTime else event.timeRangeText()
                 // Measure and render with the same merged styles.
-                val baseStyle = LocalTextStyle.current
+                val baseStyle = LocalTextStyle.current.let { style ->
+                    if (event.colorEndArgb != null && event.colorArgb != null) {
+                        style.merge(TextStyle(shadow = blendTextShadow(colors.onContainer)))
+                    } else {
+                        style
+                    }
+                }
                 val timeStyle = baseStyle.merge(TextStyle(fontSize = 9.sp, lineHeight = 10.sp))
                 val titleStyle = baseStyle.merge(
                     TextStyle(
@@ -460,7 +477,7 @@ internal fun ScheduleEventEditorDialog(
     // Fixed for the whole edit so changing the date never shifts the picked week numbers.
     val weekAnchor = remember { eventWeekAnchor(termStartDate, initial?.localDate ?: defaultDate) }
     var pickedWeeks by rememberSaveable { mutableStateOf(initial?.termWeeks(weekAnchor).orEmpty()) }
-    var colorArgb by rememberSaveable { mutableStateOf(initial?.colorArgb) }
+    var appearance by rememberSaveable(stateSaver = ItemAppearanceSaver) { mutableStateOf(initial?.appearance() ?: ItemAppearance()) }
 
     var picking by remember { mutableStateOf<EventPick?>(null) }
     var submitted by remember { mutableStateOf(false) }
@@ -501,8 +518,8 @@ internal fun ScheduleEventEditorDialog(
                 onRepeatUntilChange = { repeatUntil = it },
                 pickedWeeks = pickedWeeks,
                 onPickedWeeksChange = { pickedWeeks = it },
-                colorArgb = colorArgb,
-                onColorArgbChange = { colorArgb = it },
+                appearance = appearance,
+                onAppearanceChange = { appearance = it },
                 submitted = submitted,
                 weekAnchor = weekAnchor,
                 weekLimit = weekLimit,
@@ -523,7 +540,9 @@ internal fun ScheduleEventEditorDialog(
                         endTime = end,
                         location = location.trim(),
                         note = note.trim(),
-                        colorArgb = colorArgb,
+                        colorArgb = appearance.fill,
+                        colorEndArgb = appearance.fillEnd,
+                        borderArgb = appearance.border,
                     ).withRepeat(repeat, repeatUntil, pickedWeeks, weekAnchor),
                 )
             }) { Text(stringResource(R.string.schedule_action_save)) }
@@ -557,8 +576,8 @@ internal fun ScheduleEventEditForm(
     onRepeatUntilChange: (String?) -> Unit,
     pickedWeeks: List<Int>,
     onPickedWeeksChange: (List<Int>) -> Unit,
-    colorArgb: Long?,
-    onColorArgbChange: (Long?) -> Unit,
+    appearance: ItemAppearance,
+    onAppearanceChange: (ItemAppearance) -> Unit,
     submitted: Boolean,
     weekAnchor: LocalDate,
     weekLimit: Int,
@@ -719,13 +738,12 @@ internal fun ScheduleEventEditForm(
             maxLines = 4,
             label = { Text(stringResource(R.string.schedule_event_field_note)) },
         )
-        AlarmEditorSection(stringResource(R.string.schedule_event_section_color)) {
-            EventColorRow(
-                selected = colorArgb,
-                previewTitle = title,
-                onSelect = onColorArgbChange,
-            )
-        }
+        ItemAppearanceSection(
+            appearance = appearance,
+            onChange = onAppearanceChange,
+            autoColor = courseColor("event:$title", LocalScheduleAccents.current.coursePalette).container,
+            previewTitle = title,
+        )
     }
 }
 
@@ -772,57 +790,6 @@ internal fun EventTimePickerDialog(
             AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
         },
     )
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun EventColorRow(selected: Long?, previewTitle: String, onSelect: (Long?) -> Unit) {
-    val palette = LocalScheduleAccents.current.coursePalette.map { it.container }
-    val vivid = listOf(Color(0xFFFFB74D), Color(0xFFE57373), Color(0xFF64B5F6), Color(0xFF81C784), Color(0xFFBA68C8))
-    val autoColor = courseColor("event:$previewTitle", LocalScheduleAccents.current.coursePalette).container
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        ColorDot(
-            color = autoColor,
-            selected = selected == null,
-            label = stringResource(R.string.schedule_event_color_auto),
-            onClick = { onSelect(null) },
-        )
-        (palette + vivid).distinct().forEach { color ->
-            val argb = color.toArgb().toLong() and 0xFFFFFFFFL
-            ColorDot(color = color, selected = selected == argb, label = null, onClick = { onSelect(argb) })
-        }
-    }
-}
-
-@Composable
-private fun ColorDot(color: Color, selected: Boolean, label: String?, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier
-            .size(32.dp)
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
-        shape = CircleShape,
-        color = color,
-        border = BorderStroke(
-            if (selected) 2.dp else 1.dp,
-            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-        ),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            when {
-                selected -> Icon(
-                    imageVector = Icons.Rounded.Check,
-                    contentDescription = label,
-                    tint = if (color.luminance() > 0.5f) Color(0xFF1F2A24) else Color.White,
-                    modifier = Modifier.size(18.dp),
-                )
-                label != null -> Text("A", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F2A24))
-            }
-        }
-    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)

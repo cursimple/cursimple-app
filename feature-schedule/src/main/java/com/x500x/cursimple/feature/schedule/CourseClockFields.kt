@@ -1,5 +1,8 @@
 package com.x500x.cursimple.feature.schedule
 
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -63,21 +66,24 @@ internal fun CourseItem.movedTo(time: CourseTimeSlot): CourseItem {
     else copy(time = time, reminderStartTime = null, reminderEndTime = null)
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 internal fun CourseTimeModeChips(byClock: Boolean, onByClock: (Boolean) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        AppFilterChip(
-            selected = !byClock,
-            onClick = { onByClock(false) },
-            label = { Text(stringResource(R.string.schedule_course_time_by_node)) },
-            modifier = Modifier.testTag("course-time-by-node"),
-        )
-        AppFilterChip(
-            selected = byClock,
-            onClick = { onByClock(true) },
-            label = { Text(stringResource(R.string.schedule_course_time_by_clock)) },
-            modifier = Modifier.testTag("course-time-by-clock"),
-        )
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        listOf(false to R.string.schedule_course_time_by_node, true to R.string.schedule_course_time_by_clock)
+            .forEachIndexed { index, (clock, label) ->
+                SegmentedButton(
+                    selected = byClock == clock,
+                    onClick = { onByClock(clock) },
+                    shape = SegmentedButtonDefaults.itemShape(index, 2),
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
+                    modifier = Modifier.testTag(if (clock) "course-time-by-clock" else "course-time-by-node"),
+                    icon = {},
+                ) { Text(stringResource(label), maxLines = 1, style = MaterialTheme.typography.labelMedium) }
+            }
     }
 }
 

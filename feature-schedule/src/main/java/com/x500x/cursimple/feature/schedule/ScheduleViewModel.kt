@@ -105,6 +105,7 @@ data class ScheduleUiState(
     val courseNotes: CourseNoteIndex = CourseNoteIndex(),
     val events: List<ScheduleEvent> = emptyList(),
     val memos: List<MemoNote> = emptyList(),
+    val attendance: com.x500x.cursimple.core.data.attendance.AttendanceData = com.x500x.cursimple.core.data.attendance.AttendanceData(),
     val syncCompletedCount: Int = 0,
     val pendingImport: PendingScheduleImport? = null,
 )
@@ -139,6 +140,7 @@ class ScheduleViewModel(
     private val createTermAndActivate: suspend (String) -> Unit = {},
     private val scheduleEventRepository: ScheduleEventRepository? = null,
     private val memoRepository: MemoRepository? = null,
+    private val attendanceRepository: com.x500x.cursimple.core.data.attendance.AttendanceRepository? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val application: Context = appContext.applicationContext
@@ -186,6 +188,11 @@ class ScheduleViewModel(
         memoRepository?.let { repository ->
             viewModelScope.launch {
                 repository.notesFlow.collect { notes -> _uiState.update { it.copy(memos = notes) } }
+            }
+        }
+        attendanceRepository?.let { repository ->
+            viewModelScope.launch {
+                repository.attendanceFlow.collect { data -> _uiState.update { it.copy(attendance = data) } }
             }
         }
         scheduleEventRepository?.let { repository ->
@@ -460,6 +467,17 @@ class ScheduleViewModel(
     fun saveEvent(event: ScheduleEvent) {
         val repository = scheduleEventRepository ?: return
         viewModelScope.launch(ioDispatcher) { repository.upsert(event) }
+    }
+
+    /** Mark one session of a course as attended, missed or on leave; a null [status] clears the mark. */
+    fun markAttendance(courseKey: String, date: String, status: com.x500x.cursimple.core.data.attendance.AttendanceStatus?) {
+        val repository = attendanceRepository ?: return
+        viewModelScope.launch(ioDispatcher) { repository.mark(courseKey, date, status) }
+    }
+
+    fun setAbsenceAllowance(courseKey: String, allowance: Int?) {
+        val repository = attendanceRepository ?: return
+        viewModelScope.launch(ioDispatcher) { repository.setAllowance(courseKey, allowance) }
     }
 
     fun saveMemo(note: MemoNote) {
@@ -2020,6 +2038,7 @@ class ScheduleViewModelFactory(
     private val createTermAndActivate: suspend (String) -> Unit = {},
     private val scheduleEventRepository: ScheduleEventRepository? = null,
     private val memoRepository: MemoRepository? = null,
+    private val attendanceRepository: com.x500x.cursimple.core.data.attendance.AttendanceRepository? = null,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ScheduleViewModel::class.java)) {
@@ -2039,6 +2058,7 @@ class ScheduleViewModelFactory(
                 createTermAndActivate = createTermAndActivate,
                 scheduleEventRepository = scheduleEventRepository,
                 memoRepository = memoRepository,
+                attendanceRepository = attendanceRepository,
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

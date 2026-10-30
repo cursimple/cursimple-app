@@ -77,6 +77,7 @@ class AppBackupPayloadTest {
             AppBackupStores.PLUGIN_COMPONENTS,
             AppBackupStores.SCHEDULE_EVENTS,
             AppBackupStores.MEMOS,
+            AppBackupStores.ATTENDANCE,
         )
 
         assertEquals(names.size, AppBackupStores.ALL.size)

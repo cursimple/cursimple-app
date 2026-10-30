@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents
 import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
@@ -172,6 +173,8 @@ internal fun CourseEditFormFields(
     onCategoryChange: ((CourseCategory) -> Unit)? = null,
     onSelectEvent: (() -> Unit)? = null,
     showCategorySelector: Boolean = true,
+    /** Fill picked in the course detail before colors lived on the course; shown here until the editor saves. */
+    legacyColorArgb: Long? = null,
 ) {
     val reuse = rememberCourseReuseValues(existingCourses, initial)
     var title by rememberSaveable(initial, sourceWeekNumber) {
@@ -217,6 +220,19 @@ internal fun CourseEditFormFields(
     LaunchedEffect(initialCategory) {
         if (initial == null) {
             category = initialCategory
+        }
+    }
+    var fillArgb by rememberSaveable(initial) { mutableStateOf(initial?.colorArgb ?: legacyColorArgb) }
+    var fillEndArgb by rememberSaveable(initial) { mutableStateOf(initial?.colorEndArgb) }
+    var borderArgb by rememberSaveable(initial) { mutableStateOf(initial?.borderArgb) }
+    // A new course named like an existing one starts with that course's look, until the user picks their own.
+    var appearanceTouched by rememberSaveable(initial) { mutableStateOf(false) }
+    LaunchedEffect(title) {
+        if (initial == null && !appearanceTouched) {
+            val match = existingCourses.firstOrNull { it.title.trim() == title.trim() && title.isNotBlank() && !it.appearance().isDefault }
+            if (match != null) {
+                fillArgb = match.colorArgb; fillEndArgb = match.colorEndArgb; borderArgb = match.borderArgb
+            }
         }
     }
     var pickingWeekTitles by rememberSaveable(initial) { mutableStateOf(false) }
@@ -292,6 +308,7 @@ internal fun CourseEditFormFields(
             weekTitles = effectiveWeekTitles,
             existing = initial,
             clock = if (byClock) clockStart to clockEnd else null,
+            appearance = ItemAppearance(fillArgb, fillEndArgb, borderArgb),
         )
     } else {
         null
@@ -333,24 +350,7 @@ internal fun CourseEditFormFields(
             onPickWeekTitles = { pickingWeekTitles = true },
         )
 
-        CourseLocationField(
-            location = location,
-            onLocationChange = { location = it },
-            weekLocations = weekLocationsMap,
-            onPickWeekLocations = { pickingWeekLocations = true },
-            suggestions = reuse.locations,
-        )
-
-        CourseTeacherField(
-            teacher = teacher,
-            onTeacherChange = { teacher = it },
-            weekTeachers = weekTeachersMap,
-            onPickWeekTeachers = { pickingWeekTeachers = true },
-            suggestions = reuse.teachers,
-        )
-
         if (showCategorySelector) {
-            CourseFormLabel(stringResource(R.string.schedule_course_category_label))
             FlowChipRow {
                 AppFilterChip(
                     selected = category == CourseCategory.Course,
@@ -378,81 +378,76 @@ internal fun CourseEditFormFields(
             }
         }
 
-        CourseFormLabel(stringResource(R.string.schedule_add_course_time_label))
-        FlowChipRow {
-            (1..7).forEach { day ->
-                AppFilterChip(
-                    selected = dayOfWeek == day,
-                    onClick = { dayOfWeek = day },
-                    label = { Text(stringResource(scheduleWeekdayFullRes(day))) },
-                )
-            }
-        }
-
-        if (initial?.reminderOnly != true) {
-            CourseTimeModeChips(byClock = byClock, onByClock = { clock ->
-                if (clock && !byClock) {
-                    val nodes = startNodeText.toIntOrNull()?.let { s -> endNodeText.toIntOrNull()?.let { s to it } }
-                    nodes?.let { (s, e) -> clockForNodes(slotTimes, s, e) }?.let { (s, e) ->
-                        clockStart = s
-                        clockEnd = e
+        CourseWeeksSection(
+            parity = parity,
+            onParityChange = { p ->
+                parity = p
+                if (p == WeekParity.Custom) {
+                    if (customWeeksRaw.isBlank()) {
+                        customWeeksRaw = encodeCustomWeeks(
+                            manualCourseWeeksOrNull(startWeek, endWeek, WeekParity.All, weekLimit).orEmpty(),
+                        )
                     }
+                    pickingWeeks = true
                 }
-                if (!clock && byClock) clockNodes?.let { (s, e) ->
-                    startNodeText = s.toString()
-                    endNodeText = e.toString()
-                }
-                byClock = clock
-            })
-        }
+            },
+            startWeekText = startWeekText,
+            onStartWeekChange = { startWeekText = it },
+            endWeekText = endWeekText,
+            onEndWeekChange = { endWeekText = it },
+            customWeeks = customWeeks,
+            onEditCustomWeeks = { pickingWeeks = true },
+            weeks = weeks,
+            maxWeekCount = maxWeekCount,
+        )
 
-        if (byClock) CourseClockFields(clockStart, clockEnd, onStartChange = { clockStart = it }, onEndChange = { clockEnd = it })
-        else Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedTextField(
-                value = startNodeText,
-                onValueChange = { startNodeText = it.filter(Char::isDigit).take(2) },
-                label = { Text(stringResource(R.string.schedule_node_start_label)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.weight(1f),
-            )
-            OutlinedTextField(
-                value = endNodeText,
-                onValueChange = { endNodeText = it.filter(Char::isDigit).take(2) },
-                label = { Text(stringResource(R.string.schedule_node_end_label)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.weight(1f),
+        if (rangeValid && parity != WeekParity.Custom && weeks == null) {
+            Text(
+                text = stringResource(
+                    R.string.schedule_add_course_parity_empty,
+                    stringResource(parity.labelRes),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
             )
         }
 
-        CourseFormLabel(stringResource(R.string.schedule_weeks_label))
-        // Custom selection replaces start/end inputs with a selected-week summary.
-        if (parity == WeekParity.Custom) {
-            SelectedWeeksRow(
-                weeks = customWeeks,
-                onEdit = { pickingWeeks = true },
-            )
-        } else {
-            Row(
+        CourseFormSection(title = stringResource(R.string.schedule_add_course_time_label)) {
+        WeekdaySelector(selectedDay = dayOfWeek, onSelect = { dayOfWeek = it })
+            if (initial?.reminderOnly != true) {
+                CourseTimeModeChips(byClock = byClock, onByClock = { clock ->
+                    if (clock && !byClock) {
+                        val nodes = startNodeText.toIntOrNull()?.let { s -> endNodeText.toIntOrNull()?.let { s to it } }
+                        nodes?.let { (s, e) -> clockForNodes(slotTimes, s, e) }?.let { (s, e) ->
+                            clockStart = s
+                            clockEnd = e
+                        }
+                    }
+                    if (!clock && byClock) clockNodes?.let { (s, e) ->
+                        startNodeText = s.toString()
+                        endNodeText = e.toString()
+                    }
+                    byClock = clock
+                })
+            }
+
+            if (byClock) CourseClockFields(clockStart, clockEnd, onStartChange = { clockStart = it }, onEndChange = { clockEnd = it })
+            else Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 OutlinedTextField(
-                    value = startWeekText,
-                    onValueChange = { startWeekText = it.filter(Char::isDigit).take(2) },
-                    label = { Text(stringResource(R.string.schedule_week_start_label)) },
+                    value = startNodeText,
+                    onValueChange = { startNodeText = it.filter(Char::isDigit).take(2) },
+                    label = { Text(stringResource(R.string.schedule_node_start_label)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
                 )
                 OutlinedTextField(
-                    value = endWeekText,
-                    onValueChange = { endWeekText = it.filter(Char::isDigit).take(2) },
-                    label = { Text(stringResource(R.string.schedule_week_end_label)) },
+                    value = endNodeText,
+                    onValueChange = { endNodeText = it.filter(Char::isDigit).take(2) },
+                    label = { Text(stringResource(R.string.schedule_node_end_label)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
@@ -460,25 +455,30 @@ internal fun CourseEditFormFields(
             }
         }
 
-        FlowChipRow {
-            WeekParity.entries.forEach { p ->
-                AppFilterChip(
-                    selected = parity == p,
-                    onClick = {
-                        parity = p
-                        if (p == WeekParity.Custom) {
-                            if (customWeeksRaw.isBlank()) {
-                                customWeeksRaw = encodeCustomWeeks(
-                                    manualCourseWeeksOrNull(startWeek, endWeek, WeekParity.All, weekLimit).orEmpty(),
-                                )
-                            }
-                            pickingWeeks = true
-                        }
-                    },
-                    label = { Text(stringResource(p.labelRes)) },
-                )
-            }
+        CourseFormSection(title = stringResource(R.string.schedule_course_place_section)) {
+            CourseLocationField(
+                location = location,
+                onLocationChange = { location = it },
+                weekLocations = weekLocationsMap,
+                onPickWeekLocations = { pickingWeekLocations = true },
+                suggestions = reuse.locations,
+            )
+
+            CourseTeacherField(
+                teacher = teacher,
+                onTeacherChange = { teacher = it },
+                weekTeachers = weekTeachersMap,
+                onPickWeekTeachers = { pickingWeekTeachers = true },
+                suggestions = reuse.teachers,
+            )
         }
+
+        ItemAppearanceSection(
+            appearance = ItemAppearance(fillArgb, fillEndArgb, borderArgb),
+            onChange = { appearanceTouched = true; fillArgb = it.fill; fillEndArgb = it.fillEnd; borderArgb = it.border },
+            autoColor = courseColor(title.ifBlank { initial?.title.orEmpty() }, LocalScheduleAccents.current.coursePalette).container,
+            previewTitle = title,
+        )
 
         if (pickingWeekTitles) {
             WeekTitleDialog(
@@ -534,17 +534,6 @@ internal fun CourseEditFormFields(
                     pickingWeeks = false
                 },
                 onDismiss = { pickingWeeks = false },
-            )
-        }
-
-        if (rangeValid && parity != WeekParity.Custom && weeks == null) {
-            Text(
-                text = stringResource(
-                    R.string.schedule_add_course_parity_empty,
-                    stringResource(parity.labelRes),
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
             )
         }
 
@@ -1010,6 +999,7 @@ private fun buildCourse(
     weekTitles: Map<Int, String> = emptyMap(),
     existing: CourseItem? = null,
     clock: Pair<Int, Int>? = null,
+    appearance: ItemAppearance = ItemAppearance(),
 ): CourseItem {
     val time = CourseTimeSlot(dayOfWeek = dayOfWeek, startNode = startNode, endNode = endNode)
     val clockStart = clock?.first?.let(::formatMinuteOfDay)
@@ -1028,6 +1018,9 @@ private fun buildCourse(
             weekTitles = weekTitles,
             reminderStartTime = keptClock(existing, clockStart, existing.reminderStartTime),
             reminderEndTime = keptClock(existing, clockEnd, existing.reminderEndTime),
+            colorArgb = appearance.fill,
+            colorEndArgb = appearance.fillEnd,
+            borderArgb = appearance.border,
         )
     }
     return CourseItem(
@@ -1043,6 +1036,9 @@ private fun buildCourse(
         weekTitles = weekTitles,
         reminderStartTime = clockStart,
         reminderEndTime = clockEnd,
+        colorArgb = appearance.fill,
+        colorEndArgb = appearance.fillEnd,
+        borderArgb = appearance.border,
     )
 }
 

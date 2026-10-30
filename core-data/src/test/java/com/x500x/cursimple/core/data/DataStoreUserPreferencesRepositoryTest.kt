@@ -125,4 +125,13 @@ class DataStoreUserPreferencesRepositoryTest {
 
         assertEquals(retained.asMap(), prefs.asMap())
     }
+
+    @Test
+    fun `the period column width defaults to automatic and a reset clears it`() {
+        assertEquals(0, ScheduleDisplayPreferences().timeColumnWidthDp)
+        val key = intPreferencesKey("schedule_display_time_column_width_dp")
+        val prefs = mutablePreferencesOf(key to 40)
+        prefs.removeScheduleAppearanceAndDisplay()
+        assertEquals(null, prefs[key])
+    }
 }

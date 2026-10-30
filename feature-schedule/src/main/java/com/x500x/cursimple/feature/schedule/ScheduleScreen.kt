@@ -1,5 +1,9 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.core.kernel.model.memoCourseKey
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.material.icons.automirrored.rounded.EventNote
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Schedule
@@ -289,6 +293,8 @@ fun ScheduleRoute(
         onRemoveEvent = viewModel::removeEvent,
         onOpenLinkedEvent = onOpenLinkedEvent,
         onSaveMemo = viewModel::saveMemo,
+        onMarkAttendance = viewModel::markAttendance,
+        onSetAbsenceAllowance = viewModel::setAbsenceAllowance,
         modifier = modifier,
     )
 }
@@ -341,6 +347,8 @@ fun ScheduleScreen(
     onRemoveEvent: (String) -> Unit = {},
     onOpenLinkedEvent: (ScheduleEvent) -> Boolean = { false },
     onSaveMemo: (MemoNote) -> Unit = {},
+    onMarkAttendance: (String, String, com.x500x.cursimple.core.data.attendance.AttendanceStatus?) -> Unit = { _, _, _ -> },
+    onSetAbsenceAllowance: (String, Int?) -> Unit = { _, _ -> },
     onSetCustomCourseColor: (String, Long?) -> Unit = { _, _ -> },
 ) {
     var detailRequest by remember { mutableStateOf<CourseDetailRequest?>(null) }
@@ -534,9 +542,12 @@ fun ScheduleScreen(
                     sharedLocationSuffix(texts)
                 }
 
+                val pendingTodoCounts = remember(state.memos) { pendingTodoCountsByCourse(state.memos) }
                 CompositionLocalProvider(
                     LocalScheduleLocationSuffix provides locationSuffix,
                     LocalHiddenTimetableRows provides hiddenRows,
+                    LocalPendingTodoCounts provides pendingTodoCounts,
+                    LocalAttendanceMarks provides state.attendance.marks,
                 ) {
                     val weeklySectionContent: @Composable (Modifier) -> Unit = { sectionModifier ->
                         WeeklyScheduleSection(
@@ -806,6 +817,11 @@ fun ScheduleScreen(
                 },
                 scheduleCardStyle = scheduleCardStyle,
                 onSetCustomCourseColor = onSetCustomCourseColor,
+                memos = state.memos,
+                onSaveMemo = onSaveMemo,
+                attendance = state.attendance,
+                onMarkAttendance = onMarkAttendance,
+                onSetAbsenceAllowance = onSetAbsenceAllowance,
             )
         }
 
@@ -962,6 +978,10 @@ fun ScheduleScreen(
     }
 }
 
+/**
+ * The real timetable fed with sample courses, so every display, text, card and background setting shows up exactly
+ * as it will on the schedule page and updates the moment it changes. Touches are blocked: it only previews.
+ */
 @Composable
 fun ScheduleAppearancePreview(
     scheduleTextStyle: ScheduleTextStylePreferences,
@@ -974,198 +994,99 @@ fun ScheduleAppearancePreview(
     maxSlots: Int = Int.MAX_VALUE,
     maxHeight: Dp = Dp.Unspecified,
 ) {
-    val previewWeek = remember(scheduleDisplay.weekStartDay) {
-        appearancePreviewWeek(scheduleDisplay.weekStartDay)
+    // The scaled page is tall enough for every sample period; maxSlots only matters for callers that ask for fewer.
+    val slotCount = maxSlots.coerceIn(1, PREVIEW_SLOT_TIMES.size)
+    val zone = com.x500x.cursimple.feature.schedule.time.LocalAppZone.current
+    // Week 1 is the current week, so the preview shows today highlighted just like the real page.
+    val termStart = remember(zone) {
+        val today = zone.today()
+        today.minusDays((today.dayOfWeek.value - 1).toLong())
     }
-    val previewSlots = remember(maxSlots) { appearancePreviewSlots().take(maxSlots) }
-    val previewCourses = remember { appearancePreviewCourses() }
-    val columnDayOfWeeks = remember(
-        scheduleDisplay.saturdayVisible,
-        scheduleDisplay.weekendVisible,
-        scheduleDisplay.weekStartDay,
-    ) {
-        visibleColumnDayOfWeeks(scheduleDisplay)
-    }
-    val activeEntries = remember(
-        previewCourses,
-        previewSlots,
-        scheduleDisplay.totalScheduleDisplayEnabled,
-        columnDayOfWeeks,
-    ) {
-        buildWeekRenderEntries(
-            allCourses = previewCourses,
-            slots = previewSlots,
-            weekIndex = previewWeek.weekIndex,
-            totalScheduleDisplayEnabled = scheduleDisplay.totalScheduleDisplayEnabled,
-            weekStart = previewWeek.weekStart,
-            termStart = previewWeek.weekStart,
-            columnDayOfWeeks = columnDayOfWeeks,
+    val state = remember(termStart, slotCount) {
+        ScheduleUiState(
+            initialized = true,
+            timingProfile = TermTimingProfile(
+                termStart.toString(),
+                PREVIEW_SLOT_TIMES.take(slotCount).mapIndexed { index, (start, end) ->
+                    ClassSlotTime(index + 1, index + 1, start, end)
+                },
+            ),
+            manualCourses = appearancePreviewCourses(slotCount),
         )
     }
-    val slotHeight = scheduleCardStyle.courseCardHeightDp.dp
-    val dayHeaderHeight = 52.dp
-    val previewHeight = dayHeaderHeight + slotHeight * previewSlots.size + 16.dp
-    val baseDensity = LocalDensity.current
-    val fitScale = if (maxHeight.isSpecified && previewHeight > maxHeight) maxHeight / previewHeight else 1f
-
-    CompositionLocalProvider(
-        LocalDensity provides Density(baseDensity.density * fitScale, baseDensity.fontScale),
+    // A phone-sized page scaled down to fit: the same fitting, lanes and text rules as the real page, just smaller.
+    val boxHeight = if (maxHeight.isSpecified) maxHeight else PREVIEW_PAGE_HEIGHT * 0.5f
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(boxHeight)
+            .testTag("schedule-appearance-preview"),
+        contentAlignment = Alignment.Center,
     ) {
-        BoxWithConstraints(
-            modifier = modifier
-                .fillMaxWidth()
-                .height(previewHeight)
-                .clip(RoundedCornerShape(24.dp))
+        val scale = minOf(maxWidth / PREVIEW_PAGE_WIDTH, boxHeight / PREVIEW_PAGE_HEIGHT).coerceAtMost(1f)
+        Box(
+            modifier = Modifier
+                .size(PREVIEW_PAGE_WIDTH * scale, PREVIEW_PAGE_HEIGHT * scale)
+                .clip(RoundedCornerShape(14.dp))
                 .background(MaterialTheme.colorScheme.surface),
         ) {
-            val cellGroups = remember(activeEntries) {
-                activeEntries
-                    .groupBy { it.placement.dayIndex to it.placement.rowIndex }
-                    .map { (_, list) ->
-                        val main = list.first()
-                        val sorted = list.map { it.course }.distinctBy { it.id }
-                        Triple(main, sorted, sorted.size)
-                    }
-            }
-            val visibleDays = remember(previewWeek.days, columnDayOfWeeks) {
-                previewWeek.days.filter { it.dayOfWeek in columnDayOfWeeks }
-            }
-            val availableWidth = (maxWidth - 8.dp).coerceAtLeast(0.dp)
-            val dayColumnCount = visibleDays.size.coerceAtLeast(1)
-            val timeColumnWidth = timeColumnWidth(availableWidth, scheduleTextStyle.headerTextSizeSp, previewSlots.map { it.label })
-            val gridWidth = (availableWidth - timeColumnWidth).coerceAtLeast(0.dp)
-            val dayColumnWidth = (gridWidth / dayColumnCount).coerceAtLeast(36.dp)
-            val gridHeight = slotHeight * previewSlots.size
-
-            Column(
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 4.dp, vertical = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                    .wrapContentSize(Alignment.TopStart, unbounded = true)
+                    .requiredSize(PREVIEW_PAGE_WIDTH, PREVIEW_PAGE_HEIGHT)
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                    },
             ) {
-                Row(
-                    modifier = Modifier.height(dayHeaderHeight),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    MonthCornerCell(
-                        monthNumber = previewWeek.days.firstOrNull()?.monthNumber,
-                        width = timeColumnWidth,
-                        scheduleTextStyle = scheduleTextStyle,
-                        customColorsAdaptToTheme = customColorsAdaptToTheme,
-                    )
-                    visibleDays.forEach { day ->
-                        DayHeader(
-                            day = day,
-                            width = dayColumnWidth,
-                            scheduleTextStyle = scheduleTextStyle,
-                            customColorsAdaptToTheme = customColorsAdaptToTheme,
-                        )
-                    }
-                }
-
-                Row(verticalAlignment = Alignment.Top) {
-                    Column(
-                        modifier = Modifier.width(timeColumnWidth),
-                    ) {
-                        previewSlots.forEach { slot ->
-                            TimeCell(
-                                slot = slot,
-                                height = slotHeight,
-                                showTime = scheduleDisplay.nodeColumnTimeEnabled,
-                                scheduleTextStyle = scheduleTextStyle,
-                                customColorsAdaptToTheme = customColorsAdaptToTheme,
-                            )
-                        }
-                    }
-
-                    val darkTheme = isDarkColorScheme()
-                    Box(
-                        modifier = Modifier
-                            .width(dayColumnWidth * dayColumnCount)
-                            .height(gridHeight)
-                            .clip(RoundedCornerShape(16.dp)),
-                    ) {
-                        ScheduleGridBackground(
-                            scheduleBackground = scheduleBackground,
-                            scheduleCardStyle = scheduleCardStyle,
-                            customColorsAdaptToTheme = customColorsAdaptToTheme,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .drawBehind {
-                                    val lineColor = colorFromArgb(
-                                        scheduleCardStyle.gridBorderColorArgb,
-                                        darkTheme = darkTheme,
-                                        adaptToTheme = customColorsAdaptToTheme,
-                                        role = ScheduleCustomColorRole.Foreground,
-                                    ).withOpacityPercent(scheduleCardStyle.gridBorderOpacityPercent)
-                                    val strokeWidth = scheduleCardStyle.gridBorderWidthDp.dp.toPx()
-                                    if (strokeWidth <= 0f) return@drawBehind
-                                    val pathEffect = if (scheduleCardStyle.gridBorderDashed) {
-                                        PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx()), 0f)
-                                    } else {
-                                        null
-                                    }
-                                    for (i in 1 until previewSlots.size) {
-                                        val y = slotHeight.toPx() * i
-                                        drawLine(
-                                            color = lineColor,
-                                            start = androidx.compose.ui.geometry.Offset(0f, y),
-                                            end = androidx.compose.ui.geometry.Offset(size.width, y),
-                                            strokeWidth = strokeWidth,
-                                            pathEffect = pathEffect,
-                                        )
-                                    }
-                                    for (i in 1 until dayColumnCount) {
-                                        val x = dayColumnWidth.toPx() * i
-                                        drawLine(
-                                            color = lineColor,
-                                            start = androidx.compose.ui.geometry.Offset(x, 0f),
-                                            end = androidx.compose.ui.geometry.Offset(x, size.height),
-                                            strokeWidth = strokeWidth,
-                                            pathEffect = pathEffect,
-                                        )
-                                    }
-                                },
-                        ) {
-                            cellGroups.forEach { (mainEntry, _, count) ->
-                                val placement = mainEntry.placement
-                                val course = mainEntry.course
-                                val courseHeight = (slotHeight * placement.rowSpan) - 3.dp
-                                CourseBlock(
-                                    course = course,
-                                    displayTitle = course.titleForWeek(mainEntry.sourceWeekIndex),
-                                    displayLocation = course.locationForWeek(mainEntry.sourceWeekIndex),
-                                    badges = emptyList(),
-                                    hasReminder = false,
-                                    selected = false,
-                                    inactive = mainEntry.inactive,
-                                    temporarilyCancelled = false,
-                                    cellCount = count,
-                                    multiSelectMode = false,
-                                    multiSelected = false,
-                                    scheduleTextStyle = scheduleTextStyle,
-                                    scheduleCardStyle = scheduleCardStyle,
-                                    scheduleDisplay = scheduleDisplay,
-                                    customColorsAdaptToTheme = customColorsAdaptToTheme,
-                                    width = dayColumnWidth - 2.dp,
-                                    height = courseHeight,
-                                    offsetX = dayColumnWidth * placement.dayIndex + 1.dp,
-                                    offsetY = slotHeight * placement.rowIndex + 1.dp,
-                                    interactive = false,
-                                    onClick = {},
-                                    onLongClick = {},
-                                )
+                ScheduleScreen(
+                    state = state,
+                    onCreateCourseReminder = { _, _, _ -> },
+                    onMuteExamReminder = {},
+                    onRestoreExamReminder = {},
+                    onRemoveReminderRule = {},
+                    onRemoveManualCourse = {},
+                    onCreateBulkReminder = { _, _, _ -> },
+                    onPrevWeek = {},
+                    onNextWeek = {},
+                    onPrevDay = {},
+                    onNextDay = {},
+                    onResetDay = {},
+                    onOpenPluginMarket = {},
+                    overrideTermStart = termStart,
+                    weekOffset = 0,
+                    minWeekOffset = 0,
+                    maxWeekOffset = 0,
+                    termWeekCount = 20,
+                    scheduleTextStyle = scheduleTextStyle,
+                    scheduleCardStyle = scheduleCardStyle,
+                    scheduleBackground = scheduleBackground,
+                    scheduleDisplay = scheduleDisplay,
+                    customColorsAdaptToTheme = customColorsAdaptToTheme,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            // Swallow every touch: a preview must not open dialogs, switch weeks or add courses.
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                                    .changes.forEach { it.consume() }
                             }
                         }
-                    }
-                }
-            }
+                    },
+            )
         }
     }
 }
+
+/** Size of the page the preview lays out before scaling it down, close to a phone's timetable area. */
+private val PREVIEW_PAGE_WIDTH = 392.dp
+private val PREVIEW_PAGE_HEIGHT = 640.dp
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -1955,9 +1876,10 @@ private fun DayRow(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             courses.forEach { course ->
-                val customColor = scheduleCardStyle.customCourseColors[course.id]
+                val customColor = course.colorArgb
+                    ?: scheduleCardStyle.customCourseColors[course.id]
                     ?: scheduleCardStyle.customCourseColors[course.title]
-                val palette = courseColor(course.title, accents.coursePalette, customColor)
+                val palette = courseColor(course.title, accents.coursePalette, customColor, course.colorEndArgb)
                 val isExam = course.category == CourseCategory.Exam
                 val temporarilyCancelled = isCourseTemporarilyCancelled(
                     date = targetDate,
@@ -1967,14 +1889,18 @@ private fun DayRow(
                 val unavailable = onHoliday || beforeTerm
                 val containerColor = when {
                     unavailable -> accents.inactiveContainer
+                    customColor != null -> palette.container
                     isExam -> MaterialTheme.colorScheme.errorContainer
                     else -> palette.container
                 }
                 val onColor = when {
                     unavailable -> accents.inactiveOnContainer
+                    customColor != null -> palette.onContainer
                     isExam -> MaterialTheme.colorScheme.onErrorContainer
                     else -> palette.onContainer
                 }
+                val blendEnd = course.colorEndArgb?.takeIf { customColor != null && !unavailable }?.let { Color(it.toInt()) }
+                val ownBorder = course.borderArgb?.takeIf { !unavailable }?.let { Color(it.toInt()) }
                 val isSelected = course.id == selectedCourseId
                 val isMultiSelected = course.id in multiSelectedIds
                 val highlight = isSelected || isMultiSelected
@@ -2001,24 +1927,32 @@ private fun DayRow(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(shape)
-                        .background(
-                            containerColor.withOpacityPercent(
-                                if (unavailable) {
-                                    scheduleCardStyle.inactiveCourseOpacityPercent
-                                } else {
-                                    scheduleCardStyle.scheduleOpacityPercent
-                                },
-                            ),
+                        .then(
+                            if (blendEnd != null) {
+                                Modifier.background(fillBrush(containerColor, blendEnd, scheduleCardStyle.scheduleOpacityPercent.asAlpha()))
+                            } else {
+                                Modifier.background(
+                                    containerColor.withOpacityPercent(
+                                        if (unavailable) {
+                                            scheduleCardStyle.inactiveCourseOpacityPercent
+                                        } else {
+                                            scheduleCardStyle.scheduleOpacityPercent
+                                        },
+                                    ),
+                                )
+                            },
                         )
                         .border(
                             BorderStroke(
                                 when {
                                     highlight -> 2.dp
+                                    ownBorder != null -> 1.5.dp
                                     isExam -> 1.5.dp
                                     else -> 0.dp
                                 },
                                 when {
                                     highlight -> MaterialTheme.colorScheme.primary
+                                    ownBorder != null -> ownBorder
                                     isExam -> MaterialTheme.colorScheme.error
                                     else -> Color.Transparent
                                 },
@@ -2653,7 +2587,7 @@ private fun ScheduleGrid(
 
     val gridScrollState = rememberScrollState()
     androidx.compose.foundation.layout.BoxWithConstraints(modifier = modifier) {
-        val timeColumnWidth = timeColumnWidth(maxWidth, scheduleTextStyle.headerTextSizeSp, slots.map { it.label })
+        val timeColumnWidth = timeColumnWidth(maxWidth, scheduleTextStyle.headerTextSizeSp, slots.map { it.label }, scheduleDisplay.timeColumnWidthDp)
         // Calculate header height with font scaling for weekday, date and override text.
         val headerDensity = androidx.compose.ui.platform.LocalDensity.current
         val dayHeaderEstimate = dayHeaderHeight(
@@ -3090,6 +3024,8 @@ private fun ScheduleGrid(
                                 ),
                                 hasReminder = hasReminderForCourse(course, reminderRules, timingProfile),
                                 hasNote = courseNotes.hasNote(course.id),
+                                pendingTodoCount = LocalPendingTodoCounts.current[memoCourseKey(course.title)] ?: 0,
+                                attendanceStatus = LocalAttendanceMarks.current[memoCourseKey(course.title) to columnDate.toString()],
                                 selected = course.id == selectedCourseId,
                                 inactive = entry.inactive,
                                 onHoliday = entry.onHoliday,
@@ -3294,6 +3230,20 @@ private fun ScheduleGrid(
                             )
                         }
 
+                        // A week with nothing in it says how to add something instead of showing a blank grid.
+                        if (cellGroups.isEmpty() && dayEventGroups.all { it.isEmpty() }) {
+                            Text(
+                                text = stringResource(R.string.schedule_week_empty_hint),
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .padding(horizontal = 24.dp)
+                                    .testTag("schedule-week-empty-hint"),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            )
+                        }
+
                         // Retain the prior quick-add hint during fade-out rather than removing it immediately.
                         val lastHintCell = androidx.compose.runtime.remember { mutableStateOf<Pair<Int, Int>?>(null) }
                         androidx.compose.runtime.LaunchedEffect(hintCell) {
@@ -3486,6 +3436,8 @@ private const val READABLE_TITLE_EMS = 6f
 /** Grid width, in ordinary day columns per day, from which a third lane is allowed. */
 private const val WIDE_LANE_ROOM = 2.0f
 private val NARROW_CARD_WIDTH = 48.dp
+/** Below this card width the room line is dropped so the title is not squeezed into a strip. */
+private val NARROW_LOCATION_HIDE_WIDTH = 44.dp
 
 /** Whether the visible timetable has temporarily switched from one page to vertical scrolling. */
 object ScheduleOverflowState {
@@ -4527,6 +4479,10 @@ private fun CourseBlock(
     badges: List<String>,
     hasReminder: Boolean,
     hasNote: Boolean = false,
+    /** Open to-dos filed under this course; shown as a small number on the card. */
+    pendingTodoCount: Int = 0,
+    /** Mark made for this very session, if any: missed and leave get a small letter on the card. */
+    attendanceStatus: com.x500x.cursimple.core.data.attendance.AttendanceStatus? = null,
     selected: Boolean,
     inactive: Boolean,
     onHoliday: Boolean = false,
@@ -4564,10 +4520,11 @@ private fun CourseBlock(
     val colorSeed = remember(course.title, sourceTerm) {
         if (!sourceTerm.isNullOrBlank()) "${sourceTerm}_${course.title}" else course.title
     }
-    val customColor = scheduleCardStyle.customCourseColors[course.id]
+    val customColor = course.colorArgb
+        ?: scheduleCardStyle.customCourseColors[course.id]
         ?: scheduleCardStyle.customCourseColors[course.title]
-    val palette = remember(colorSeed, accents, customColor) {
-        courseColor(colorSeed, accents.coursePalette, customColor)
+    val palette = remember(colorSeed, accents, customColor, course.colorEndArgb) {
+        courseColor(colorSeed, accents.coursePalette, customColor, course.colorEndArgb)
     }
     val isExam = course.category == CourseCategory.Exam
     val shape = RoundedCornerShape(scheduleCardStyle.courseCornerRadiusDp.dp)
@@ -4583,16 +4540,20 @@ private fun CourseBlock(
     } else {
         TextOverflow.Clip
     }
+    // Colors picked for the course win over the exam styling, but never over the faded look of other weeks.
     val containerColor = when {
         inactive -> accents.inactiveContainer
+        customColor != null -> palette.container
         isExam -> MaterialTheme.colorScheme.errorContainer
         else -> palette.container
     }
     val onColor = when {
         inactive -> accents.inactiveOnContainer
+        customColor != null -> palette.onContainer
         isExam -> MaterialTheme.colorScheme.onErrorContainer
         else -> palette.onContainer
     }
+    val blendEnd = course.colorEndArgb?.takeIf { customColor != null && !inactive }?.let { Color(it.toInt()) }
     val customTitleArgb =
         if (isExam) scheduleTextStyle.examTextColorArgb else scheduleTextStyle.courseTextColorArgb
     val titleColor =
@@ -4613,14 +4574,17 @@ private fun CourseBlock(
         0.6f,
     )
     val highlight = multiSelected || selected
+    val ownBorder = course.borderArgb?.takeIf { !inactive }?.let { Color(it.toInt()) }
     val borderColor = when {
         multiSelected -> MaterialTheme.colorScheme.primary
         selected -> MaterialTheme.colorScheme.primary
+        ownBorder != null -> ownBorder
         isExam && !inactive -> MaterialTheme.colorScheme.error
         else -> androidx.compose.ui.graphics.Color.Transparent
     }
     val borderWidth = when {
         highlight -> 2.dp
+        ownBorder != null -> 1.5.dp
         isExam && !inactive -> 1.5.dp
         else -> 0.dp
     }
@@ -4644,14 +4608,20 @@ private fun CourseBlock(
                 .fillMaxSize()
                 .testTag("schedule-course-${course.id}")
                 .clip(shape)
-                .background(
-                    containerColor.withOpacityPercent(
-                        if (inactive) {
-                            scheduleCardStyle.inactiveCourseOpacityPercent
-                        } else {
-                            scheduleCardStyle.scheduleOpacityPercent
-                        },
-                    ),
+                .then(
+                    if (blendEnd != null) {
+                        Modifier.background(fillBrush(containerColor, blendEnd, scheduleCardStyle.scheduleOpacityPercent.asAlpha()))
+                    } else {
+                        Modifier.background(
+                            containerColor.withOpacityPercent(
+                                if (inactive) {
+                                    scheduleCardStyle.inactiveCourseOpacityPercent
+                                } else {
+                                    scheduleCardStyle.scheduleOpacityPercent
+                                },
+                            ),
+                        )
+                    },
                 )
                 .border(BorderStroke(borderWidth, borderColor), shape)
                 .drawWithContent {
@@ -4766,10 +4736,14 @@ private fun CourseBlock(
                             LocalScheduleLocationSuffix.current,
                         ),
                     )
-                    val showLocationText = scheduleDisplay.locationVisible && rawLocationText.isNotBlank()
+                    // Lanes too narrow for a readable room number keep the title only; the detail view still shows the room.
+                    val showLocationText = scheduleDisplay.locationVisible && rawLocationText.isNotBlank() && width >= NARROW_LOCATION_HIDE_WIDTH
                     val showBadgeText = badges.isNotEmpty() && !inactive
                     val textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start
-                    val baseStyle = androidx.compose.material3.LocalTextStyle.current
+                    // A blend has no single background, so the text gets a soft halo to stay readable on both ends.
+                    val baseStyle = androidx.compose.material3.LocalTextStyle.current.let { style ->
+                        if (blendEnd != null) style.merge(androidx.compose.ui.text.TextStyle(shadow = blendTextShadow(onColor))) else style
+                    }
                     // Measure and render with identical styles and greedy wrapping so prefix extraction preserves breaks.
                     val baseTitleStyle = remember(baseStyle, titleFontSizeSp, titleColor, textAlign) {
                         baseStyle.merge(
@@ -5043,6 +5017,55 @@ private fun CourseBlock(
                     contentDescription = null,
                     tint = onColor,
                     modifier = Modifier.size(9.dp),
+                )
+            }
+        }
+
+        if (attendanceStatus != null && attendanceStatus != com.x500x.cursimple.core.data.attendance.AttendanceStatus.Present &&
+            !inactive && width >= 40.dp && height >= 30.dp
+        ) {
+            val missed = attendanceStatus == com.x500x.cursimple.core.data.attendance.AttendanceStatus.Absent
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = 4.dp, y = 2.dp)
+                    .size(14.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(if (missed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary)
+                    .testTag("course-attendance-badge-${course.id}"),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(if (missed) R.string.attendance_badge_absent else R.string.attendance_badge_leave),
+                    color = if (missed) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onSecondary,
+                    fontSize = 8.sp,
+                    lineHeight = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+
+        if (pendingTodoCount > 0 && !inactive && width >= 36.dp && height >= 28.dp) {
+            // Sits left of the note and moved markers so the three never overlap.
+            val startOffset = 2 + (if (movedIn) 17 else 0) + (if (hasNote) 17 else 0)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = (-startOffset).dp, y = (-2).dp)
+                    .defaultMinSize(minWidth = 13.dp, minHeight = 13.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(MaterialTheme.colorScheme.tertiary)
+                    .semantics { contentDescription = "$pendingTodoCount" }
+                    .testTag("course-todo-badge-${course.id}"),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (pendingTodoCount > 9) "9+" else pendingTodoCount.toString(),
+                    color = MaterialTheme.colorScheme.onTertiary,
+                    fontSize = 8.sp,
+                    lineHeight = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 2.dp),
                 )
             }
         }
@@ -5433,96 +5456,30 @@ internal fun buildWeekModel(
     )
 }
 
-private fun appearancePreviewWeek(weekStartDay: WeekStartDay): WeekModel {
-    // Preview fixed sample data while applying the real display column order.
-    val monday = LocalDate.of(2026, 3, 2)
-    val weekStart = if (weekStartDay == WeekStartDay.Sunday) monday.minusDays(1) else monday
-    return WeekModel(
-        weekIndex = 2,
-        weekStart = weekStart,
-        days = (0..6).map { index ->
-            val date = weekStart.plusDays(index.toLong())
-            DayHeaderModel(
-                date = date,
-                dayOfWeek = date.dayOfWeek.value,
-                monthNumber = if (index == 0) date.monthValue else null,
-                weekdayLabelRes = shortWeekdayRes(date.dayOfWeek),
-                dateLabel = DayDateLabel.Day(date.dayOfMonth),
-                isToday = false,
-            )
-        },
-    )
+/** Period times of the sample timetable; one period per row, like the minimal real setup. */
+private val PREVIEW_SLOT_TIMES = listOf("08:00" to "08:50", "09:00" to "09:50", "10:10" to "11:00", "11:10" to "12:00")
+
+/** Sample courses for the preview; Monday holds two overlapping ones so the side-by-side layout is shown too. */
+private fun appearancePreviewCourses(slotCount: Int): List<CourseItem> {
+    fun sample(id: String, title: String, teacher: String, location: String, day: Int, start: Int, end: Int) =
+        CourseItem(
+            id = "preview-$id",
+            title = title,
+            teacher = teacher,
+            location = location,
+            weeks = (1..4).toList(),
+            time = com.x500x.cursimple.core.kernel.model.CourseTimeSlot(day, start, end),
+        )
+    return listOf(
+        sample("math", "高等数学", "小浩", "理工楼110", 1, 1, 2),
+        sample("discrete", "离散数学", "老周", "理工楼208", 1, 2, 3),
+        sample("english", "大学英语", "Louis", "逸夫楼201", 2, 2, 3),
+        sample("computer", "计算机基础", "老陈", "文成楼125", 3, 1, 3),
+        sample("linear", "线性代数", "小邱", "东教学楼502", 4, 2, 4),
+        sample("mechanics", "理论力学", "小刘", "文思楼202", 5, 1, 2),
+    ).filter { it.time.startNode <= slotCount }
+        .map { it.copy(time = it.time.copy(endNode = minOf(it.time.endNode, slotCount))) }
 }
-
-private fun appearancePreviewSlots(): List<DisplaySlot> = listOf(
-    DisplaySlot(startNode = 1, endNode = 1, label = "1", startTime = "08:00", endTime = "08:50"),
-    DisplaySlot(startNode = 2, endNode = 2, label = "2", startTime = "09:00", endTime = "09:50"),
-    DisplaySlot(startNode = 3, endNode = 3, label = "3", startTime = "10:10", endTime = "11:00"),
-    DisplaySlot(startNode = 4, endNode = 4, label = "4", startTime = "11:10", endTime = "12:00"),
-)
-
-private fun appearancePreviewCourses(): List<CourseItem> = listOf(
-    CourseItem(
-        id = "preview-math",
-        title = "高等数学",
-        teacher = "小浩",
-        location = "理工楼110",
-        weeks = listOf(2),
-        time = com.x500x.cursimple.core.kernel.model.CourseTimeSlot(
-            dayOfWeek = 1,
-            startNode = 1,
-            endNode = 2,
-        ),
-    ),
-    CourseItem(
-        id = "preview-english",
-        title = "大学英语",
-        teacher = "Louis",
-        location = "逸夫楼201",
-        weeks = listOf(1),
-        time = com.x500x.cursimple.core.kernel.model.CourseTimeSlot(
-            dayOfWeek = 2,
-            startNode = 2,
-            endNode = 4,
-        ),
-    ),
-    CourseItem(
-        id = "preview-computer",
-        title = "计算机基础",
-        teacher = "老陈",
-        location = "文成楼125",
-        weeks = listOf(2),
-        time = com.x500x.cursimple.core.kernel.model.CourseTimeSlot(
-            dayOfWeek = 3,
-            startNode = 1,
-            endNode = 3,
-        ),
-    ),
-    CourseItem(
-        id = "preview-linear",
-        title = "线性代数",
-        teacher = "小邱",
-        location = "东教学楼502",
-        weeks = listOf(2),
-        time = com.x500x.cursimple.core.kernel.model.CourseTimeSlot(
-            dayOfWeek = 4,
-            startNode = 2,
-            endNode = 4,
-        ),
-    ),
-    CourseItem(
-        id = "preview-mechanics",
-        title = "理论力学",
-        teacher = "小刘",
-        location = "文思楼202",
-        weeks = listOf(2),
-        time = com.x500x.cursimple.core.kernel.model.CourseTimeSlot(
-            dayOfWeek = 7,
-            startNode = 1,
-            endNode = 2,
-        ),
-    ),
-)
 
 /** Minimum editable week range expands to actual term coverage. */
 private const val DefaultEditableWeekCount = 20
@@ -5640,10 +5597,12 @@ internal fun courseColor(
     seed: String,
     palette: List<com.x500x.cursimple.feature.schedule.theme.CoursePaletteEntry>,
     customColorArgb: Long? = null,
+    customEndColorArgb: Long? = null,
 ): com.x500x.cursimple.feature.schedule.theme.CoursePaletteEntry {
     if (customColorArgb != null) {
         val container = Color(customColorArgb.toInt())
-        val on = if (container.luminance() > 0.5f) Color(0xFF1F2A24) else Color.White
+        // A blend reads against the mix of both ends, so the text stays legible across the whole card.
+        val on = readableOn(blendedFill(container, customEndColorArgb?.let { Color(it.toInt()) }))
         return com.x500x.cursimple.feature.schedule.theme.CoursePaletteEntry(container, on)
     }
     if (palette.isEmpty()) {
@@ -5912,7 +5871,9 @@ internal fun shortWeekdayRes(dayOfWeek: DayOfWeek): Int = when (dayOfWeek) {
  * text shrinks to fit, so the column stays slim and leaves the room to the courses.
  */
 @Composable
-private fun timeColumnWidth(availableWidth: Dp, headerTextSizeSp: Int, labels: List<String>): Dp {
+private fun timeColumnWidth(availableWidth: Dp, headerTextSizeSp: Int, labels: List<String>, customWidthDp: Int = 0): Dp {
+    // A width chosen in settings wins over the automatic one, never taking more than 40 percent of the screen.
+    if (customWidthDp > 0) return customWidthDp.dp.coerceAtMost(availableWidth * 0.4f)
     val base = when {
         availableWidth < 360.dp -> 28.dp
         availableWidth < 420.dp -> 30.dp

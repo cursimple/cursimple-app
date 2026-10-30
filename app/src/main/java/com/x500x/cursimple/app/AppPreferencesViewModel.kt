@@ -319,6 +319,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setGridDashedLinesEnabled(enabled) }
     }
 
+    fun setTimeColumnWidthDp(widthDp: Int) {
+        viewModelScope.launch { repository.setTimeColumnWidthDp(widthDp) }
+    }
+
     fun setAlarmBackend(backend: ReminderAlarmBackend) {
         viewModelScope.launch {
             repository.setAlarmBackend(backend)

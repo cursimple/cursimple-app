@@ -97,11 +97,11 @@ object ExtensionNotifier {
         com.x500x.cursimple.core.data.notification.OutboundNotificationHooks.emit(
             com.x500x.cursimple.core.data.notification.OutboundNotification(
                 id = "component/$pluginId/due/${item.id}@$due", kind = "component.due", title = item.title,
-                body = listOf(item.course, "截止：${Instant.ofEpochMilli(due).atZone(BeijingTime.zone).format(DateTimeFormatter.ofPattern("M/d HH:mm"))}", item.summary).filter(String::isNotBlank).joinToString("\n"),
+                body = listOf(item.course, context.getString(R.string.extension_notify_due_prefix, dueClock(context, due)), item.summary).filter(String::isNotBlank).joinToString("\n"),
                 sourceId = pluginId, sourceName = title, itemId = item.id, createdAt = now, expiresAt = due,
             ),
         )
-        val clock = Instant.ofEpochMilli(due).atZone(BeijingTime.zone).format(DateTimeFormatter.ofPattern("M月d日 HH:mm"))
+        val clock = dueClock(context, due)
         val hoursLeft = ((due - now) / 3_600_000L).toInt()
         val left = if (hoursLeft < 1) {
             context.getString(R.string.extension_notify_due_within_hour)
@@ -262,13 +262,15 @@ object ExtensionNotifier {
 
     private fun detailLine(context: Context, item: ExtensionFeedItem): String {
         val due = item.dueAt?.let {
-            context.getString(
-                R.string.extension_notify_due_at,
-                Instant.ofEpochMilli(it).atZone(BeijingTime.zone).format(DateTimeFormatter.ofPattern("M月d日 HH:mm")),
-            )
+            context.getString(R.string.extension_notify_due_at, dueClock(context, it))
         }
         return listOfNotNull(item.course.ifBlank { null }, due, item.author.ifBlank { null }).joinToString(" · ")
     }
+
+    /** Due time in the locale's own date pattern, so English keeps English-style dates. */
+    private fun dueClock(context: Context, due: Long): String =
+        Instant.ofEpochMilli(due).atZone(BeijingTime.zone)
+            .format(DateTimeFormatter.ofPattern(context.getString(R.string.extension_notify_date_pattern)))
 
     private fun labelOf(item: ExtensionFeedItem): String = item.category.ifBlank { item.type }
 

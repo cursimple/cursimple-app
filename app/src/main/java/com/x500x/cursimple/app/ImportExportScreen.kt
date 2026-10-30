@@ -194,6 +194,7 @@ fun ImportExportScreen(
     }
     var imageAllWeeks by rememberSaveable { mutableStateOf(true) }
     var imageWallpaperMode by rememberSaveable { mutableStateOf(false) }
+    var importFailure by remember { mutableStateOf<com.x500x.cursimple.app.util.ImportDiagnosis?>(null) }
     var imageOptions by remember { mutableStateOf(ScheduleImageOptionsStore.load(context)) }
     val contentScrollState = rememberScrollState()
     val appBackupJson = remember {
@@ -298,16 +299,12 @@ fun ImportExportScreen(
                     Toast.LENGTH_SHORT,
                 ).show()
             }.onFailure {
-                Toast.makeText(
-                    context,
-                    context.getString(
-                        R.string.ie_ai_import_failed,
-                        context.aiImportErrorText(it)
-                            ?: it.message
-                            ?: context.getString(R.string.ie_unknown_error),
-                    ),
-                    Toast.LENGTH_SHORT,
-                ).show()
+                // The client's own wording is kept in the details; the dialog explains it and what to do.
+                val described = context.aiImportErrorText(it)
+                importFailure = com.x500x.cursimple.app.util.diagnoseImportFailure(
+                    com.x500x.cursimple.app.util.ImportSource.Ai,
+                    if (described != null) IllegalStateException(described, it) else it,
+                )
             }
             aiBusy = false
         }
@@ -372,7 +369,7 @@ fun ImportExportScreen(
                     pendingImport = payload
                 }
             } catch (e: Exception) {
-                Toast.makeText(context, "ICS 导入失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                importFailure = com.x500x.cursimple.app.util.diagnoseImportFailure(com.x500x.cursimple.app.util.ImportSource.Ics, e)
             }
         }
     }
@@ -390,7 +387,7 @@ fun ImportExportScreen(
                     pendingImport = payload
                 }
             } catch (e: Exception) {
-                Toast.makeText(context, "WakeUp 导入失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                importFailure = com.x500x.cursimple.app.util.diagnoseImportFailure(com.x500x.cursimple.app.util.ImportSource.WakeUp, e)
             }
         }
     }
@@ -477,6 +474,8 @@ fun ImportExportScreen(
         BackHandler { showScanner = false }
         return
     }
+
+    importFailure?.let { ImportFailureDialog(it, onDismiss = { importFailure = null }) }
 
     val canExport = schedule != null || manualCourses.isNotEmpty()
 
@@ -931,7 +930,10 @@ fun ImportExportScreen(
                             showAiScheduleDialog = false
                             pendingImport = payload
                         } catch (e: Exception) {
-                            parseError = "小爱课程表解析失败: ${e.message ?: context.getString(R.string.ie_unknown_error)}"
+                            parseError = context.getString(
+                                R.string.ie_ai_parse_failed,
+                                e.message ?: context.getString(R.string.ie_unknown_error),
+                            )
                         }
                     },
                 ) {

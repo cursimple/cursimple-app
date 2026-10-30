@@ -106,6 +106,8 @@ class AppContainer(
     }
     private val memoStore = DataStoreMemoRepository(app)
     val memoRepository: MemoRepository = memoStore
+    private val attendanceStore = com.x500x.cursimple.core.data.attendance.DataStoreAttendanceRepository(app)
+    val attendanceRepository: com.x500x.cursimple.core.data.attendance.AttendanceRepository = attendanceStore
     val notificationDeliveryCoordinator by lazy {
         com.x500x.cursimple.app.notification.NotificationDeliveryCoordinator(
             app, pluginManager, userPreferencesRepository, memoRepository, containerScope,
@@ -199,6 +201,28 @@ class AppContainer(
 
     private suspend fun awaitBootstrap() = bootstrapJob.join()
 
+    /** One term's courses and timetable, read by term id so any term can be copied or summarized. */
+    suspend fun readTermSnapshot(termId: String): TermSnapshot? {
+        awaitBootstrap()
+        val term = termProfileRepository.termsFlow.first().firstOrNull { it.id == termId } ?: return null
+        val schedule = scheduleStore.scheduleFor(termId)
+        val manual = manualStore.coursesFor(termId)
+        return TermSnapshot(
+            termStart = term.termStartDate?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() },
+            courses = schedule.allCoursesWith(manual),
+            schedule = schedule,
+            timingProfileId = term.timingProfileId,
+            extraWeeks = term.extraWeekCount,
+        )
+    }
+
+    /** Writes a copied term's courses under its own id; the active term is untouched. */
+    suspend fun writeTermCopy(termId: String, manualCourses: List<CourseItem>, schedule: TermSchedule?) {
+        awaitBootstrap()
+        manualStore.replaceAllFor(termId, manualCourses)
+        schedule?.let { scheduleStore.saveScheduleFor(termId, it) }
+    }
+
     suspend fun exportAppBackup(): AppBackupPayload {
         awaitBootstrap()
         val memoSnapshot = memoStore.exportBackupSnapshot()
@@ -219,6 +243,7 @@ class AppContainer(
                 pluginComponentRepository.exportBackupSnapshot(),
                 scheduleEventStore.exportBackupSnapshot(),
                 memoSnapshot,
+                attendanceStore.exportBackupSnapshot(),
             ),
         )
     }
@@ -258,6 +283,8 @@ class AppContainer(
             ?.let { scheduleEventStore.restoreBackupSnapshot(it) }
         payload.store(AppBackupStores.MEMOS)
             ?.let { memoStore.restoreBackupSnapshot(it) }
+        payload.store(AppBackupStores.ATTENDANCE)
+            ?.let { attendanceStore.restoreBackupSnapshot(it) }
         refreshScheduleOutputs()
     }
 

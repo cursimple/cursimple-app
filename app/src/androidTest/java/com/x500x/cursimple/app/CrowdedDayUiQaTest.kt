@@ -144,6 +144,23 @@ class CrowdedDayUiQaTest {
         ids.forEach { id -> assertTrue("$id is a strip", bounds(id).width / density >= 34f) }
     }
 
+    @Test fun theSavedPeriodColumnWidthMovesTheGrid() {
+        assumeTrue(args.getString("crowdedQa") == "true")
+        show(widen = false)
+        val density = context.resources.displayMetrics.density
+        val automatic = bounds("e").left / density
+        display.value = display.value.copy(timeColumnWidthDp = 24)
+        compose.waitForIdle()
+        val narrow = bounds("e").left / density
+        display.value = display.value.copy(timeColumnWidthDp = 60)
+        compose.waitForIdle()
+        val wide = bounds("e").left / density
+        save("time-column-60")
+        assertTrue("24dp ($narrow) is slimmer than automatic ($automatic)", narrow < automatic - 2f)
+        assertTrue("60dp ($wide) is wider than automatic ($automatic)", wide > automatic + 10f)
+        assertEquals("the grid shifts by the width difference", 36f, wide - narrow, 4f)
+    }
+
     @Test fun narrowPhoneNeverDrawsStripCards() {
         assumeTrue(args.getString("crowdedQa") == "true")
         show(widen = false)
@@ -172,6 +189,8 @@ class CrowdedDayUiQaTest {
         useUnmergedTree = true,
     ).fetchSemanticsNode().boundsInRoot
 
+    private val display = androidx.compose.runtime.mutableStateOf(com.x500x.cursimple.core.data.ScheduleDisplayPreferences())
+
     private fun show(widen: Boolean = true, scale: Float = 0.72f, dark: Boolean = false, fontScale: Float? = null, now: java.time.LocalTime = java.time.LocalTime.of(9, 45)) {
         // The app resets the debug clock from its saved preference shortly after start; set it again.
         Thread.sleep(1500)
@@ -186,7 +205,7 @@ class CrowdedDayUiQaTest {
                     onCreateCourseReminder = { _, _, _ -> }, onMuteExamReminder = {}, onRestoreExamReminder = {},
                     onRemoveReminderRule = {}, onRemoveManualCourse = {}, onCreateBulkReminder = { _, _, _ -> },
                     onPrevWeek = {}, onNextWeek = {}, onPrevDay = {}, onNextDay = {}, onResetDay = {},
-                    onOpenPluginMarket = {}, overrideTermStart = termStart,
+                    onOpenPluginMarket = {}, overrideTermStart = termStart, scheduleDisplay = display.value,
                     weekOffset = 0, minWeekOffset = -6, maxWeekOffset = 11, termWeekCount = 18)
             }
             }

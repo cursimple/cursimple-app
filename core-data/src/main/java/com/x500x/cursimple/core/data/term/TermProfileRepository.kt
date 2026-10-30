@@ -16,6 +16,8 @@ interface TermProfileRepository {
 
     suspend fun setTermExtraWeekCount(id: String, extraWeekCount: Int)
 
+    suspend fun setTermArchived(id: String, archived: Boolean)
+
     /**
      * Atomic read-modify-write prevents repeated UI actions from overwriting extra-week
      * increments.

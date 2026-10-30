@@ -805,6 +805,16 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_GRID_DASHED_LINES_ENABLED] = enabled }
     }
 
+    override suspend fun setTimeColumnWidthDp(widthDp: Int) {
+        store.edit { prefs ->
+            if (widthDp <= 0) {
+                prefs.remove(KEY_SCHEDULE_DISPLAY_TIME_COLUMN_WIDTH_DP)
+            } else {
+                prefs[KEY_SCHEDULE_DISPLAY_TIME_COLUMN_WIDTH_DP] = widthDp.coerceIn(MIN_TIME_COLUMN_WIDTH_DP, MAX_TIME_COLUMN_WIDTH_DP)
+            }
+        }
+    }
+
     override suspend fun setEveningBriefingEnabled(enabled: Boolean) {
         store.edit { prefs -> prefs[KEY_CLASS_NOTICE_EVENING_BRIEFING_ENABLED] = enabled }
     }
@@ -1101,6 +1111,8 @@ class DataStoreUserPreferencesRepository(
             totalScheduleDisplayEnabled = this[KEY_SCHEDULE_DISPLAY_TOTAL_SCHEDULE_DISPLAY_ENABLED] ?: true,
             timelineIndicatorEnabled = this[KEY_SCHEDULE_DISPLAY_TIMELINE_INDICATOR_ENABLED] ?: false,
             gridDashedLinesEnabled = this[KEY_SCHEDULE_DISPLAY_GRID_DASHED_LINES_ENABLED] ?: false,
+            timeColumnWidthDp = (this[KEY_SCHEDULE_DISPLAY_TIME_COLUMN_WIDTH_DP] ?: 0)
+                .let { if (it <= 0) 0 else it.coerceIn(MIN_TIME_COLUMN_WIDTH_DP, MAX_TIME_COLUMN_WIDTH_DP) },
         )
     }
 
@@ -1335,6 +1347,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_AI_IMPORT_TIMEOUT_SECONDS = intPreferencesKey("ai_import_timeout_seconds")
         val KEY_SCHEDULE_DISPLAY_TIMELINE_INDICATOR_ENABLED = booleanPreferencesKey("schedule_display_timeline_indicator_enabled")
         val KEY_SCHEDULE_DISPLAY_GRID_DASHED_LINES_ENABLED = booleanPreferencesKey("schedule_display_grid_dashed_lines_enabled")
+        val KEY_SCHEDULE_DISPLAY_TIME_COLUMN_WIDTH_DP = intPreferencesKey("schedule_display_time_column_width_dp")
         val KEY_CLASS_NOTICE_EVENING_BRIEFING_ENABLED = booleanPreferencesKey("class_notice_evening_briefing_enabled")
         val KEY_CLASS_NOTICE_EVENING_BRIEFING_HOUR = intPreferencesKey("class_notice_evening_briefing_hour")
         val KEY_CLASS_NOTICE_EVENING_BRIEFING_MINUTE = intPreferencesKey("class_notice_evening_briefing_minute")
@@ -1449,6 +1462,7 @@ class DataStoreUserPreferencesRepository(
             remove(KEY_SCHEDULE_DISPLAY_TOTAL_SCHEDULE_DISPLAY_ENABLED)
             remove(KEY_SCHEDULE_DISPLAY_TIMELINE_INDICATOR_ENABLED)
             remove(KEY_SCHEDULE_DISPLAY_GRID_DASHED_LINES_ENABLED)
+            remove(KEY_SCHEDULE_DISPLAY_TIME_COLUMN_WIDTH_DP)
         }
 
         internal fun MutablePreferences.updateCustomCourseColor(courseKey: String, colorArgb: Long?) {

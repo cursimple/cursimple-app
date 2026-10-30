@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import androidx.compose.material.icons.rounded.Schedule
 import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import com.x500x.cursimple.feature.plugin.ui.rememberAppHaptics
 
@@ -504,6 +505,7 @@ class MainActivity : ComponentActivity() {
                     var openSettingsDestination by rememberSaveable { mutableStateOf<SettingsDestinationKey?>(null) }
                     var settingsReturnTarget by rememberSaveable { mutableStateOf<SettingsReturnTargetKey?>(null) }
                     var showAddMenu by remember { mutableStateOf(false) }
+                    var showSharedFreeTime by rememberSaveable { mutableStateOf(false) }
                     val scheduleViewModel: ScheduleViewModel = viewModel(
                         factory = ScheduleViewModelFactory(
                             appContext = applicationContext,
@@ -514,6 +516,7 @@ class MainActivity : ComponentActivity() {
                             courseNoteRepository = container.courseNoteRepository,
                             scheduleEventRepository = container.scheduleEventRepository,
                             memoRepository = container.memoRepository,
+                            attendanceRepository = container.attendanceRepository,
                             normalizeTimingProfile = { profile ->
                                 container.normalizeTimingProfileForActiveTerm(profile)
                             },
@@ -540,6 +543,9 @@ class MainActivity : ComponentActivity() {
                                 container.refreshWidgets()
                             },
                             merger = { ids, name, alignment, anchorTermId -> container.termMerger.merge(ids, name, alignment, anchorTermId) },
+                            readTerm = { id -> container.readTermSnapshot(id) },
+                            writeTerm = { id, manual, schedule -> container.writeTermCopy(id, manual, schedule) },
+                            attendance = { container.attendanceRepository.attendanceFlow.first() },
                         ),
                     )
                     val termProfileState by termProfileViewModel.state.collectAsStateWithLifecycle()
@@ -1195,6 +1201,15 @@ class MainActivity : ComponentActivity() {
                                                         },
                                                     )
                                                     DropdownMenuItem(
+                                                        text = { Text(stringResource(com.x500x.cursimple.feature.schedule.R.string.free_time_entry)) },
+                                                        leadingIcon = { Icon(Icons.Rounded.Schedule, contentDescription = null) },
+                                                        onClick = {
+                                                            showAddMenu = false
+                                                            showSharedFreeTime = true
+                                                        },
+                                                        modifier = Modifier.testTag("menu-shared-free-time"),
+                                                    )
+                                                    DropdownMenuItem(
                                                         text = { Text(stringResource(R.string.main_manage_terms)) },
                                                         leadingIcon = {
                                                             Icon(
@@ -1260,6 +1275,24 @@ class MainActivity : ComponentActivity() {
                                                             showAddMenu = false
                                                             subScreen = MainActivity.SubScreen.ImportExport
                                                         },
+                                                    )
+                                                }
+
+                                                if (showSharedFreeTime) {
+                                                    val freeTimeContext = LocalContext.current
+                                                    com.x500x.cursimple.feature.schedule.SharedFreeTimeDialog(
+                                                        myCourses = scheduleState.schedule.allCoursesWith(scheduleState.manualCourses),
+                                                        myTermStart = prefs.termStartDate,
+                                                        timingSlots = scheduleState.timingProfile?.slotTimes.orEmpty(),
+                                                        decode = { text ->
+                                                            com.x500x.cursimple.app.util.ScheduleShareCodec.decode(text).map { payload ->
+                                                                com.x500x.cursimple.feature.schedule.SharedTimetable(
+                                                                    courses = payload.schedule.allCoursesWith(payload.manualCourses),
+                                                                    termStart = payload.termStartDate?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() },
+                                                                )
+                                                            }
+                                                        },
+                                                        onDismiss = { showSharedFreeTime = false },
                                                     )
                                                 }
                                             }
@@ -1617,6 +1650,7 @@ class MainActivity : ComponentActivity() {
                                         onTotalScheduleDisplayChange = prefsViewModel::setTotalScheduleDisplayEnabled,
                                         onScheduleTimelineIndicatorEnabledChange = prefsViewModel::setTimelineIndicatorEnabled,
                                         onScheduleGridDashedLinesEnabledChange = prefsViewModel::setGridDashedLinesEnabled,
+                                        onScheduleTimeColumnWidthDpChange = prefsViewModel::setTimeColumnWidthDp,
                                         onAlarmRingDurationSecondsChange = prefsViewModel::setAlarmRingDurationSeconds,
                                         onAlarmRepeatIntervalSecondsChange = prefsViewModel::setAlarmRepeatIntervalSeconds,
                                         onAlarmRepeatCountChange = prefsViewModel::setAlarmRepeatCount,
@@ -1799,6 +1833,17 @@ class MainActivity : ComponentActivity() {
                                     dayOffset = 0
                                 },
                                 onDelete = termProfileViewModel::delete,
+                                onCopy = { sourceId, name, date, keepReminders ->
+                                    termProfileViewModel.copyTerm(sourceId, name, date, keepReminders) { copiedName ->
+                                        Toast.makeText(
+                                            this@MainActivity,
+                                            getString(R.string.term_copy_done, copiedName),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
+                                },
+                                loadStats = { id, onResult -> termProfileViewModel.loadStats(id, onResult) },
+                                onArchive = { id, archived -> termProfileViewModel.setArchived(id, archived) },
                                 onMerge = { ids, name ->
                                     termProfileViewModel.merge(ids, name) { mergedName ->
                                         Toast.makeText(

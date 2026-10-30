@@ -119,6 +119,8 @@ internal fun MemoBody(
     val textStyle = if (document) typography.bodyLarge else typography.bodyMedium
     val muted = contentColor.copy(alpha = 0.62f)
     fun inline(text: String) = memoInline(text, palette, linkify = document)
+    val gallery = remember(blocks) { blocks.filterIsInstance<MemoBlock.Image>().map { it.ref }.distinctBy { it.id } }
+    androidx.compose.runtime.CompositionLocalProvider(LocalMemoImageGallery provides gallery) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(if (document) 6.dp else 4.dp)) {
         shown.forEach { block ->
             when (block) {
@@ -182,6 +184,7 @@ internal fun MemoBody(
                 color = muted,
             )
         }
+    }
     }
 }
 

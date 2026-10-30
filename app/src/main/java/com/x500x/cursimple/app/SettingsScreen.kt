@@ -2,8 +2,14 @@
 
 package com.x500x.cursimple.app
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.ui.draw.rotate
 import com.x500x.cursimple.feature.plugin.ui.AppMotion
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.core.data.MAX_TIME_COLUMN_WIDTH_DP
+import com.x500x.cursimple.core.data.MIN_TIME_COLUMN_WIDTH_DP
+import androidx.compose.ui.platform.testTag
 import com.x500x.cursimple.feature.plugin.ui.rememberAppHaptics
 import android.Manifest
 import android.content.Context
@@ -123,7 +129,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
+import com.x500x.cursimple.feature.plugin.ui.AppSlider
+import kotlin.math.roundToInt
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -259,7 +266,6 @@ private enum class SettingsDestination {
     TemporaryOverrides,
     Holidays,
     ScheduleAppearance,
-    BackgroundHub,
     ScheduleBackground,
     WidgetBackground,
     ScheduleDisplay,
@@ -299,25 +305,24 @@ enum class SettingsReturnTargetKey {
 private fun SettingsDestinationKey.toDestination(): SettingsDestination = when (this) {
     SettingsDestinationKey.WebDav -> SettingsDestination.WebDav
     SettingsDestinationKey.AiImport -> SettingsDestination.AiImport
-    SettingsDestinationKey.ScheduleBackground -> SettingsDestination.BackgroundHub
+    SettingsDestinationKey.ScheduleBackground -> SettingsDestination.ScheduleBackground
     SettingsDestinationKey.TemporaryOverrides -> SettingsDestination.TemporaryOverrides
     SettingsDestinationKey.Permissions -> SettingsDestination.Permissions
 }
 
 private fun SettingsDestination.parentChain(): List<SettingsDestination> = when (this) {
-    SettingsDestination.ScheduleBackground,
-    SettingsDestination.WidgetBackground,
-    -> listOf(SettingsDestination.BackgroundHub)
+    SettingsDestination.ScheduleBackground -> listOf(SettingsDestination.ScheduleAppearance)
+    SettingsDestination.WidgetBackground -> listOf(SettingsDestination.WidgetSettings)
     else -> emptyList()
 }
 
 /** Shortcut destinations form their own navigation root; Back returns to where they were opened. */
 private fun SettingsDestination.isStandaloneEntry(): Boolean =
-    this == SettingsDestination.BackgroundHub || this == SettingsDestination.TemporaryOverrides
+    this == SettingsDestination.ScheduleBackground || this == SettingsDestination.TemporaryOverrides
 
 /** Limit the pinned timetable preview to leave room for settings. */
-private const val STYLE_PREVIEW_SLOTS = 2
-private val STYLE_PREVIEW_MAX_HEIGHT = 200.dp
+private const val STYLE_PREVIEW_SLOTS = 4
+private val STYLE_PREVIEW_MAX_HEIGHT = 260.dp
 
 @Composable
 private fun themeModeLabel(mode: ThemeMode): String = when (mode) {
@@ -435,6 +440,11 @@ private fun settingsSearchEntries(
             stringResource(R.string.settings_display_teacher_title),
             stringResource(R.string.settings_display_course_drag_title),
             stringResource(R.string.settings_display_pinch_zoom_title),
+            stringResource(R.string.settings_display_auto_scroll_title),
+            stringResource(R.string.settings_grid_dashed_lines_title),
+            stringResource(R.string.settings_timeline_indicator_title),
+            stringResource(R.string.settings_time_column_width_title),
+            stringResource(R.string.settings_course_session_holidays_title),
         ),
         words(stringResource(R.string.settings_search_kw_display)),
     )
@@ -605,7 +615,6 @@ private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.TemporaryOverrides -> stringResource(R.string.settings_dest_temporary_overrides)
     SettingsDestination.Holidays -> stringResource(R.string.settings_dest_holidays)
     SettingsDestination.ScheduleAppearance -> stringResource(R.string.settings_dest_schedule_style)
-    SettingsDestination.BackgroundHub -> stringResource(R.string.settings_dest_background_hub)
     SettingsDestination.ScheduleBackground -> stringResource(R.string.settings_schedule_background)
     SettingsDestination.WidgetBackground -> stringResource(R.string.settings_dest_widget_background)
     SettingsDestination.ScheduleDisplay -> stringResource(R.string.settings_display)
@@ -724,6 +733,7 @@ fun AppSettingsRoute(
     onTotalScheduleDisplayChange: (Boolean) -> Unit,
     onScheduleTimelineIndicatorEnabledChange: (Boolean) -> Unit = {},
     onScheduleGridDashedLinesEnabledChange: (Boolean) -> Unit = {},
+    onScheduleTimeColumnWidthDpChange: (Int) -> Unit = {},
     onAlarmRingDurationSecondsChange: (Int) -> Unit,
     onAlarmRepeatIntervalSecondsChange: (Int) -> Unit,
     onAlarmRepeatCountChange: (Int) -> Unit,
@@ -1015,6 +1025,18 @@ fun AppSettingsRoute(
                 value = stringResource(R.string.settings_quick_widget_value),
                 onClick = { navigate(SettingsDestination.WidgetSettings) },
             )),
+            SettingsQuickItem("display", scheduleGroup, SettingsQuickTileSpec(
+                icon = Icons.AutoMirrored.Rounded.MenuBook,
+                title = stringResource(R.string.settings_display),
+                value = stringResource(R.string.settings_row_schedule_display_subtitle),
+                onClick = { navigate(SettingsDestination.ScheduleDisplay) },
+            )),
+            SettingsQuickItem("style", scheduleGroup, SettingsQuickTileSpec(
+                icon = Icons.Rounded.Style,
+                title = stringResource(R.string.settings_dest_schedule_style),
+                value = stringResource(R.string.settings_row_schedule_style_subtitle),
+                onClick = { navigate(SettingsDestination.ScheduleAppearance) },
+            )),
             SettingsQuickItem("schedule_data", scheduleGroup, SettingsQuickTileSpec(
                 icon = Icons.Rounded.CalendarMonth,
                 title = stringResource(R.string.settings_dest_schedule_data),
@@ -1030,18 +1052,6 @@ fun AppSettingsRoute(
                     stringResource(R.string.settings_quick_unset)
                 },
                 onClick = { navigate(SettingsDestination.TimingProfile) },
-            )),
-            SettingsQuickItem("display", scheduleGroup, SettingsQuickTileSpec(
-                icon = Icons.AutoMirrored.Rounded.MenuBook,
-                title = stringResource(R.string.settings_display),
-                value = stringResource(R.string.settings_row_schedule_display_subtitle),
-                onClick = { navigate(SettingsDestination.ScheduleDisplay) },
-            )),
-            SettingsQuickItem("style", scheduleGroup, SettingsQuickTileSpec(
-                icon = Icons.Rounded.Style,
-                title = stringResource(R.string.settings_dest_schedule_style),
-                value = stringResource(R.string.settings_row_schedule_style_subtitle),
-                onClick = { navigate(SettingsDestination.ScheduleAppearance) },
             )),
             SettingsQuickItem("overrides", scheduleGroup, SettingsQuickTileSpec(
                 icon = Icons.Rounded.EventRepeat,
@@ -1133,7 +1143,8 @@ fun AppSettingsRoute(
                         .background(MaterialTheme.colorScheme.background),
                 ) {
                     // Pin the preview while the settings content scrolls; the app bar carries title and back.
-                    if (currentDest == SettingsDestination.ScheduleAppearance) {
+                    // The display page pins it too: width, lines and week range change the grid, so see them as you drag.
+                    if (currentDest == SettingsDestination.ScheduleAppearance || currentDest == SettingsDestination.ScheduleDisplay) {
                         ScheduleAppearancePreview(
                             scheduleTextStyle = scheduleTextStyle,
                             scheduleCardStyle = scheduleCardStyle,
@@ -1196,14 +1207,6 @@ fun AppSettingsRoute(
 
                                 SettingsCardGroup(stringResource(R.string.settings_group_schedule), tiles = homeGrid) {
                                     SettingsActionRow(
-                                        icon = Icons.Rounded.CalendarMonth,
-                                        title = stringResource(R.string.settings_dest_schedule_data),
-                                        subtitle = stringResource(R.string.settings_row_schedule_data_subtitle),
-                                        onClick = { navigate(SettingsDestination.ScheduleData) },
-                                        quickId = "schedule_data",
-                                    )
-                                    TimingProfileEntryRow(quickId = "timing") { navigate(SettingsDestination.TimingProfile) }
-                                    SettingsActionRow(
                                         icon = Icons.AutoMirrored.Rounded.MenuBook,
                                         title = stringResource(R.string.settings_display),
                                         subtitle = stringResource(R.string.settings_row_schedule_display_subtitle),
@@ -1217,6 +1220,14 @@ fun AppSettingsRoute(
                                         onClick = { navigate(SettingsDestination.ScheduleAppearance) },
                                         quickId = "style",
                                     )
+                                    SettingsActionRow(
+                                        icon = Icons.Rounded.CalendarMonth,
+                                        title = stringResource(R.string.settings_dest_schedule_data),
+                                        subtitle = stringResource(R.string.settings_row_schedule_data_subtitle),
+                                        onClick = { navigate(SettingsDestination.ScheduleData) },
+                                        quickId = "schedule_data",
+                                    )
+                                    TimingProfileEntryRow(quickId = "timing") { navigate(SettingsDestination.TimingProfile) }
                                     SettingsActionRow(
                                         icon = Icons.Rounded.EventRepeat,
                                         title = stringResource(R.string.settings_dest_temporary_overrides),
@@ -1432,17 +1443,21 @@ fun AppSettingsRoute(
                         }
 
                         SettingsDestination.ScheduleAppearance -> {
-                            SettingsSwitchRow(
-                                Icons.Rounded.Brightness4,
-                                stringResource(R.string.settings_adapt_colors_title),
-                                if (scheduleCustomColorsAdaptToTheme) {
-                                    stringResource(R.string.settings_adapt_colors_on)
-                                } else {
-                                    stringResource(R.string.settings_adapt_colors_off)
-                                },
-                                scheduleCustomColorsAdaptToTheme,
-                                onScheduleCustomColorsAdaptToThemeChange,
-                            )
+                            SettingsGroup(stringResource(R.string.settings_subgroup_card)) {
+                                CoursePaletteStyleSelector(
+                                    currentStyle = scheduleCardStyle.coursePaletteStyle,
+                                    onSelect = onCoursePaletteStyleChange,
+                                    isDark = darkTheme,
+                                )
+                                NumberStepperRow(stringResource(R.string.settings_card_corner_radius), scheduleCardStyle.courseCornerRadiusDp, "dp", 0, 32, 1, onScheduleCourseCornerRadiusDpChange)
+                                NumberStepperRow(stringResource(R.string.settings_card_height), scheduleCardStyle.courseCardHeightDp, "dp", 56, 160, 4, onScheduleCourseCardHeightDpChange)
+                                if (scheduleDisplay.rowFitMode == ScheduleRowFitMode.Fit) {
+                                    SettingsHintText(stringResource(R.string.settings_card_height_fit_hint))
+                                }
+                                NumberStepperRow(stringResource(R.string.settings_schedule_opacity), scheduleCardStyle.scheduleOpacityPercent, "%", 0, 100, 5, onScheduleOpacityPercentChange)
+                                NumberStepperRow(stringResource(R.string.settings_inactive_course_opacity), scheduleCardStyle.inactiveCourseOpacityPercent, "%", 0, 100, 5, onScheduleInactiveCourseOpacityPercentChange)
+                            }
+
                             SettingsGroup(stringResource(R.string.settings_subgroup_course_text)) {
                                 NumberStepperRow(stringResource(R.string.settings_course_text_size), scheduleTextStyle.courseTextSizeSp, "sp", 8, 32, 1, onScheduleCourseTextSizeSpChange)
                                 ColorAlphaRow(stringResource(R.string.settings_course_text_color), scheduleTextStyle.courseTextColorArgb, onScheduleCourseTextColorArgbChange)
@@ -1454,18 +1469,33 @@ fun AppSettingsRoute(
                                 }
                             }
 
-                            SettingsGroup(stringResource(R.string.settings_subgroup_exam_text)) {
-                                NumberStepperRow(stringResource(R.string.settings_exam_text_size), scheduleTextStyle.examTextSizeSp, "sp", 8, 32, 1, onScheduleExamTextSizeSpChange)
-                                ColorAlphaRow(stringResource(R.string.settings_exam_text_color), scheduleTextStyle.examTextColorArgb, onScheduleExamTextColorArgbChange)
+                            SettingsGroup(stringResource(R.string.settings_header_style), collapsible = true, initiallyExpanded = false) {
+                                NumberStepperRow(stringResource(R.string.settings_header_text_size), scheduleTextStyle.headerTextSizeSp, "sp", 8, 32, 1, onScheduleHeaderTextSizeSpChange)
+                                ColorAlphaRow(
+                                    stringResource(R.string.settings_header_text_color),
+                                    scheduleTextStyle.resolvedHeaderTextColorArgb(darkTheme, false),
+                                    onScheduleHeaderTextColorArgbChange,
+                                )
                                 if (scheduleCustomColorsAdaptToTheme) {
                                     ColorPreviewRow(
                                         stringResource(R.string.settings_current_theme_preview),
-                                        scheduleTextStyle.examTextColorArgb.adaptForegroundForPreview(darkTheme),
+                                        scheduleTextStyle.resolvedHeaderTextColorArgb(darkTheme, true),
+                                    )
+                                }
+                                ColorAlphaRow(
+                                    stringResource(R.string.settings_today_header_background_color),
+                                    scheduleTextStyle.resolvedTodayHeaderBackgroundColorArgb(darkTheme, false),
+                                    onScheduleTodayHeaderBackgroundColorArgbChange,
+                                )
+                                if (scheduleCustomColorsAdaptToTheme) {
+                                    ColorPreviewRow(
+                                        stringResource(R.string.settings_current_theme_preview),
+                                        scheduleTextStyle.resolvedTodayHeaderBackgroundColorArgb(darkTheme, true),
                                     )
                                 }
                             }
 
-                            SettingsGroup(stringResource(R.string.settings_subgroup_alignment)) {
+                            SettingsGroup(stringResource(R.string.settings_subgroup_alignment), collapsible = true, initiallyExpanded = false) {
                                 SettingsSwitchRow(
                                     icon = Icons.Rounded.FormatAlignCenter,
                                     title = stringResource(R.string.settings_text_center_horizontal_title),
@@ -1496,48 +1526,18 @@ fun AppSettingsRoute(
                                 )
                             }
 
-                            SettingsGroup(stringResource(R.string.settings_header_style)) {
-                                NumberStepperRow(stringResource(R.string.settings_header_text_size), scheduleTextStyle.headerTextSizeSp, "sp", 8, 32, 1, onScheduleHeaderTextSizeSpChange)
-                                ColorAlphaRow(
-                                    stringResource(R.string.settings_header_text_color),
-                                    scheduleTextStyle.resolvedHeaderTextColorArgb(darkTheme, false),
-                                    onScheduleHeaderTextColorArgbChange,
-                                )
+                            SettingsGroup(stringResource(R.string.settings_subgroup_exam_text), collapsible = true, initiallyExpanded = false) {
+                                NumberStepperRow(stringResource(R.string.settings_exam_text_size), scheduleTextStyle.examTextSizeSp, "sp", 8, 32, 1, onScheduleExamTextSizeSpChange)
+                                ColorAlphaRow(stringResource(R.string.settings_exam_text_color), scheduleTextStyle.examTextColorArgb, onScheduleExamTextColorArgbChange)
                                 if (scheduleCustomColorsAdaptToTheme) {
                                     ColorPreviewRow(
                                         stringResource(R.string.settings_current_theme_preview),
-                                        scheduleTextStyle.resolvedHeaderTextColorArgb(darkTheme, true),
-                                    )
-                                }
-                                ColorAlphaRow(
-                                    stringResource(R.string.settings_today_header_background_color),
-                                    scheduleTextStyle.resolvedTodayHeaderBackgroundColorArgb(darkTheme, false),
-                                    onScheduleTodayHeaderBackgroundColorArgbChange,
-                                )
-                                if (scheduleCustomColorsAdaptToTheme) {
-                                    ColorPreviewRow(
-                                        stringResource(R.string.settings_current_theme_preview),
-                                        scheduleTextStyle.resolvedTodayHeaderBackgroundColorArgb(darkTheme, true),
+                                        scheduleTextStyle.examTextColorArgb.adaptForegroundForPreview(darkTheme),
                                     )
                                 }
                             }
 
-                            SettingsGroup(stringResource(R.string.settings_subgroup_card)) {
-                                CoursePaletteStyleSelector(
-                                    currentStyle = scheduleCardStyle.coursePaletteStyle,
-                                    onSelect = onCoursePaletteStyleChange,
-                                    isDark = darkTheme,
-                                )
-                                NumberStepperRow(stringResource(R.string.settings_card_corner_radius), scheduleCardStyle.courseCornerRadiusDp, "dp", 0, 32, 1, onScheduleCourseCornerRadiusDpChange)
-                                NumberStepperRow(stringResource(R.string.settings_card_height), scheduleCardStyle.courseCardHeightDp, "dp", 56, 160, 4, onScheduleCourseCardHeightDpChange)
-                                if (scheduleDisplay.rowFitMode == ScheduleRowFitMode.Fit) {
-                                    SettingsHintText(stringResource(R.string.settings_card_height_fit_hint))
-                                }
-                                NumberStepperRow(stringResource(R.string.settings_schedule_opacity), scheduleCardStyle.scheduleOpacityPercent, "%", 0, 100, 5, onScheduleOpacityPercentChange)
-                                NumberStepperRow(stringResource(R.string.settings_inactive_course_opacity), scheduleCardStyle.inactiveCourseOpacityPercent, "%", 0, 100, 5, onScheduleInactiveCourseOpacityPercentChange)
-                            }
-
-                            SettingsGroup(stringResource(R.string.settings_subgroup_grid_border)) {
+                            SettingsGroup(stringResource(R.string.settings_subgroup_grid_border), collapsible = true, initiallyExpanded = false) {
                                 ColorAlphaRow(stringResource(R.string.settings_grid_border_color), scheduleCardStyle.gridBorderColorArgb, onScheduleGridBorderColorArgbChange)
                                 if (scheduleCustomColorsAdaptToTheme) {
                                     ColorPreviewRow(
@@ -1553,6 +1553,20 @@ fun AppSettingsRoute(
                                     subtitle = stringResource(R.string.settings_grid_border_dashed_subtitle),
                                     checked = scheduleCardStyle.gridBorderDashed,
                                     onCheckedChange = onScheduleGridBorderDashedChange,
+                                )
+                            }
+
+                            SettingsGroup(stringResource(R.string.settings_subgroup_color_adapt), collapsible = true, initiallyExpanded = false) {
+                                SettingsSwitchRow(
+                                    Icons.Rounded.Brightness4,
+                                    stringResource(R.string.settings_adapt_colors_title),
+                                    if (scheduleCustomColorsAdaptToTheme) {
+                                        stringResource(R.string.settings_adapt_colors_on)
+                                    } else {
+                                        stringResource(R.string.settings_adapt_colors_off)
+                                    },
+                                    scheduleCustomColorsAdaptToTheme,
+                                    onScheduleCustomColorsAdaptToThemeChange,
                                 )
                             }
 
@@ -1611,25 +1625,6 @@ fun AppSettingsRoute(
                             )
                         }
 
-                        SettingsDestination.BackgroundHub -> {
-                            SettingsActionRow(
-                                icon = Icons.Rounded.Wallpaper,
-                                title = stringResource(R.string.settings_schedule_background),
-                                subtitle = backgroundSubtitle(scheduleBackground),
-                                onClick = { navigate(SettingsDestination.ScheduleBackground) },
-                            )
-                            SettingsActionRow(
-                                icon = Icons.Rounded.Widgets,
-                                title = stringResource(R.string.settings_dest_widget_background),
-                                subtitle = if (widgetThemePreferences.backgroundImageUri != null) {
-                                    stringResource(R.string.settings_background_image_selected)
-                                } else {
-                                    stringResource(R.string.settings_widget_background_theme)
-                                },
-                                onClick = { navigate(SettingsDestination.WidgetBackground) },
-                            )
-                        }
-
                         SettingsDestination.WidgetBackground -> {
                             WidgetBackgroundPreview(widgetThemePreferences = widgetThemePreferences)
                             SettingsActionRow(
@@ -1682,6 +1677,7 @@ fun AppSettingsRoute(
                                 scheduleBackground = scheduleBackground,
                                 scheduleCardStyle = scheduleCardStyle,
                                 scheduleTextStyle = scheduleTextStyle,
+                                scheduleDisplay = scheduleDisplay,
                                 customColorsAdaptToTheme = scheduleCustomColorsAdaptToTheme,
                             )
                             SettingsActionRow(
@@ -1723,33 +1719,8 @@ fun AppSettingsRoute(
                         }
 
                         SettingsDestination.ScheduleDisplay -> {
-                            SettingsSwitchRow(
-                                icon = Icons.Rounded.EventAvailable,
-                                title = stringResource(R.string.settings_course_session_holidays_title),
-                                subtitle = stringResource(R.string.settings_course_session_holidays_subtitle),
-                                checked = scheduleDisplay.courseSessionCountIncludeHolidays,
-                                onCheckedChange = onCourseSessionCountIncludeHolidaysChange,
-                            )
-                            SettingsSwitchRow(
-                                icon = Icons.Rounded.Schedule,
-                                title = stringResource(R.string.settings_today_overview_title),
-                                subtitle = stringResource(R.string.settings_today_overview_desc),
-                                checked = scheduleDisplay.todayOverviewEnabled,
-                                onCheckedChange = onTodayOverviewEnabledChange,
-                            )
-                            SettingsGroup(stringResource(R.string.settings_subgroup_visible_range)) {
-                                WeekStartDayRow(
-                                    selected = scheduleDisplay.weekStartDay,
-                                    onSelect = onScheduleWeekStartDayChange,
-                                )
-                                VisibleDaysRow(
-                                    saturdayVisible = scheduleDisplay.saturdayVisible,
-                                    weekendVisible = scheduleDisplay.weekendVisible,
-                                    onSelect = { days ->
-                                        onScheduleSaturdayVisibleChange(days >= 6)
-                                        onScheduleWeekendVisibleChange(days == 7)
-                                    },
-                                )
+                            // Most used first: how the page is laid out (one screen or scrolling), then what the cards show.
+                            SettingsGroup(stringResource(R.string.settings_subgroup_layout)) {
                                 RowFitModeRow(
                                     selected = scheduleDisplay.rowFitMode,
                                     onSelect = onScheduleRowFitModeChange,
@@ -1763,6 +1734,21 @@ fun AppSettingsRoute(
                                         onCheckedChange = onScheduleAutoScrollWhenCrowdedChange,
                                     )
                                 }
+                                VisibleDaysRow(
+                                    saturdayVisible = scheduleDisplay.saturdayVisible,
+                                    weekendVisible = scheduleDisplay.weekendVisible,
+                                    onSelect = { days ->
+                                        onScheduleSaturdayVisibleChange(days >= 6)
+                                        onScheduleWeekendVisibleChange(days == 7)
+                                    },
+                                )
+                                WeekStartDayRow(
+                                    selected = scheduleDisplay.weekStartDay,
+                                    onSelect = onScheduleWeekStartDayChange,
+                                )
+                            }
+
+                            SettingsGroup(stringResource(R.string.settings_subgroup_cell_info), collapsible = true) {
                                 SettingsSwitchRow(
                                     icon = Icons.AutoMirrored.Rounded.MenuBook,
                                     title = stringResource(R.string.settings_display_total_title),
@@ -1773,30 +1759,6 @@ fun AppSettingsRoute(
                                     },
                                     checked = scheduleDisplay.totalScheduleDisplayEnabled,
                                     onCheckedChange = onTotalScheduleDisplayChange,
-                                )
-                                SettingsSwitchRow(
-                                    icon = Icons.Rounded.Schedule,
-                                    title = stringResource(R.string.settings_timeline_indicator_title),
-                                    subtitle = stringResource(R.string.settings_timeline_indicator_subtitle),
-                                    checked = scheduleDisplay.timelineIndicatorEnabled,
-                                    onCheckedChange = onScheduleTimelineIndicatorEnabledChange,
-                                )
-                                SettingsSwitchRow(
-                                    icon = Icons.Rounded.LineStyle,
-                                    title = stringResource(R.string.settings_grid_dashed_lines_title),
-                                    subtitle = stringResource(R.string.settings_grid_dashed_lines_subtitle),
-                                    checked = scheduleDisplay.gridDashedLinesEnabled,
-                                    onCheckedChange = onScheduleGridDashedLinesEnabledChange,
-                                )
-                            }
-
-                            SettingsGroup(stringResource(R.string.settings_subgroup_cell_info)) {
-                                SettingsSwitchRow(
-                                    icon = Icons.Rounded.Schedule,
-                                    title = stringResource(R.string.settings_display_node_time_title),
-                                    subtitle = stringResource(R.string.settings_display_node_time_subtitle),
-                                    checked = scheduleDisplay.nodeColumnTimeEnabled,
-                                    onCheckedChange = onScheduleNodeColumnTimeEnabledChange,
                                 )
                                 SettingsSwitchRow(
                                     icon = Icons.Rounded.Place,
@@ -1821,9 +1783,37 @@ fun AppSettingsRoute(
                                     checked = scheduleDisplay.teacherVisible,
                                     onCheckedChange = onScheduleTeacherVisibleChange,
                                 )
+                                SettingsSwitchRow(
+                                    icon = Icons.Rounded.Schedule,
+                                    title = stringResource(R.string.settings_display_node_time_title),
+                                    subtitle = stringResource(R.string.settings_display_node_time_subtitle),
+                                    checked = scheduleDisplay.nodeColumnTimeEnabled,
+                                    onCheckedChange = onScheduleNodeColumnTimeEnabledChange,
+                                )
                             }
 
-                            SettingsGroup(stringResource(R.string.settings_subgroup_interaction)) {
+                            SettingsGroup(stringResource(R.string.settings_subgroup_grid_time), collapsible = true) {
+                                TimeColumnWidthRow(
+                                    widthDp = scheduleDisplay.timeColumnWidthDp,
+                                    onChange = onScheduleTimeColumnWidthDpChange,
+                                )
+                                SettingsSwitchRow(
+                                    icon = Icons.Rounded.LineStyle,
+                                    title = stringResource(R.string.settings_grid_dashed_lines_title),
+                                    subtitle = stringResource(R.string.settings_grid_dashed_lines_subtitle),
+                                    checked = scheduleDisplay.gridDashedLinesEnabled,
+                                    onCheckedChange = onScheduleGridDashedLinesEnabledChange,
+                                )
+                                SettingsSwitchRow(
+                                    icon = Icons.Rounded.Schedule,
+                                    title = stringResource(R.string.settings_timeline_indicator_title),
+                                    subtitle = stringResource(R.string.settings_timeline_indicator_subtitle),
+                                    checked = scheduleDisplay.timelineIndicatorEnabled,
+                                    onCheckedChange = onScheduleTimelineIndicatorEnabledChange,
+                                )
+                            }
+
+                            SettingsGroup(stringResource(R.string.settings_subgroup_interaction), collapsible = true, initiallyExpanded = false) {
                                 SettingsSwitchRow(
                                     icon = Icons.Rounded.OpenWith,
                                     title = stringResource(R.string.settings_display_course_drag_title),
@@ -1837,6 +1827,23 @@ fun AppSettingsRoute(
                                     subtitle = stringResource(R.string.settings_display_pinch_zoom_subtitle),
                                     checked = scheduleDisplay.pinchZoomEnabled,
                                     onCheckedChange = onSchedulePinchZoomEnabledChange,
+                                )
+                            }
+
+                            SettingsGroup(stringResource(R.string.settings_subgroup_stats), collapsible = true, initiallyExpanded = false) {
+                                SettingsSwitchRow(
+                                    icon = Icons.Rounded.Schedule,
+                                    title = stringResource(R.string.settings_today_overview_title),
+                                    subtitle = stringResource(R.string.settings_today_overview_desc),
+                                    checked = scheduleDisplay.todayOverviewEnabled,
+                                    onCheckedChange = onTodayOverviewEnabledChange,
+                                )
+                                SettingsSwitchRow(
+                                    icon = Icons.Rounded.EventAvailable,
+                                    title = stringResource(R.string.settings_course_session_holidays_title),
+                                    subtitle = stringResource(R.string.settings_course_session_holidays_subtitle),
+                                    checked = scheduleDisplay.courseSessionCountIncludeHolidays,
+                                    onCheckedChange = onCourseSessionCountIncludeHolidaysChange,
                                 )
                             }
                         }
@@ -1948,6 +1955,7 @@ fun AppSettingsRoute(
                                 onTest = onTestWebDavSettings,
                                 onSaved = { complete -> settingsReturnReady = complete },
                             )
+                            WebDavAutoBackupPanel(configComplete = WebDavConfig(webDavUrl, webDavUsername, webDavPassword).isComplete)
                         }
 
                         SettingsDestination.AiImport -> {
@@ -2061,19 +2069,8 @@ private fun SliderPercentRow(
         shape = RoundedCornerShape(12.dp),
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = "$value%",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            Slider(
+            Text(text = title, style = MaterialTheme.typography.bodyMedium)
+            AppSlider(
                 value = value.toFloat(),
                 // Avoid duplicate writes for unchanged integer steps.
                 onValueChange = { next ->
@@ -2086,6 +2083,55 @@ private fun SliderPercentRow(
         }
     }
 }
+
+/** Period column width: automatic by default; the slider shows the column's share of the screen width. */
+@Composable
+private fun TimeColumnWidthRow(widthDp: Int, onChange: (Int) -> Unit) {
+    val screenWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.coerceAtLeast(1)
+    val autoLabel = stringResource(R.string.settings_time_column_width_auto)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .testTag("settings-time-column-width"),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Text(
+                text = stringResource(R.string.settings_time_column_width_title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+            )
+            Text(
+                text = stringResource(R.string.settings_time_column_width_subtitle),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            AppSlider(
+                value = (if (widthDp <= 0) TIME_COLUMN_SLIDER_START_DP else widthDp).toFloat(),
+                onValueChange = { next ->
+                    val rounded = next.toInt().coerceIn(MIN_TIME_COLUMN_WIDTH_DP, MAX_TIME_COLUMN_WIDTH_DP)
+                    if (rounded != widthDp) onChange(rounded)
+                },
+                valueRange = MIN_TIME_COLUMN_WIDTH_DP.toFloat()..MAX_TIME_COLUMN_WIDTH_DP.toFloat(),
+                valueLabel = { dp ->
+                    if (widthDp <= 0) autoLabel else "${(dp * 100f / screenWidthDp).roundToInt()}%"
+                },
+                modifier = Modifier.testTag("settings-time-column-slider"),
+            )
+            if (widthDp > 0) {
+                AppOutlinedButton(
+                    onClick = { onChange(0) },
+                    modifier = Modifier.testTag("settings-time-column-reset"),
+                ) { Text(stringResource(R.string.settings_time_column_width_reset)) }
+            }
+        }
+    }
+}
+
+/** Where the slider rests while the width is automatic. */
+private const val TIME_COLUMN_SLIDER_START_DP = 32
 
 @Composable
 private fun NumberStepperRow(
@@ -2153,11 +2199,39 @@ private fun FloatStepperRow(
 @Composable
 internal fun SettingsGroup(
     title: String,
+    /** A tappable header folds the group away; groups start open so nothing is hidden by default. */
+    collapsible: Boolean = false,
+    /** Rarely used groups start folded so the common ones sit close to the top. */
+    initiallyExpanded: Boolean = true,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        SettingsSectionHeader(title)
-        content()
+    var expanded by rememberSaveable(title) { mutableStateOf(initiallyExpanded) }
+    Column(
+        modifier = Modifier.animateContentSize(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (collapsible) {
+            val rotation by androidx.compose.animation.core.animateFloatAsState(if (expanded) 0f else -90f, label = "settings-group-arrow")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable { expanded = !expanded }
+                    .testTag("settings-group-toggle-$title"),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Box(modifier = Modifier.weight(1f)) { SettingsSectionHeader(title) }
+                Icon(
+                    imageVector = Icons.Rounded.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.padding(end = 8.dp).rotate(rotation),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            SettingsSectionHeader(title)
+        }
+        if (!collapsible || expanded) content()
     }
 }
 
@@ -3203,6 +3277,86 @@ private fun aiImportSettingsSubtitle(apiUrl: String, model: String): String {
     }
 }
 
+/** Weekly automatic backup to the saved WebDAV, with how many copies to keep and a "back up now" button. */
+@Composable
+private fun WebDavAutoBackupPanel(configComplete: Boolean) {
+    val context = LocalContext.current
+    val store = remember { com.x500x.cursimple.app.webdav.WebDavAutoBackupStore(context) }
+    val settings by store.settingsFlow.collectAsState(initial = com.x500x.cursimple.app.webdav.WebDavAutoBackupSettings())
+    val scope = rememberCoroutineScope()
+    var running by rememberSaveable { mutableStateOf(false) }
+    Column(
+        modifier = Modifier.testTag("webdav-auto-backup"),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SettingsSwitchRow(
+            icon = Icons.Rounded.Storage,
+            title = stringResource(R.string.webdav_auto_title),
+            subtitle = stringResource(R.string.webdav_auto_subtitle),
+            checked = settings.enabled,
+            onCheckedChange = { on ->
+                scope.launch { store.setEnabled(on) }
+                com.x500x.cursimple.app.webdav.WebDavAutoBackupWorker.apply(context, on, runNow = on && configComplete)
+            },
+        )
+        if (settings.enabled) {
+            NumberStepperRow(
+                stringResource(R.string.webdav_auto_keep),
+                settings.keep,
+                "",
+                com.x500x.cursimple.app.webdav.WebDavAutoBackupSettings.MIN_KEEP,
+                com.x500x.cursimple.app.webdav.WebDavAutoBackupSettings.MAX_KEEP,
+                1,
+            ) { keep -> scope.launch { store.setKeep(keep) } }
+            Text(
+                text = when {
+                    settings.lastError.isNotBlank() -> stringResource(R.string.webdav_auto_last_error, settings.lastError)
+                    settings.lastSuccessAt > 0 -> stringResource(
+                        R.string.webdav_auto_last_success,
+                        java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT)
+                            .format(java.util.Date(settings.lastSuccessAt)),
+                    )
+                    else -> stringResource(R.string.webdav_auto_never)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (settings.lastError.isNotBlank()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp).testTag("webdav-auto-status"),
+            )
+            AppOutlinedButton(
+                enabled = !running && configComplete,
+                onClick = {
+                    running = true
+                    scope.launch {
+                        val app = context.applicationContext as com.x500x.cursimple.app.ClassScheduleApplication
+                        val result = withContext(Dispatchers.IO) {
+                            runCatching { com.x500x.cursimple.app.webdav.runWebDavBackupNow(app) }
+                        }
+                        result.onSuccess {
+                            store.recordSuccess(System.currentTimeMillis())
+                            Toast.makeText(context, context.getString(R.string.webdav_auto_done), Toast.LENGTH_SHORT).show()
+                        }.onFailure {
+                            store.recordFailure(it.message ?: it.javaClass.simpleName)
+                            Toast.makeText(context, context.getString(R.string.ie_upload_failed, it.message ?: ""), Toast.LENGTH_SHORT).show()
+                        }
+                        running = false
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().testTag("webdav-auto-now"),
+            ) {
+                Text(stringResource(if (running) R.string.webdav_auto_running else R.string.webdav_auto_now))
+            }
+            if (!configComplete) {
+                Text(
+                    text = stringResource(R.string.webdav_auto_need_config),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun WebDavSettingsSection(
     webDavUrl: String,
@@ -4123,36 +4277,9 @@ private fun ScheduleBackgroundPreview(
     scheduleBackground: ScheduleBackgroundPreferences,
     scheduleCardStyle: ScheduleCardStylePreferences,
     scheduleTextStyle: ScheduleTextStylePreferences,
+    scheduleDisplay: ScheduleDisplayPreferences,
     customColorsAdaptToTheme: Boolean,
 ) {
-    val context = LocalContext.current
-    val darkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val imageUri = scheduleBackground.imageUri?.takeIf(String::isNotBlank)
-    val bitmap by androidx.compose.runtime.produceState<ImageBitmap?>(
-        initialValue = null,
-        key1 = imageUri,
-    ) {
-        value = imageUri?.let { uri ->
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    decodeSampledImage(context, android.net.Uri.parse(uri), PREVIEW_MAX_EDGE_PX)
-                }.getOrNull()
-            }
-        }
-    }
-    val baseColor = when (scheduleBackground.type) {
-        ScheduleBackgroundType.Header -> MaterialTheme.colorScheme.surface
-        ScheduleBackgroundType.Color,
-        ScheduleBackgroundType.Image,
-        -> Color(
-            adaptScheduleBackgroundColorArgb(
-                scheduleBackground.colorArgb,
-                darkTheme,
-                customColorsAdaptToTheme,
-            ).toULong() shl 32,
-        )
-    }
-
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -4163,48 +4290,17 @@ private fun ScheduleBackgroundPreview(
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold,
         )
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .fillMaxWidth(0.55f)
-                .aspectRatio(SCHEDULE_BACKGROUND_FRAME_ASPECT)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(baseColor.copy(alpha = baseColor.alpha * transparencyToAlpha(scheduleCardStyle.scheduleOpacityPercent))),
-            )
-            bitmap?.takeIf { scheduleBackground.type == ScheduleBackgroundType.Image }?.let { image ->
-                androidx.compose.foundation.Image(
-                    bitmap = image,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .alpha(
-                            transparencyToAlpha(scheduleCardStyle.scheduleOpacityPercent) *
-                                transparencyToAlpha(scheduleBackground.imageTransparencyPercent),
-                        ),
-                )
-            }
-            if (scheduleBackground.type == ScheduleBackgroundType.Image && imageUri == null) {
-                Text(
-                    text = stringResource(R.string.settings_background_preview_empty),
-                    modifier = Modifier.align(Alignment.Center),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            // Use a miniature timetable to assess background readability.
-            SchedulePreviewMiniature(
-                scheduleCardStyle = scheduleCardStyle,
-                scheduleTextStyle = scheduleTextStyle,
-                customColorsAdaptToTheme = customColorsAdaptToTheme,
-                darkTheme = darkTheme,
-            )
-        }
+        // The real timetable with sample courses, so background, cards and text read exactly as they will.
+        ScheduleAppearancePreview(
+            scheduleTextStyle = scheduleTextStyle,
+            scheduleCardStyle = scheduleCardStyle,
+            scheduleBackground = scheduleBackground,
+            scheduleDisplay = scheduleDisplay,
+            customColorsAdaptToTheme = customColorsAdaptToTheme,
+            maxSlots = 4,
+            maxHeight = 240.dp,
+            modifier = Modifier.testTag("settings-background-preview"),
+        )
     }
 }
 

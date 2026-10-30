@@ -332,7 +332,13 @@ data class ScheduleDisplayPreferences(
     val courseSessionCountIncludeHolidays: Boolean = true,
     val timelineIndicatorEnabled: Boolean = false,
     val gridDashedLinesEnabled: Boolean = false,
+    /** Width of the period column in dp; 0 keeps the automatic width that follows the labels and font. */
+    val timeColumnWidthDp: Int = 0,
 )
+
+/** Bounds of a custom period column width. */
+const val MIN_TIME_COLUMN_WIDTH_DP = 20
+const val MAX_TIME_COLUMN_WIDTH_DP = 72
 
 fun adaptScheduleForegroundColorArgb(argb: Long, darkTheme: Boolean, enabled: Boolean): Long =
     adaptScheduleCustomColorArgb(
@@ -640,6 +646,7 @@ interface UserPreferencesRepository {
     suspend fun setAiImportSettings(apiUrl: String, apiKey: String, model: String, timeoutSeconds: Int)
     suspend fun setTimelineIndicatorEnabled(enabled: Boolean)
     suspend fun setGridDashedLinesEnabled(enabled: Boolean)
+    suspend fun setTimeColumnWidthDp(widthDp: Int)
     suspend fun setEveningBriefingEnabled(enabled: Boolean)
     suspend fun setTransitReminderEnabled(enabled: Boolean)
     suspend fun setExamAlertEnabled(enabled: Boolean)
@@ -675,6 +682,7 @@ object AppBackupStores {
     const val PLUGIN_COMPONENTS = "plugin_component_store"
     const val SCHEDULE_EVENTS = "schedule_events_store"
     const val MEMOS = "memo_store"
+    const val ATTENDANCE = "attendance_store"
 
     val ALL: Set<String> = setOf(
         USER_PREFERENCES,
@@ -688,6 +696,7 @@ object AppBackupStores {
         PLUGIN_COMPONENTS,
         SCHEDULE_EVENTS,
         MEMOS,
+        ATTENDANCE,
     )
 }
 

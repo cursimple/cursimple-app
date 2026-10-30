@@ -131,6 +131,9 @@ class ClassScheduleApplication : Application() {
         AlarmSyncScheduler.schedulePeriodicSync(this)
         AlarmSyncScheduler.scheduleDailyGuard(this)
         HolidayEveNoticeWorker.schedule(this)
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+            runCatching { com.x500x.cursimple.app.webdav.WebDavAutoBackupWorker.syncFromSettings(this@ClassScheduleApplication) }
+        }
         com.x500x.cursimple.app.greeting.FestivalGreetingWorker.schedule(this)
         com.x500x.cursimple.app.extension.ExtensionSyncWorker.schedule(this)
         // The notification outlet performs no network work without bound targets.
