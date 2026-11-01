@@ -560,7 +560,11 @@ internal fun SelectedWeeksRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            // The count and the week list share one flow: side by side while they fit, wrapping only when they must.
+            FlowRow(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 Text(
                     text = if (weeks.isEmpty()) {
                         stringResource(R.string.schedule_week_custom_empty)

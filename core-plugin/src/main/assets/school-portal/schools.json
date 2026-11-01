@@ -1,0 +1,4226 @@
+[
+ {
+  "name": "三亚航空旅游职业学院",
+  "portalUrl": "https://jwxt.hnasatc.edu.cn/cas/login.action",
+  "id": "s0001"
+ },
+ {
+  "name": "三峡电力职业学院",
+  "portalUrl": "https://jw.tgcep.edu.cn/eams/loginExt.action",
+  "id": "s0002"
+ },
+ {
+  "name": "上海东海职业技术学院",
+  "portalUrl": "https://sdvtc.jw.chaoxing.com/admin/login",
+  "id": "s0003"
+ },
+ {
+  "name": "上海中侨职业技术大学",
+  "portalUrl": "https://jw.shzq.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0004"
+ },
+ {
+  "name": "上海中医药大学",
+  "portalUrl": "https://cas.shutcm.edu.cn/cas/login?service=https%3A%2F%2Fyjsjw.shutcm.edu.cn%2Fgsapp%2Fsys%2Fyjsemaphome%2Fportal%2Findex.do",
+  "id": "s0005"
+ },
+ {
+  "name": "上海交通大学",
+  "portalUrl": "https://i.sjtu.edu.cn/xtgl/login_slogin.html",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0006"
+ },
+ {
+  "name": "上海南湖职业技术学院",
+  "portalUrl": "https://sf.shnhvtc.edu.cn/authserver/login?service=https%3A%2F%2Fjiaowu.shnhvtc.edu.cn%2Feamb%2FcasLogin",
+  "id": "s0007"
+ },
+ {
+  "name": "上海城建职业学院",
+  "portalUrl": "https://succ.jw.chaoxing.com/admin/login",
+  "id": "s0008"
+ },
+ {
+  "name": "上海外国语大学",
+  "portalUrl": "https://jw.shisu.edu.cn",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0009"
+ },
+ {
+  "name": "上海大学",
+  "portalUrl": "https://jwxt.shu.edu.cn",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0010"
+ },
+ {
+  "name": "上海对外经贸大学",
+  "portalUrl": "https://nbkjw.suibe.edu.cn/student/home",
+  "id": "s0011"
+ },
+ {
+  "name": "上海师范大学天华学院",
+  "portalUrl": "https://thjwgl.sthu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0012"
+ },
+ {
+  "name": "上海戏剧学院",
+  "portalUrl": "https://cas.sta.edu.cn/cas/login?service=https%3A%2F%2Fbkjw.sta.edu.cn%2Fshxjjw%2Fcaslogin",
+  "id": "s0013"
+ },
+ {
+  "name": "上海旅游高等专科学校",
+  "portalUrl": "https://sso.sitsh.edu.cn/cas/login?service=https%3A%2F%2Fjwxt.sitsh.edu.cn%2Fjwgl-api%2FcasLogin",
+  "id": "s0014"
+ },
+ {
+  "name": "上海济光职业技术学院",
+  "portalUrl": "https://jwxt.shjgu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0015"
+ },
+ {
+  "name": "上海理工大学",
+  "portalUrl": "https://jwc.usst.edu.cn/",
+  "id": "s0016"
+ },
+ {
+  "name": "上海电机学院",
+  "portalUrl": "https://jwgl.sdju.edu.cn",
+  "id": "s0017"
+ },
+ {
+  "name": "上海科技大学",
+  "portalUrl": "https://ids.shanghaitech.edu.cn/authserver/login?service=https%3A%2F%2Feams.shanghaitech.edu.cn%2Feams%2Fhome.action",
+  "id": "s0018"
+ },
+ {
+  "name": "上海立达学院",
+  "portalUrl": "https://shldxyjw.yinghuaonline.com/shldzyjsxy/",
+  "id": "s0019"
+ },
+ {
+  "name": "上海纺织工业职工大学",
+  "portalUrl": "https://jw.ae.fzzd.sh.cn/",
+  "id": "s0020"
+ },
+ {
+  "name": "上海行健职业学院",
+  "portalUrl": "https://shxj.jw.chaoxing.com/admin/login",
+  "id": "s0021"
+ },
+ {
+  "name": "上海视觉艺术学院",
+  "portalUrl": "https://jiaowu2023.siva.edu.cn/student/home",
+  "id": "s0022"
+ },
+ {
+  "name": "上海财经大学浙江学院",
+  "portalUrl": "https://jwxt.shufe-zj.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0023"
+ },
+ {
+  "name": "上饶职业技术学院",
+  "portalUrl": "https://jwc.srzy.cn",
+  "id": "s0024"
+ },
+ {
+  "name": "东北农业大学",
+  "portalUrl": "https://jwc.neau.edu.cn",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0025"
+ },
+ {
+  "name": "东北大学秦皇岛分校",
+  "portalUrl": "https://jwxt.neuq.edu.cn",
+  "id": "s0026"
+ },
+ {
+  "name": "东北师范大学",
+  "portalUrl": "https://authserver-443.webvpn.nenu.edu.cn/authserver/login?service=https%3A%2F%2Fwebvpn.nenu.edu.cn%2Fusers%2Fauth%2Fcas%2Fcallback%3Furl%3Dhttps%253A%252F%252Fjwc.nenu.edu.cn%252F",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0027"
+ },
+ {
+  "name": "东北林业大学",
+  "portalUrl": "https://jwcnew.webvpn.nefu.edu.cn/dblydx_jsxsd/",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0028"
+ },
+ {
+  "name": "东北电力大学",
+  "portalUrl": "https://jwxt.neepu.edu.cn/indexdbdldx.jsp",
+  "id": "s0029"
+ },
+ {
+  "name": "东北石油大学",
+  "portalUrl": "https://172-16-199-10.webvpn.nepu.edu.cn/yjsjwgl/qt/index.jsp",
+  "id": "s0030"
+ },
+ {
+  "name": "东莞职业技术学院",
+  "portalUrl": "https://jw.dgpt.edu.cn/",
+  "id": "s0031"
+ },
+ {
+  "name": "东营科技职业学院",
+  "portalUrl": "https://jw.dykj.edu.cn/",
+  "id": "s0032"
+ },
+ {
+  "name": "东营职业学院",
+  "portalUrl": "https://jw.dyxy.edu.cn:8086/dyzyjw/",
+  "id": "s0033"
+ },
+ {
+  "name": "中华女子学院",
+  "portalUrl": "https://jw.cwu.edu.cn/academic/common/security/login.jsp",
+  "id": "s0034"
+ },
+ {
+  "name": "中南林业科技大学涉外学院",
+  "portalUrl": "https://zswxyjw.yinghuaonline.com/znlykjdxswxy/",
+  "id": "s0035"
+ },
+ {
+  "name": "中原工学院",
+  "portalUrl": "https://xsxk.zut.edu.cn/",
+  "id": "s0036"
+ },
+ {
+  "name": "中国人民大学",
+  "portalUrl": "https://jw.ruc.edu.cn/Njw2017/login.html",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0037"
+ },
+ {
+  "name": "中国人民警察大学",
+  "portalUrl": "https://jw.cppu.edu.cn/index.html",
+  "id": "s0038"
+ },
+ {
+  "name": "中国传媒大学",
+  "portalUrl": "https://bkjw.cuc.edu.cn/",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0039"
+ },
+ {
+  "name": "中国科学技术大学",
+  "portalUrl": "https://jw.ustc.edu.cn/login",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0040"
+ },
+ {
+  "name": "中国美术学院",
+  "portalUrl": "https://home.caa.edu.cn/zfca/login?service=https%3A%2F%2Fcredit.caa.edu.cn%2FLogin",
+  "id": "s0041"
+ },
+ {
+  "name": "中国药科大学",
+  "portalUrl": "https://jwc.cpu.edu.cn/",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0042"
+ },
+ {
+  "name": "中国计量大学现代科技学院",
+  "portalUrl": "https://jwxt.cjlu.edu.cn/xtgl/login_slogin.html?kickout=1",
+  "id": "s0043"
+ },
+ {
+  "name": "中央司法警官学院",
+  "portalUrl": "https://jwxt.cicp.edu.cn",
+  "id": "s0044"
+ },
+ {
+  "name": "中央民族大学",
+  "portalUrl": "https://jwxs.muc.edu.cn/login",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0045"
+ },
+ {
+  "name": "中央财经大学",
+  "portalUrl": "https://xuanke.cufe.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0046"
+ },
+ {
+  "name": "中央音乐学院",
+  "portalUrl": "https://authserver.ccom.edu.cn/?timestamp=1753770534183&service=https%3A%2F%2Fbkjw.ccom.edu.cn%2F",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0047"
+ },
+ {
+  "name": "中山大学新华学院",
+  "portalUrl": "https://jw.xhsysu.edu.cn/",
+  "id": "s0048"
+ },
+ {
+  "name": "中山职业技术学院",
+  "portalUrl": "https://ijw.zspt.edu.cn/",
+  "id": "s0049"
+ },
+ {
+  "name": "中钢集团衡阳重机职工大学",
+  "portalUrl": "https://zgzd.jijiaox.com/mg/login?type=3",
+  "id": "s0050"
+ },
+ {
+  "name": "临汾职业技术学院",
+  "portalUrl": "https://lfvtc.jw.chaoxing.com/admin/scanLogin?wfwfid=43521&pageId=1010835&websiteId=526615&mhType=1&publicId=cf3934545e726111ee19c5376dac34e467ca&mhEnc=d76fd69fbb1192efaf1a0200d26823a0",
+  "id": "s0051"
+ },
+ {
+  "name": "临沂职业学院",
+  "portalUrl": "https://jwgl.lyvc.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0052"
+ },
+ {
+  "name": "临沧职业学院",
+  "portalUrl": "https://jw.lczyxy.cn/jwapp/sys/emapfunauth/pages/funauth-login.do?service=https%3A%2F%2Fjw.lczyxy.cn%2Fjwapp%2Fsys%2Fhomeapp%2Findex.do#/",
+  "id": "s0053"
+ },
+ {
+  "name": "丽水学院",
+  "portalUrl": "https://jwgl.lsu.edu.cn",
+  "id": "s0054"
+ },
+ {
+  "name": "乐山师范学院",
+  "portalUrl": "https://rz.lsnu.edu.cn/lyuapServer/login?service=http%3A%2F%2Fjwgl.lsnu.edu.cn%2Fsso%2Flyiotlogin",
+  "id": "s0055"
+ },
+ {
+  "name": "乐山职业技术学院",
+  "portalUrl": "https://jx.lszyxy.edu.cn",
+  "id": "s0056"
+ },
+ {
+  "name": "九江学院",
+  "portalUrl": "https://zhjw1.jju.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0057"
+ },
+ {
+  "name": "九江职业大学",
+  "portalUrl": "https://cas.paas.jjvu.jx.cn/cas/login?service=https%3A%2F%2Fjwyy.jjvu.jx.cn%3A443%2Feams%2Fsso%2Flogin.action%3FtargetUrl%3Dbase64aHR0cHM6Ly9qd3l5LmpqdnUuanguY246NDQzL2VhbXMvaG9tZUV4dC5hY3Rpb24%3D",
+  "id": "s0058"
+ },
+ {
+  "name": "云南中医药大学",
+  "portalUrl": "https://sso.ynucm.edu.cn/sso/login?service=http://ehall.ynucm.edu.cn/jwapp/sys/emaphome/portal/index.do",
+  "id": "s0059"
+ },
+ {
+  "name": "云南国防工业职业技术学院",
+  "portalUrl": "https://ynou.jw.chaoxing.com/admin/",
+  "id": "s0060"
+ },
+ {
+  "name": "云南城市建设职业学院",
+  "portalUrl": "https://yncjxyjw.yinghuaonline.com/yncsjszy/",
+  "id": "s0061"
+ },
+ {
+  "name": "云南工商学院",
+  "portalUrl": "https://jwc.ytbu.edu.cn/",
+  "id": "s0062"
+ },
+ {
+  "name": "云南林业职业技术学院",
+  "portalUrl": "https://zf.ynftc.cn/xtgl/login_slogin.html",
+  "id": "s0063"
+ },
+ {
+  "name": "云南财经大学",
+  "portalUrl": "https://xjwis.ynufe.edu.cn/jsxsd/",
+  "id": "s0064"
+ },
+ {
+  "name": "云南财经大学国际工商学院",
+  "portalUrl": "https://ynczy.jw.chaoxing.com/admin/login",
+  "id": "s0065"
+ },
+ {
+  "name": "云南轻纺职业学院",
+  "portalUrl": "https://jwxt.ynqfzyxy.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0066"
+ },
+ {
+  "name": "五邑大学",
+  "portalUrl": "https://jxgl.wyu.edu.cn/",
+  "id": "s0067"
+ },
+ {
+  "name": "亳州学院",
+  "portalUrl": "https://jwxt.bzuu.edu.cn/jsxsd/",
+  "id": "s0068"
+ },
+ {
+  "name": "亳州职业技术学院",
+  "portalUrl": "https://www.bzy.edu.cn/qt/jwxt",
+  "id": "s0069"
+ },
+ {
+  "name": "仰恩大学",
+  "portalUrl": "https://jwgl.yeu.edu.cn/yedxjw/cas/login.action",
+  "id": "s0070"
+ },
+ {
+  "name": "伊犁师范大学",
+  "portalUrl": "https://jwgl.ylnu.edu.cn/",
+  "id": "s0071"
+ },
+ {
+  "name": "佛山职业技术学院（推荐）",
+  "portalUrl": "https://jwgl.fspt.edu.cn/jsxsd/",
+  "id": "s0072"
+ },
+ {
+  "name": "佳木斯大学",
+  "portalUrl": "https://jwxt.jmsu.edu.cn:456/jmsujw/cas/login.action",
+  "id": "s0073"
+ },
+ {
+  "name": "保定理工学院",
+  "portalUrl": "https://jw.cuggw.com/jwglxt/xtgl/login_slogin.html",
+  "id": "s0074"
+ },
+ {
+  "name": "信阳农林学院",
+  "portalUrl": "https://sso.xyafu.edu.cn/sso/login?service=https%3A%2F%2Fjwgl.xyafu.edu.cn%2Fcaslogin",
+  "id": "s0075"
+ },
+ {
+  "name": "信阳学院",
+  "portalUrl": "https://cas1.xyu.edu.cn/cas/login?service=https%3A%2F%2Fjw.xyu.edu.cn%2Feams%2Fsso%2Flogin.action%3FtargetUrl%3Dbase64aHR0cHM6Ly9qdy54eXUuZWR1LmNuL2VhbXMvaG9tZUV4dC5hY3Rpb24%3D",
+  "id": "s0076"
+ },
+ {
+  "name": "信阳科技职业学院",
+  "portalUrl": "https://jw.xykj.edu.cn/eams/localLogin.action",
+  "id": "s0077"
+ },
+ {
+  "name": "信阳航空职业学院",
+  "portalUrl": "https://xyhkxy.jijiaox.com/mg/login?type=3",
+  "id": "s0078"
+ },
+ {
+  "name": "克孜勒苏职业技术学院",
+  "portalUrl": "https://jw.kzvtc.edu.cn:7524/",
+  "id": "s0079"
+ },
+ {
+  "name": "六盘水师范学院",
+  "portalUrl": "https://www.lpssy.edu.cn/jwc/5825/list.htm",
+  "id": "s0080"
+ },
+ {
+  "name": "兰州交通大学",
+  "portalUrl": "https://jwgl.lzjtu.edu.cn/sso.jsp",
+  "id": "s0081"
+ },
+ {
+  "name": "兰州信息科技学院",
+  "portalUrl": "https://jwgls.lzxk.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0082"
+ },
+ {
+  "name": "兰州理工大学",
+  "portalUrl": "https://jwxt.lut.edu.cn/jwapp/sys/yjsrzfwapp/dbLogin/index.do",
+  "id": "s0083"
+ },
+ {
+  "name": "兰州石化职业技术大学",
+  "portalUrl": "https://jwxt.lzpuvt.edu.cn/jsxsd",
+  "id": "s0084"
+ },
+ {
+  "name": "兰州职业技术学院",
+  "portalUrl": "https://jwgl.lvu.edu.cn/",
+  "id": "s0085"
+ },
+ {
+  "name": "兰州航空职业技术学院",
+  "portalUrl": "https://open.weixin.qq.com/connect/oauth2/authorize?appid=wxaa332a98d9ec7930&redirect_uri=http://jwxt.lzatc.edu.cn/jwmobile/index&response_type=code&scope=snsapi_userinfo&state=STATE#wechat_redirect",
+  "id": "s0086"
+ },
+ {
+  "name": "兰州财经大学",
+  "portalUrl": "https://jwxt.lzufe.edu.cn/jsxsd/",
+  "id": "s0087"
+ },
+ {
+  "name": "兴义民族师范学院",
+  "portalUrl": "https://jwgl.xynun.edu.cn/xtgl/login_slogin.html",
+  "id": "s0088"
+ },
+ {
+  "name": "冀中职业学院",
+  "portalUrl": "https://jzvc.jw.chaoxing.com/admin/login",
+  "id": "s0089"
+ },
+ {
+  "name": "内蒙古化工职业学院",
+  "portalUrl": "https://jw.hgzyxy.com.cn/xtgl/login_slogin.html",
+  "id": "s0090"
+ },
+ {
+  "name": "内蒙古医科大学",
+  "portalUrl": "https://jw.immu.edu.cn/admin/login",
+  "id": "s0091"
+ },
+ {
+  "name": "内蒙古大学",
+  "portalUrl": "https://jwxt.imu.edu.cn/",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0092"
+ },
+ {
+  "name": "内蒙古工业大学",
+  "portalUrl": "https://authserver.imut.edu.cn/cas/login?service=http%3A%2F%2Fjw.imut.edu.cn%2Facademic%2Flogin%2Fimut%2FloginIds6Valid.jsp",
+  "id": "s0093"
+ },
+ {
+  "name": "内蒙古师范大学",
+  "portalUrl": "https://auth.imnu.edu.cn/auth/cas/login?service=https%3A%2F%2Fjwxt.imnu.edu.cn%2Fadmin%2Fcaslogin",
+  "id": "s0094"
+ },
+ {
+  "name": "内蒙古建筑职业技术学院",
+  "portalUrl": "https://imaa.jw.chaoxing.com/admin/login",
+  "id": "s0095"
+ },
+ {
+  "name": "内蒙古民族幼儿师范高等专科学校",
+  "portalUrl": "https://nmmzyz.jw.chaoxing.com/admin/login",
+  "id": "s0096"
+ },
+ {
+  "name": "内蒙古电子信息职业技术学院",
+  "portalUrl": "https://jwxt.imeic.cn/",
+  "id": "s0097"
+ },
+ {
+  "name": "凯里学院",
+  "portalUrl": "https://sys.kluniv.edu.cn:8004/jwglxt/xtgl/login_slogin.html",
+  "id": "s0098"
+ },
+ {
+  "name": "包头钢铁职业技术学院",
+  "portalUrl": "https://open.btsvc.edu.cn/auth/oauth/authorize?response_type=code&client_id=9c7b26e5-19a7-4022-97a3-ead90d5ebcac&redirect_uri=http%3A//jxgl.btsvc.edu.cn/EducationService/ws/user-service/authn/central-login?centralaction%3Dlogin%26centraltype%3Doauth%26clienttype%3Dbrowser%26clientid%3DF489ED682D916D4F7CF3&state=",
+  "id": "s0099"
+ },
+ {
+  "name": "北京交通运输职业学院",
+  "portalUrl": "https://bjjt.jw.chaoxing.com/admin/login",
+  "id": "s0100"
+ },
+ {
+  "name": "北京体育大学",
+  "portalUrl": "https://jw.bsu.edu.cn/",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0101"
+ },
+ {
+  "name": "北京外国语大学",
+  "portalUrl": "https://jwxt.bfsu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0102"
+ },
+ {
+  "name": "北京工业大学耿丹学院",
+  "portalUrl": "https://bgd.jw.chaoxing.com/admin/login",
+  "id": "s0103"
+ },
+ {
+  "name": "北京工商大学嘉华学院",
+  "portalUrl": "https://canvardjw.yinghuaonline.com/bjgsdxjhxy/",
+  "id": "s0104"
+ },
+ {
+  "name": "北京师范大学",
+  "portalUrl": "https://ss.bnu.edu.cn/core/login",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0105"
+ },
+ {
+  "name": "北京科技大学",
+  "portalUrl": "https://byyt.ustb.edu.cn/",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0106"
+ },
+ {
+  "name": "北京科技职业学院",
+  "portalUrl": "https://bkz.jw.chaoxing.com/admin/login",
+  "id": "s0107"
+ },
+ {
+  "name": "北京航空航天大学",
+  "portalUrl": "https://sso.buaa.edu.cn/login?service=https%3A%2F%2Fbyxt.buaa.edu.cn%2Fjwapp%2Fsys%2Fhomeapp%2Findex.do",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0108"
+ },
+ {
+  "name": "北海艺术设计学院",
+  "portalUrl": "https://cas.sszss.com:8663/cas/login?service=https%3A%2F%2Fjwglxt.sszss.com%3A8443%2Fsso%2Fzcycloginc",
+  "id": "s0109"
+ },
+ {
+  "name": "华东交通大学",
+  "portalUrl": "https://jwxt.ecjtu.edu.cn/",
+  "id": "s0110"
+ },
+ {
+  "name": "华东师范大学",
+  "portalUrl": "https://applicationnewjw.ecnu.edu.cn/eams/login.action",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0111"
+ },
+ {
+  "name": "华中科技大学",
+  "portalUrl": "https://bksxk.hust.edu.cn/login",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0112"
+ },
+ {
+  "name": "华侨大学",
+  "portalUrl": "https://jwc.hqu.edu.cn",
+  "id": "s0113"
+ },
+ {
+  "name": "华南农业大学珠江学院",
+  "portalUrl": "https://scauzhujiangjw.yinghuaonline.com/hnnydxzjxy/",
+  "id": "s0114"
+ },
+ {
+  "name": "华南师范大学",
+  "portalUrl": "https://jwxt.scnu.edu.cn/xtgl/login_slogin.html",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0115"
+ },
+ {
+  "name": "南京中医药大学",
+  "portalUrl": "https://jwgl.njucm.edu.cn/student/login",
+  "id": "s0116"
+ },
+ {
+  "name": "南京传媒学院",
+  "portalUrl": "https://jw.cucn.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0117"
+ },
+ {
+  "name": "南京大学",
+  "portalUrl": "https://ehallapp.nju.edu.cn/jwapp/sys/wdkb/*default/index.do",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0118"
+ },
+ {
+  "name": "南京审计大学",
+  "portalUrl": "https://jwc.nau.edu.cn",
+  "id": "s0119"
+ },
+ {
+  "name": "南京工业大学",
+  "portalUrl": "https://jwgl.njtech.edu.cn/",
+  "id": "s0120"
+ },
+ {
+  "name": "南京工业大学浦江学院",
+  "portalUrl": "https://jwxt.njpji.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0121"
+ },
+ {
+  "name": "南京工业职业技术大学",
+  "portalUrl": "https://auth.njuit.edu.cn/cas/login?service=https%3A%2F%2Fjwxt.niit.edu.cn%2Fjwapp%2Fsys%2Femaphome%2Fportal%2Findex.do%3FforceCas%3D1",
+  "id": "s0122"
+ },
+ {
+  "name": "南京旅游职业学院",
+  "portalUrl": "https://jw.nith.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0123"
+ },
+ {
+  "name": "南京机电职业技术学院",
+  "portalUrl": "https://nimt.jw.chaoxing.com/admin/login",
+  "id": "s0124"
+ },
+ {
+  "name": "南京林业大学",
+  "portalUrl": "https://jwxt.njfu.edu.cn/jsxsd",
+  "id": "s0125"
+ },
+ {
+  "name": "南京理工大学泰州科技学院",
+  "portalUrl": "https://jwgl.nustti.edu.cn/jsxsd/",
+  "id": "s0126"
+ },
+ {
+  "name": "南京科技职业学院",
+  "portalUrl": "https://jwxt.njpi.edu.cn/",
+  "id": "s0127"
+ },
+ {
+  "name": "南京航空航天大学",
+  "portalUrl": "https://authserver.nuaa.edu.cn/authserver/login?service=http%3A%2F%2Faao-eas.nuaa.edu.cn%2Feams%2FlocalLogin.action",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0128"
+ },
+ {
+  "name": "南京艺术学院",
+  "portalUrl": "https://jwzx.nua.edu.cn",
+  "id": "s0129"
+ },
+ {
+  "name": "南京财经大学",
+  "portalUrl": "https://jwxt.nufe.edu.cn/student/home",
+  "id": "s0130"
+ },
+ {
+  "name": "南充职业技术学院",
+  "portalUrl": "https://njwc.nczy.edu.cn/jsxsd/",
+  "id": "s0131"
+ },
+ {
+  "name": "南宁学院",
+  "portalUrl": "https://jw.unn.edu.cn/xtgl/login_slogin.html",
+  "id": "s0132"
+ },
+ {
+  "name": "南宁理工学院",
+  "portalUrl": "https://bwgljw.yinghuaonline.com/gllgdxbwglxy/",
+  "id": "s0133"
+ },
+ {
+  "name": "南方医科大学",
+  "portalUrl": "https://zhjw.smu.edu.cn/",
+  "id": "s0134"
+ },
+ {
+  "name": "南方科技大学",
+  "portalUrl": "https://tis.sustech.edu.cn/",
+  "id": "s0135"
+ },
+ {
+  "name": "南昌交通学院",
+  "portalUrl": "https://jw.ncjti.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0136"
+ },
+ {
+  "name": "南昌大学共青学院",
+  "portalUrl": "https://ndgq.jw.chaoxing.com/admin/login",
+  "id": "s0137"
+ },
+ {
+  "name": "南昌大学科学技术学院",
+  "portalUrl": "https://jwxt.ncuky.edu.cn/default.aspx",
+  "id": "s0138"
+ },
+ {
+  "name": "南通大学",
+  "portalUrl": "https://tdjw.ntu.edu.cn/",
+  "id": "s0139"
+ },
+ {
+  "name": "南通大学杏林学院",
+  "portalUrl": "https://authserver.ntu.edu.cn/authserver/login?service=https%3A%2F%2Ftdjw.ntu.edu.cn%2Fsso%2Fjziotlogin",
+  "id": "s0140"
+ },
+ {
+  "name": "南通理工学院（2023届及之后）",
+  "portalUrl": "https://zfjw.ntit.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0141"
+ },
+ {
+  "name": "南阳科技职业学院",
+  "portalUrl": "https://nykjzy.jw.chaoxing.com/",
+  "id": "s0142"
+ },
+ {
+  "name": "南阳职业学院",
+  "portalUrl": "https://jw.nyvc.edu.cn/eams/loginExt.action",
+  "id": "s0143"
+ },
+ {
+  "name": "厦门东海职业技术学院",
+  "portalUrl": "https://jwxt.xmdh.com/xmdhjw/cas/login.action",
+  "id": "s0144"
+ },
+ {
+  "name": "厦门兴才职业技术学院",
+  "portalUrl": "https://cas.xmxc.com/login?service=https%3A%2F%2Fjwc.xmxc.com%2FCASLogin",
+  "id": "s0145"
+ },
+ {
+  "name": "厦门城市职业学院",
+  "portalUrl": "https://jw.xmcu.edu.cn/",
+  "id": "s0146"
+ },
+ {
+  "name": "厦门大学",
+  "portalUrl": "https://jw.xmu.edu.cn/new/index.html",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0147"
+ },
+ {
+  "name": "厦门软件职业技术学院",
+  "portalUrl": "https://jw.xmist.edu.cn/",
+  "id": "s0148"
+ },
+ {
+  "name": "台州学院",
+  "portalUrl": "https://jwc.tzc.edu.cn",
+  "id": "s0149"
+ },
+ {
+  "name": "台州科技职业学院",
+  "portalUrl": "https://tzvcst.jw.chaoxing.com/admin/login",
+  "id": "s0150"
+ },
+ {
+  "name": "台州职业技术学院",
+  "portalUrl": "https://tzvtc.jw.chaoxing.com/",
+  "id": "s0151"
+ },
+ {
+  "name": "合肥信息技术职业学院",
+  "portalUrl": "https://oajwc.hfitu.cn/",
+  "id": "s0152"
+ },
+ {
+  "name": "合肥工业大学（可切换学期）",
+  "portalUrl": "https://jxglstu.hfut.edu.cn/eams5-student/login",
+  "id": "s0153"
+ },
+ {
+  "name": "合肥师范学院",
+  "portalUrl": "https://jw.hfnu.edu.cn/",
+  "id": "s0154"
+ },
+ {
+  "name": "吉安幼儿师范高等专科学校",
+  "portalUrl": "https://jw.japec.edu.cn//sso/lyiotlogin",
+  "id": "s0155"
+ },
+ {
+  "name": "吉林农业科技学院",
+  "portalUrl": "https://jlnku.jw.chaoxing.com",
+  "id": "s0156"
+ },
+ {
+  "name": "吉林工程技术师范学院",
+  "portalUrl": "https://jwxt.jlenu.edu.cn/jsxsd/framework/xsMain.jsp",
+  "id": "s0157"
+ },
+ {
+  "name": "吉林师范大学博达学院",
+  "portalUrl": "https://bdjw.bdxy.com.cn/#/jwxt/js/login?returnUrl=http%3A%2F%2Fbdjw.bdxy.com.cn%2F%23%2F",
+  "id": "s0158"
+ },
+ {
+  "name": "吉林开放大学",
+  "portalUrl": "https://jw.japec.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0159"
+ },
+ {
+  "name": "吉林省经济管理干部学院",
+  "portalUrl": "https://c.jlemcc.edu.cn/",
+  "id": "s0160"
+ },
+ {
+  "name": "吉林职业技术学院",
+  "portalUrl": "https://jzjw.jw.chaoxing.com/admin/login",
+  "id": "s0161"
+ },
+ {
+  "name": "吉林警察学院",
+  "portalUrl": "https://authserver.jljcxy.com/authserver/login?service=http%3A%2F%2Fjiaowu.jljcxy.com%3A8091%2F",
+  "id": "s0162"
+ },
+ {
+  "name": "吉林通用航空职业技术学院",
+  "portalUrl": "https://jwc.jlthedu.com/Web_Pro/index.aspx?securitycam=7",
+  "id": "s0163"
+ },
+ {
+  "name": "同济大学浙江学院",
+  "portalUrl": "https://eas.wzbc.edu.cn/jwglxt/kbcx/xskbcx_cxXskbcxIndex.html",
+  "id": "s0164"
+ },
+ {
+  "name": "吕梁学院",
+  "portalUrl": "https://sso.llu.edu.cn/auth/#/login?service=https://jwgl.llu.edu.cn/llxyjw/caslogin",
+  "id": "s0165"
+ },
+ {
+  "name": "吕梁师范高等专科学校",
+  "portalUrl": "https://llsz.jw.chaoxing.com/admin/login",
+  "id": "s0166"
+ },
+ {
+  "name": "吕梁职业技术学院",
+  "portalUrl": "https://jwxt.llzy.edu.cn/",
+  "id": "s0167"
+ },
+ {
+  "name": "周口师范学院",
+  "portalUrl": "https://jwgl.zknu.edu.cn/cas/login.action",
+  "id": "s0168"
+ },
+ {
+  "name": "和君职业学院",
+  "portalUrl": "https://hejun.jw.chaoxing.com/admin/login",
+  "id": "s0169"
+ },
+ {
+  "name": "哈尔滨医科大学",
+  "portalUrl": "https://jwweb.hrbmu.edu.cn/new/welcome.page",
+  "id": "s0170"
+ },
+ {
+  "name": "哈尔滨商业大学",
+  "portalUrl": "https://jwgl.hrbcu.edu.cn",
+  "id": "s0171"
+ },
+ {
+  "name": "哈尔滨工程大学",
+  "portalUrl": "https://jwgl.wvpn.hrbeu.edu.cn/jwapp/sys/wdkb/*default/index.do?EMAP_LANG=zh#/xskcb",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0172"
+ },
+ {
+  "name": "哈尔滨广厦学院",
+  "portalUrl": "https://gsxyjw.yinghuaonline.com/hrbgxxy/",
+  "id": "s0173"
+ },
+ {
+  "name": "哈尔滨石油学院",
+  "portalUrl": "https://cfjw.hip.edu.cn/new/welcome.page",
+  "id": "s0174"
+ },
+ {
+  "name": "唐山学院",
+  "portalUrl": "https://jiaowu.tsc.edu.cn/tsxyjw/cas/login.action",
+  "id": "s0175"
+ },
+ {
+  "name": "唐山师范学院",
+  "portalUrl": "https://jwc.tstc.edu.cn",
+  "id": "s0176"
+ },
+ {
+  "name": "商丘医学高等专科学校",
+  "portalUrl": "https://sqxy.jijiaox.com/mg/login?type=3",
+  "id": "s0177"
+ },
+ {
+  "name": "商丘工学院",
+  "portalUrl": "https://sqxy.jijiaox.com/mg/login/",
+  "id": "s0178"
+ },
+ {
+  "name": "商丘师范学院",
+  "portalUrl": "https://sqnu.jijiaox.com/mg/login",
+  "id": "s0179"
+ },
+ {
+  "name": "喀什大学",
+  "portalUrl": "https://jwc.ksu.edu.cn/",
+  "id": "s0180"
+ },
+ {
+  "name": "喀什职业技术学院",
+  "portalUrl": "https://www.kszy.edu.cn/jwc",
+  "id": "s0181"
+ },
+ {
+  "name": "嘉兴南湖学院",
+  "portalUrl": "https://jwzx.jxnhu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0182"
+ },
+ {
+  "name": "嘉兴学院",
+  "portalUrl": "https://jwzx.zjxu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0183"
+ },
+ {
+  "name": "四川传媒学院",
+  "portalUrl": "https://jwgl.cdysxy.com/xtgl/login_slogin.html?_t=1562040279400&language=zh_CN",
+  "id": "s0184"
+ },
+ {
+  "name": "四川体育职业学院",
+  "portalUrl": "https://jwxt.scsc.edu.cn/xtgl/login_slogin.html",
+  "id": "s0185"
+ },
+ {
+  "name": "四川农业大学",
+  "portalUrl": "https://jiaowu.sicau.edu.cn/web/web/web/index.asp",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0186"
+ },
+ {
+  "name": "四川化工职业技术学院",
+  "portalUrl": "https://jwgl.sccc.edu.cn:81/",
+  "id": "s0187"
+ },
+ {
+  "name": "四川华新现代职业学院",
+  "portalUrl": "https://www.schxmvc.com.cn/eams/loginExt.action",
+  "id": "s0188"
+ },
+ {
+  "name": "四川商务职业学院",
+  "portalUrl": "https://jwc.scsw.edu.cn/page/1089172/show",
+  "id": "s0189"
+ },
+ {
+  "name": "四川国际标榜职业学院",
+  "portalUrl": "https://polus.jw.chaoxing.com/admin/login",
+  "id": "s0190"
+ },
+ {
+  "name": "四川城市技师学院",
+  "portalUrl": "https://sccsjs.jw.chaoxing.com/admin/login",
+  "id": "s0191"
+ },
+ {
+  "name": "四川大学",
+  "portalUrl": "https://ehall.scu.edu.cn/gsapp/sys/wdkbapp/*default/index.do?THEME=cherry&amp;EMAP_LANG=zh#/xskcb",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0192"
+ },
+ {
+  "name": "四川大学锦江学院",
+  "portalUrl": "https://jwa.scujj.edu.cn:82/xtgl/login_slogin.html",
+  "id": "s0193"
+ },
+ {
+  "name": "四川工商职业技术学院",
+  "portalUrl": "https://jw.sctbc.edu.cn/xtgl/login_slogin.html",
+  "id": "s0194"
+ },
+ {
+  "name": "四川工程职业技术学院",
+  "portalUrl": "https://jiaowu.scetc.edu.cn/",
+  "id": "s0195"
+ },
+ {
+  "name": "四川希望汽车职业学院",
+  "portalUrl": "https://www.qicheedu.com/profession/JWC/index.html",
+  "id": "s0196"
+ },
+ {
+  "name": "四川应用技术职业学院",
+  "portalUrl": "https://sccasjw.yinghuaonline.com/scyyjszyxy/",
+  "id": "s0197"
+ },
+ {
+  "name": "四川建筑职业技术学院",
+  "portalUrl": "https://jw.scac.edu.cn/cas/login.action",
+  "id": "s0198"
+ },
+ {
+  "name": "四川护理职业学院",
+  "portalUrl": "https://jwgl.cnsnvc.edu.cn",
+  "id": "s0199"
+ },
+ {
+  "name": "四川文化产业职业学院",
+  "portalUrl": "https://jwxt.svcci.cn/",
+  "id": "s0200"
+ },
+ {
+  "name": "四川文化艺术学院",
+  "portalUrl": "https://jwc.sca.edu.cn/",
+  "id": "s0201"
+ },
+ {
+  "name": "四川文轩职业学院",
+  "portalUrl": "https://jw.scwxzyxy.cn/",
+  "id": "s0202"
+ },
+ {
+  "name": "四川民族学院",
+  "portalUrl": "https://jwgl.scun.edu.cn",
+  "id": "s0203"
+ },
+ {
+  "name": "四川电子机械职业技术学院",
+  "portalUrl": "https://jwgl.scemvtc.com/eams/loginExt.action?local=1",
+  "id": "s0204"
+ },
+ {
+  "name": "四川电影电视学院",
+  "portalUrl": "https://jwc.sfc.edu.cn/",
+  "id": "s0205"
+ },
+ {
+  "name": "四川省会理现代职业技术学校",
+  "portalUrl": "https://schlzxjw.yinghuaonline.com/hlxxdzyjsxy/",
+  "id": "s0206"
+ },
+ {
+  "name": "四川美术学院",
+  "portalUrl": "https://jwjx.scfai.edu.cn/workspace/",
+  "id": "s0207"
+ },
+ {
+  "name": "四川西南航空职业学院",
+  "portalUrl": "https://xnhkxy.jw.chaoxing.com/admin/login",
+  "id": "s0208"
+ },
+ {
+  "name": "四川轻化工大学",
+  "portalUrl": "https://jwgl.suse.edu.cn",
+  "id": "s0209"
+ },
+ {
+  "name": "国家开放大学",
+  "portalUrl": "https://iam.pt.ouchn.cn/am/UI/Login?realm=%2F&service=initService&goto=https%3A%2F%2Fiam.pt.ouchn.cn%2Fam%2Foauth2%2Fauthorize%3Fservice%3DinitService%26response_type%3Dcode%26client_id%3D8bffb566ae114fba%26scope%3Dall%26decision%3DAllow%26redirect_uri%3Dhttps%253A%252F%252Fzf.pt.ouchn.cn%252Fmanage%252F%2523%252Flogin",
+  "id": "s0210"
+ },
+ {
+  "name": "塔里木大学",
+  "portalUrl": "https://jwgl.taru.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0211"
+ },
+ {
+  "name": "塔里木理工学院",
+  "portalUrl": "https://tlmlgxy.jw.chaoxing.com/admin/login",
+  "id": "s0212"
+ },
+ {
+  "name": "塔里木职业技术学院",
+  "portalUrl": "https://tlmzyjsxy.jw.chaoxing.com/admin/login",
+  "id": "s0213"
+ },
+ {
+  "name": "复旦大学",
+  "portalUrl": "https://xk.fudan.edu.cn/",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0214"
+ },
+ {
+  "name": "外交学院",
+  "portalUrl": "https://jwc.cfau.edu.cn/",
+  "id": "s0215"
+ },
+ {
+  "name": "大连海洋大学",
+  "portalUrl": "https://portal.dlou.edu.cn/auth/cas/login?service=https%3A%2F%2Fjwxt.dlou.edu.cn%2Fsso%2Fddlogin",
+  "id": "s0216"
+ },
+ {
+  "name": "大连理工大学城市学院",
+  "portalUrl": "https://jw.dlutci.edu.cn/jwapp/sys/emaphome/portal/index.do",
+  "id": "s0217"
+ },
+ {
+  "name": "大连科技学院",
+  "portalUrl": "https://dlust.jw.chaoxing.com/admin/login",
+  "id": "s0218"
+ },
+ {
+  "name": "大连职业技术学院",
+  "portalUrl": "https://jwgl.dlvtc.edu.cn/admin/login",
+  "id": "s0219"
+ },
+ {
+  "name": "大连财经学院",
+  "portalUrl": "https://jw.dlufe.edu.cn/",
+  "id": "s0220"
+ },
+ {
+  "name": "大连软件职业学院",
+  "portalUrl": "https://dlvtc.jw.chaoxing.com/admin/login",
+  "id": "s0221"
+ },
+ {
+  "name": "天水师范学院",
+  "portalUrl": "https://jwxt.tsnu.edu.cn/jw/cas/login.action",
+  "id": "s0222"
+ },
+ {
+  "name": "天津交通职业学院",
+  "portalUrl": "https://jw.tttc.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0223"
+ },
+ {
+  "name": "天津医学高等专科学校",
+  "portalUrl": "https://dean.tjyzh.cn/",
+  "id": "s0224"
+ },
+ {
+  "name": "天津大学",
+  "portalUrl": "https://classes.tju.edu.cn/eams/loginExt.action",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0225"
+ },
+ {
+  "name": "天津机电职业技术学院",
+  "portalUrl": "https://jwsys.suoyuan.com.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0226"
+ },
+ {
+  "name": "天津现代职业技术学院",
+  "portalUrl": "https://xdxy.jw.chaoxing.com/admin/login",
+  "id": "s0227"
+ },
+ {
+  "name": "天津理工大学",
+  "portalUrl": "https://jwxt.tjut.edu.cn/jwapp/sys/wdkb/*default/index.do?THEME=teal#/xskcb",
+  "id": "s0228"
+ },
+ {
+  "name": "天津财经大学珠江学院",
+  "portalUrl": "https://zhjw.zjxyshoufei.cn/jsxsd/",
+  "id": "s0229"
+ },
+ {
+  "name": "天津轻工职业技术学院",
+  "portalUrl": "https://tjqgxy.jw.chaoxing.com/admin/login",
+  "id": "s0230"
+ },
+ {
+  "name": "太原工业学院",
+  "portalUrl": "https://tit.jw.chaoxing.com/admin/login",
+  "id": "s0231"
+ },
+ {
+  "name": "太原幼儿师范高等专科学校",
+  "portalUrl": "https://youshi.jw.chaoxing.com/admin/login",
+  "id": "s0232"
+ },
+ {
+  "name": "威海海洋职业学院",
+  "portalUrl": "https://jwgl.whovc.edu.cn/jsxsd/",
+  "id": "s0233"
+ },
+ {
+  "name": "宁夏幼儿师范高等专科学校",
+  "portalUrl": "https://jw.nxpec.edu.cn:12380/admin/login",
+  "id": "s0234"
+ },
+ {
+  "name": "宁夏理工学院",
+  "portalUrl": "https://portal.nxist.com/jwglxt/xtgl/login_slogin.html",
+  "id": "s0235"
+ },
+ {
+  "name": "宁夏葡萄酒与防沙治沙职业技术学院",
+  "portalUrl": "https://nxfszs.jw.chaoxing.com/admin/login",
+  "id": "s0236"
+ },
+ {
+  "name": "宁德师范学院",
+  "portalUrl": "https://jwgl.ndnu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0237"
+ },
+ {
+  "name": "宁波幼儿师范高等专科学校",
+  "portalUrl": "https://jwweb.ncec.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0238"
+ },
+ {
+  "name": "宁波职业技术大学",
+  "portalUrl": "https://jwc.webs.nbpt.edu.cn/",
+  "id": "s0239"
+ },
+ {
+  "name": "安庆师范大学",
+  "portalUrl": "https://jwxt.aqnu.edu.cn/",
+  "id": "s0240"
+ },
+ {
+  "name": "安徽中医药高等专科学校",
+  "portalUrl": "https://jwxt.ahzyygz.edu.cn/ahzyygzjw/caslogin",
+  "id": "s0241"
+ },
+ {
+  "name": "安徽交通职业技术学院",
+  "portalUrl": "https://authserver.acvtc.edu.cn/authserver/login?t=x&service=https%3A%2F%2Fjwxt.acvtc.edu.cn%2Fjwapp%2Fsys%2Fhomeapp%2Findex.do%3FcontextPath%3D%2Fjwapp",
+  "id": "s0242"
+ },
+ {
+  "name": "安徽信息工程学院",
+  "portalUrl": "https://teach.aiit.edu.cn/xtgl/login_slogin.html",
+  "id": "s0243"
+ },
+ {
+  "name": "安徽公安职业学院",
+  "portalUrl": "https://jw.ahpc.edu.cn/cas/login.action",
+  "id": "s0244"
+ },
+ {
+  "name": "安徽农业大学",
+  "portalUrl": "https://jwc.ahau.edu.cn/?kfcjekngdjmopphd",
+  "id": "s0245"
+ },
+ {
+  "name": "安徽冶金科技职业学院",
+  "portalUrl": "https://jwxx.avcmt.edu.cn/",
+  "id": "s0246"
+ },
+ {
+  "name": "安徽国际商务职业学院",
+  "portalUrl": "https://jxgl.ahiib.edu.cn/",
+  "id": "s0247"
+ },
+ {
+  "name": "安徽城市管理职业学院",
+  "portalUrl": "https://jw.cua.edu.cn/ahcsjw/cas/login.action",
+  "id": "s0248"
+ },
+ {
+  "name": "安徽大学",
+  "portalUrl": "https://jw.ahu.edu.cn",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0249"
+ },
+ {
+  "name": "安徽工商职业学院",
+  "portalUrl": "https://jwxt.ahbvc.edu.cn/student/login?refer=https://jwxt.ahbvc.edu.cn/student/home",
+  "id": "s0250"
+ },
+ {
+  "name": "安徽工贸职业技术学院",
+  "portalUrl": "https://jwgl.ahgm.edu.cn/default2.aspx",
+  "id": "s0251"
+ },
+ {
+  "name": "安徽师范大学",
+  "portalUrl": "https://jw.ahnu.edu.cn/",
+  "id": "s0252"
+ },
+ {
+  "name": "安徽新华学院",
+  "portalUrl": "https://10-8-6-10.webvpn.axhu.edu.cn/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default",
+  "id": "s0253"
+ },
+ {
+  "name": "安徽林业职业技术学院",
+  "portalUrl": "https://sso.ahlyxy.edu.cn/cas/login?service=http%3A%2F%2Fehall.ahlyxy.edu.cn%2Fjwapp%2Fsys%2Femaphome%2Fportal%2Findex.do",
+  "id": "s0254"
+ },
+ {
+  "name": "安徽科技学院",
+  "portalUrl": "https://jwxt.ahstu.edu.cn/eams/localLogin.action",
+  "id": "s0255"
+ },
+ {
+  "name": "安徽艺术学院",
+  "portalUrl": "https://ahuac.jw.chaoxing.com/admin/login",
+  "id": "s0256"
+ },
+ {
+  "name": "安徽财贸职业学院",
+  "portalUrl": "https://jw.afc.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0257"
+ },
+ {
+  "name": "安阳学院",
+  "portalUrl": "https://cas.ayxy.edu.cn/cas/login?service=http%3A%2F%2Fjw.ayxy.edu.cn%2Fjxcjcaslogin",
+  "id": "s0258"
+ },
+ {
+  "name": "安阳工学院",
+  "portalUrl": "https://jwgl.ayit.edu.cn/",
+  "id": "s0259"
+ },
+ {
+  "name": "安阳幼儿师范高等专科学校",
+  "portalUrl": "https://jw.ayyz.edu.cn/ayyzjw/cas/login.action",
+  "id": "s0260"
+ },
+ {
+  "name": "宣化科技职业学院",
+  "portalUrl": "https://manager.xhkjzyxy.edu.cn:1443/u.php?site=jwc",
+  "id": "s0261"
+ },
+ {
+  "name": "宣城职业技术学院",
+  "portalUrl": "https://sso.xcvtc.edu.cn/casv5/login?service=https%3A%2F%2Fjwxt.xcvtc.edu.cn%2Fjwgl%2Flogin.jsp",
+  "id": "s0262"
+ },
+ {
+  "name": "宿州职业技术学院",
+  "portalUrl": "https://jwxt.szzy.edu.cn/xtgl/login_slogin.html",
+  "id": "s0263"
+ },
+ {
+  "name": "宿州航空职业学院",
+  "portalUrl": "https://szhkxy.jw.chaoxing.com/admin/login",
+  "id": "s0264"
+ },
+ {
+  "name": "宿迁泽达职业技术学院",
+  "portalUrl": "https://jw.zdct.cn/jwglxt/xtgl/login_slogin.html?time=1728563176819",
+  "id": "s0265"
+ },
+ {
+  "name": "山东体育学院",
+  "portalUrl": "https://jw.sdpei.edu.cn/#",
+  "id": "s0266"
+ },
+ {
+  "name": "山东农业工程学院",
+  "portalUrl": "https://jwxt.sdaeu.edu.cn/cas/login.action",
+  "id": "s0267"
+ },
+ {
+  "name": "山东华宇工学院",
+  "portalUrl": "https://jwgl.huayu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0268"
+ },
+ {
+  "name": "山东外事职业大学",
+  "portalUrl": "https://jwxt.sdws.edu.cn/jsxsd/",
+  "id": "s0269"
+ },
+ {
+  "name": "山东外国语职业技术大学",
+  "portalUrl": "https://swut.jw.chaoxing.com/admin/login",
+  "id": "s0270"
+ },
+ {
+  "name": "山东外贸职业学院",
+  "portalUrl": "https://jwglxt.sdwm.cn/jwglxt",
+  "id": "s0271"
+ },
+ {
+  "name": "山东女子学院",
+  "portalUrl": "https://jwxt.sdwu.edu.cn/sdnzjw/cas/login.action",
+  "id": "s0272"
+ },
+ {
+  "name": "山东工商学院",
+  "portalUrl": "https://jwc.sdtbu.edu.cn",
+  "id": "s0273"
+ },
+ {
+  "name": "山东工程职业技术大学",
+  "portalUrl": "https://qgjw.suet.edu.cn/cas/login.action",
+  "id": "s0274"
+ },
+ {
+  "name": "山东水利职业学院",
+  "portalUrl": "https://jw.sdwcvc.edu.cn/eams/loginExt.action",
+  "id": "s0275"
+ },
+ {
+  "name": "山东电子职业技术学院",
+  "portalUrl": "https://jwgl.sdcet.edu.cn:6066/jsxsd/",
+  "id": "s0276"
+ },
+ {
+  "name": "山东省经济管理干部学院",
+  "portalUrl": "https://jwxt.sdmu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0277"
+ },
+ {
+  "name": "山东科技职业学院",
+  "portalUrl": "https://jwxt.sdzy.cn/jwglxt/",
+  "id": "s0278"
+ },
+ {
+  "name": "山东第一医科大学",
+  "portalUrl": "https://jwc.sdfmu.edu.cn/academic/common/security/affairLogin.jsp",
+  "id": "s0279"
+ },
+ {
+  "name": "山东管理学院",
+  "portalUrl": "https://jwxt.sdmu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0280"
+ },
+ {
+  "name": "山东职业学院",
+  "portalUrl": "https://zfjw.sdp.edu.cn",
+  "id": "s0281"
+ },
+ {
+  "name": "山东艺术设计职业学院",
+  "portalUrl": "https://jwglxt.sdca.edu.cn/",
+  "id": "s0282"
+ },
+ {
+  "name": "山东英才学院",
+  "portalUrl": "https://jwgl.sdycu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0283"
+ },
+ {
+  "name": "山东药品食品职业学院",
+  "portalUrl": "https://jwxt.sddfvc.edu.cn/mobile/login",
+  "id": "s0284"
+ },
+ {
+  "name": "山东财政职工大学",
+  "portalUrl": "https://ysjw.sdufe.edu.cn:8081/jsxsd/",
+  "id": "s0285"
+ },
+ {
+  "name": "山东青年政治学院",
+  "portalUrl": "https://jw.sdyu.edu.cn/",
+  "id": "s0286"
+ },
+ {
+  "name": "山西传媒学院",
+  "portalUrl": "https://jwb.cusx.edu.cn",
+  "id": "s0287"
+ },
+ {
+  "name": "山西农业大学",
+  "portalUrl": "https://jwc.sxau.edu.cn/index/newjwxt.htm",
+  "id": "s0288"
+ },
+ {
+  "name": "山西大学",
+  "portalUrl": "https://sdbkjw.sxu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0289"
+ },
+ {
+  "name": "山西电子科技学院（原山西师范大学现代文理学院）",
+  "portalUrl": "https://sso.sxdzkj.edu.cn/sso-auth/#/login?service=https://jwxt.sxdzkj.edu.cn/caslogin",
+  "id": "s0290"
+ },
+ {
+  "name": "山西铁道职业技术学院",
+  "portalUrl": "https://qgjw.sxtdzy.edu.cn:8001/sxtdjw/cas/login.action",
+  "id": "s0291"
+ },
+ {
+  "name": "岳阳学院（原湖南理工学院南湖学院）",
+  "portalUrl": "https://jwxt.yyu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0292"
+ },
+ {
+  "name": "岳阳现代服务职业学院",
+  "portalUrl": "https://yyxdzy.jw.chaoxing.com/admin/login",
+  "id": "s0293"
+ },
+ {
+  "name": "川北医学院",
+  "portalUrl": "https://jiaowu3.nsmc.edu.cn/jsxsd/",
+  "id": "s0294"
+ },
+ {
+  "name": "川南幼儿师范高等专科学校",
+  "portalUrl": "https://cnyz.edu.cn/p/0/?StId=st_app_news_i_x638291004641009599",
+  "id": "s0295"
+ },
+ {
+  "name": "常州工业职业技术学院",
+  "portalUrl": "https://ciit.jw.chaoxing.com/admin/login",
+  "id": "s0296"
+ },
+ {
+  "name": "常州工程职业技术学院",
+  "portalUrl": "https://zhjw.czie.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0297"
+ },
+ {
+  "name": "常州纺织服装职业技术学院",
+  "portalUrl": "https://jw.cztgi.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0298"
+ },
+ {
+  "name": "常德学院（原湖南文理学院芙蓉学院）",
+  "portalUrl": "https://dyjw.huas.edu.cn/jsxsd/",
+  "id": "s0299"
+ },
+ {
+  "name": "常德职业技术学院",
+  "portalUrl": "https://jw.cdzy.cn:8001/jsxsd/",
+  "id": "s0300"
+ },
+ {
+  "name": "平顶山工业职业技术学院",
+  "portalUrl": "https://jw.pzxy.edu.cn/",
+  "id": "s0301"
+ },
+ {
+  "name": "平顶山文化艺术职业学院",
+  "portalUrl": "https://jw.pvcca.edu.cn/admin/login",
+  "id": "s0302"
+ },
+ {
+  "name": "平顶山科技职业学院",
+  "portalUrl": "https://jwxt.pdszy.edu.cn/eams/loginExt.action",
+  "id": "s0303"
+ },
+ {
+  "name": "平顶山职业技术学院",
+  "portalUrl": "https://jwxt.pdszy.edu.cn/eams/loginExt.action",
+  "id": "s0304"
+ },
+ {
+  "name": "广东农工商职业技术学校",
+  "portalUrl": "https://cas.gdaib.edu.cn/lyuapServer/login?service=http%3A%2F%2Fjwxt.gdaib.edu.cn%2Fjsxsd%2Fframework%2FxsMain.jsp",
+  "id": "s0305"
+ },
+ {
+  "name": "广东农工商职业技术学院",
+  "portalUrl": "https://cas.gdaib.edu.cn/lyuapServer/login?service=http://jwxt.gdaib.edu.cn/jsxsd/framework/xsMain.jsp",
+  "id": "s0306"
+ },
+ {
+  "name": "广东培正学院",
+  "portalUrl": "https://qzjw.peizheng.edu.cn/jsxsd/",
+  "id": "s0307"
+ },
+ {
+  "name": "广东建设职业技术学院",
+  "portalUrl": "https://ca.gdcvi.edu.cn/zfca/login?service=http%3A%2F%2Fpt.gdcvi.edu.cn%2Fportal.do",
+  "id": "s0308"
+ },
+ {
+  "name": "广东新华教育学院",
+  "portalUrl": "https://xhcas.xhsysu.edu.cn/lyuapServer/login?service=https%3A%2F%2Fjw.xhsysu.edu.cn%2Fsso%2Flyiotloginhttp://172.16.2.159:82/",
+  "id": "s0309"
+ },
+ {
+  "name": "广东松山职业技术学院",
+  "portalUrl": "https://cas.gdsspt.edu.cn/lyuapServer/login?service=https%3A%2F%2Fjwc.gdsspt.edu.cn%2F",
+  "id": "s0310"
+ },
+ {
+  "name": "广东梅州职业技术学院",
+  "portalUrl": "https://jwxt.gdmzvtc.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0311"
+ },
+ {
+  "name": "广东环境保护工程职业学院",
+  "portalUrl": "https://jwxt.gdpepe.edu.cn/jwapp/sys/kbapp/*default/index.do",
+  "id": "s0312"
+ },
+ {
+  "name": "广东理工学院",
+  "portalUrl": "https://jwxt.gdlgxy.edu.cn/",
+  "id": "s0313"
+ },
+ {
+  "name": "广东生态工程职业学院",
+  "portalUrl": "https://jw.gdsty.edu.cn",
+  "id": "s0314"
+ },
+ {
+  "name": "广东白云学院",
+  "portalUrl": "https://jwgl.baiyunu.edu.cn/",
+  "id": "s0315"
+ },
+ {
+  "name": "广东碧桂园职业学院",
+  "portalUrl": "https://jwxt.bgypt.edu.cn/xtgl/login_slogin.html",
+  "id": "s0316"
+ },
+ {
+  "name": "广东科学技术职业学院",
+  "portalUrl": "https://jw.gdit.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0317"
+ },
+ {
+  "name": "广东艺术职业学院",
+  "portalUrl": "https://jw.gdddc.edu.cn",
+  "id": "s0318"
+ },
+ {
+  "name": "广东茂名幼儿师范专科学校",
+  "portalUrl": "https://jw.gdpnc.cn/jsxsd/",
+  "id": "s0319"
+ },
+ {
+  "name": "广东财贸职业学院",
+  "portalUrl": "https://sso.gdcmxy.edu.cn/authserver/login?service=https://jwxt.gdcmxy.edu.cn:1004/api/cas/login?pattern=teacher-login&returnUrl=https%3A%2F%2Fjwxt.gdcmxy.edu.cn%3A1004%2F&returnUrlBase64=null",
+  "id": "s0320"
+ },
+ {
+  "name": "广东金融学院",
+  "portalUrl": "https://jwxt.gduf.edu.cn/jsxsd/",
+  "id": "s0321"
+ },
+ {
+  "name": "广安职业技术学院",
+  "portalUrl": "https://jwxt.gavtc.cn/default2.aspx",
+  "id": "s0322"
+ },
+ {
+  "name": "广州中医药大学",
+  "portalUrl": "https://jw.gzucm.edu.cn/",
+  "id": "s0323"
+ },
+ {
+  "name": "广州体育学院",
+  "portalUrl": "https://jwxt.gzsport.edu.cn/jsxsd/",
+  "id": "s0324"
+ },
+ {
+  "name": "广州华夏职业学院",
+  "portalUrl": "https://xg.gzhxtc.edu.cn/lyuapServer/login?service=https%3A%2F%2Fjwxt.gzhxtc.edu.cn%2Fapi%2Fcas%2Flogin%3Fpattern%3Dteacher-login%26returnUrl%3Dhttps%253A%252F%252Fjwxt.gzhxtc.edu.cn%252Fjwgrd%252F",
+  "id": "s0325"
+ },
+ {
+  "name": "广州华立学院",
+  "portalUrl": "https://www.hltz.net/hlxy_jsxsd/",
+  "id": "s0326"
+ },
+ {
+  "name": "广州华立科技职业学院",
+  "portalUrl": "https://www.hltz.net/hlzy_jsxsd/",
+  "id": "s0327"
+ },
+ {
+  "name": "广州南方学院",
+  "portalUrl": "https://jwxt.nfu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0328"
+ },
+ {
+  "name": "广州商学院",
+  "portalUrl": "https://jwxt.gcc.edu.cn/xtgl/login_slogin.html",
+  "id": "s0329"
+ },
+ {
+  "name": "广州应用科技学院",
+  "portalUrl": "https://jw.educationgroup.cn/gzasc_jsxsd/",
+  "id": "s0330"
+ },
+ {
+  "name": "广州康大职业技术学院",
+  "portalUrl": "https://jwweb.kdvtc.edu.cn/jsxsd/",
+  "id": "s0331"
+ },
+ {
+  "name": "广州新华学院",
+  "portalUrl": "https://xhcas.xhsysu.edu.cn/lyuapServer/login?service=https%3A%2F%2Fjw.xhsysu.edu.cn%2Fsso%2Flyiotlogin",
+  "id": "s0332"
+ },
+ {
+  "name": "广州松田职业学院",
+  "portalUrl": "https://jw.educationgroup.cn/gzstzyxy_jsxsd/",
+  "id": "s0333"
+ },
+ {
+  "name": "广州涉外经济职业技术学院",
+  "portalUrl": "https://jwsoft.gziec.edu.cn/",
+  "id": "s0334"
+ },
+ {
+  "name": "广州理工学院",
+  "portalUrl": "https://jw.gzist.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0335"
+ },
+ {
+  "name": "广州番禺职业技术学院",
+  "portalUrl": "https://jiaowu.gzpyp.edu.cn/jsxsd/",
+  "id": "s0336"
+ },
+ {
+  "name": "广州科技职业技术大学",
+  "portalUrl": "https://cas.gkd.edu.cn/lyuapServer/login?service=https%3A%2F%2Fjw.gkd.edu.cn%2Fadmin%2Fcaslogin",
+  "id": "s0337"
+ },
+ {
+  "name": "广州科技贸易职业学院",
+  "portalUrl": "https://r.gzkmu.edu.cn/zfca/login",
+  "id": "s0338"
+ },
+ {
+  "name": "广州职业技术大学",
+  "portalUrl": "https://jiaowu.gzpyp.edu.cn/jsxsd/framework/xsMain.jsp",
+  "id": "s0339"
+ },
+ {
+  "name": "广西中医药大学赛恩斯新医药学院",
+  "portalUrl": "https://jw.gxzyxysy.com/edu/public/login.asp",
+  "id": "s0340"
+ },
+ {
+  "name": "广西农业职业技术大学",
+  "portalUrl": "https://jwxt.gxnzd.com.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0341"
+ },
+ {
+  "name": "广西制造工程职业技术学院",
+  "portalUrl": "https://jwxt.gxzzzy.cn/cas/login.action",
+  "id": "s0342"
+ },
+ {
+  "name": "广西医科大学",
+  "portalUrl": "https://jwxt.gxmu.edu.cn/new/welcome.page",
+  "id": "s0343"
+ },
+ {
+  "name": "广西城市职业大学",
+  "portalUrl": "https://jw.gxcvuedu.com/xtgl/login_slogin.html",
+  "id": "s0344"
+ },
+ {
+  "name": "广西外国语学院",
+  "portalUrl": "https://jwxt.gxufl.com/xtgl/login_slogin.html",
+  "id": "s0345"
+ },
+ {
+  "name": "广西大学",
+  "portalUrl": "https://jwxt2018.gxu.edu.cn/jwglxt/xtgl/",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0346"
+ },
+ {
+  "name": "广西安全工程职业技术学院",
+  "portalUrl": "https://gxaqzy.jw.chaoxing.com/admin/login",
+  "id": "s0347"
+ },
+ {
+  "name": "广西教职工大学分院",
+  "portalUrl": "https://jwxt2018.gxu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0348"
+ },
+ {
+  "name": "广西智能制造职业技术学院",
+  "portalUrl": "https://sso2.gxgj.com/ssp/sso/auth?redirect=https://sso2.gxgj.com/casv5/login?service=https%3A%2F%2Fxjw.gxgj.com%2F",
+  "id": "s0349"
+ },
+ {
+  "name": "广西民族师范学院",
+  "portalUrl": "https://www.gxnun.edu.cn/jiaowu-index.html",
+  "id": "s0350"
+ },
+ {
+  "name": "广西物流职业技术学院",
+  "portalUrl": "https://jw.gxlvtc.edu.cn",
+  "id": "s0351"
+ },
+ {
+  "name": "广西科技大学",
+  "portalUrl": "https://jwxt.gxust.edu.cn/xtgl/login_slogin.html",
+  "id": "s0352"
+ },
+ {
+  "name": "广西科技师范学院",
+  "portalUrl": "https://jw.gxstnu.edu.cn/jsxsd/",
+  "id": "s0353"
+ },
+ {
+  "name": "广西经济职业学院",
+  "portalUrl": "https://jwxt.gxevc.com/cas/login.action",
+  "id": "s0354"
+ },
+ {
+  "name": "广西经贸职业技术学院",
+  "portalUrl": "https://jw.gxjmxy.com/jwglxt/xtgl/login_slogin.html",
+  "id": "s0355"
+ },
+ {
+  "name": "广西职业师范学院",
+  "portalUrl": "https://jw.gxvnu.edu.cn/jwglxt/xtgl/login_slogin.html?language=zh_CN&_t=1604580599870",
+  "id": "s0356"
+ },
+ {
+  "name": "广西自然资源职业技术学院",
+  "portalUrl": "https://jwxt.gxnrvtc.edu.cn/jwglxt",
+  "id": "s0357"
+ },
+ {
+  "name": "广西警察学院",
+  "portalUrl": "https://jw.gxjcxy.com/cas/login.action",
+  "id": "s0358"
+ },
+ {
+  "name": "广西财经学院",
+  "portalUrl": "https://jwglxt.gxufe.edu.cn/cas/login.action",
+  "id": "s0359"
+ },
+ {
+  "name": "延安大学",
+  "portalUrl": "https://jwglxt.yau.edu.cn/sso/jziotlogin",
+  "id": "s0360"
+ },
+ {
+  "name": "延安职业技术学院",
+  "portalUrl": "https://jwxt.yapt.edu.cn/cas/login.action",
+  "id": "s0361"
+ },
+ {
+  "name": "延边大学",
+  "portalUrl": "https://jwxt.ybu.edu.cn/jsxsd/",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0362"
+ },
+ {
+  "name": "开封大学",
+  "portalUrl": "https://jwgl.kfu.edu.cn/jwmis/cas/login.action",
+  "id": "s0363"
+ },
+ {
+  "name": "徐州幼儿师范高等专科学校",
+  "portalUrl": "https://jwgl.xzyz.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0364"
+ },
+ {
+  "name": "德州职业技术学院",
+  "portalUrl": "https://zf.dzvc.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0365"
+ },
+ {
+  "name": "德阳城市轨道交通职业学院",
+  "portalUrl": "https://dcurt.jw.chaoxing.com/admin/login",
+  "id": "s0366"
+ },
+ {
+  "name": "德阳科贸职业学院",
+  "portalUrl": "https://jw.dyvctt.edu.cn/yethan/UserAction?setAction=userLogin",
+  "id": "s0367"
+ },
+ {
+  "name": "恩施职业技术学院",
+  "portalUrl": "https://jw.eszy.edu.cn:8099/edu/",
+  "id": "s0368"
+ },
+ {
+  "name": "惠州卫生职业技术学院",
+  "portalUrl": "https://qz.hzhsp.edu.cn/jsxsd/",
+  "id": "s0369"
+ },
+ {
+  "name": "成都中医药大学",
+  "portalUrl": "https://jwweb.cdutcm.edu.cn/",
+  "id": "s0370"
+ },
+ {
+  "name": "成都医学院",
+  "portalUrl": "https://jwweb.cmc.edu.cn/",
+  "id": "s0371"
+ },
+ {
+  "name": "成都文理学院",
+  "portalUrl": "https://cdcasjw.yinghuaonline.com/cdwlxy/",
+  "id": "s0372"
+ },
+ {
+  "name": "成都艺术职业大学",
+  "portalUrl": "https://jw.cdau.edu.cn/",
+  "id": "s0373"
+ },
+ {
+  "name": "成都银杏酒店管理学院",
+  "portalUrl": "https://jwxt.gingkoc.edu.cn",
+  "id": "s0374"
+ },
+ {
+  "name": "成都锦城学院",
+  "portalUrl": "https://jwweb.cdjcc.edu.cn/default2.aspx?",
+  "id": "s0375"
+ },
+ {
+  "name": "扬州环境资源职业技术学院",
+  "portalUrl": "https://cas.yzpc.edu.cn/lyuapServer/login?service=http%3A%2F%2Fjw.yzpc.edu.cn%2Feams%2FlocalLogin.action",
+  "id": "s0376"
+ },
+ {
+  "name": "扬州职业技术大学",
+  "portalUrl": "https://jw.yzpc.edu.cn/eams/loginExt.action",
+  "id": "s0377"
+ },
+ {
+  "name": "文华学院",
+  "portalUrl": "https://jw1.hustwenhua.net/",
+  "id": "s0378"
+ },
+ {
+  "name": "新乡工程学院",
+  "portalUrl": "https://jw.xxgc.edu.cn/jwweb/home.aspx",
+  "id": "s0379"
+ },
+ {
+  "name": "新疆农业大学",
+  "portalUrl": "https://jwxt.xjau.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0380"
+ },
+ {
+  "name": "新疆工程学院",
+  "portalUrl": "https://authserver.xjie.edu.cn/authserver/login?service=https%3A%2F%2Fjwxt.xjie.edu.cn%2Fjsxsd%2F",
+  "id": "s0381"
+ },
+ {
+  "name": "新疆师范大学",
+  "portalUrl": "https://jwxt.xjnu.edu.cn/jsxsd/",
+  "id": "s0382"
+ },
+ {
+  "name": "新疆机电职业技术学院",
+  "portalUrl": "https://jwxt.xjie.edu.cn/jsxsd",
+  "id": "s0383"
+ },
+ {
+  "name": "新疆科技学院",
+  "portalUrl": "https://authserver.xjust.edu.cn/authserver/login?service=http://ehall.xjust.edu.cn/jwapp/sys/wdkb/*default/index.do",
+  "id": "s0384"
+ },
+ {
+  "name": "新疆职业大学",
+  "portalUrl": "https://jwgl.xjvu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0385"
+ },
+ {
+  "name": "新疆能源职业技术学院",
+  "portalUrl": "https://xjny.jw.chaoxing.com/admin/login",
+  "id": "s0386"
+ },
+ {
+  "name": "无锡学院",
+  "portalUrl": "https://jwgl.cwxu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0387"
+ },
+ {
+  "name": "无锡科技职业学院",
+  "portalUrl": "https://jwc.wxstc.cn/jwglxt/xtgl/login_slogin.html?language=zh_CN&_t=1585643279104",
+  "id": "s0388"
+ },
+ {
+  "name": "日照康养职业学院",
+  "portalUrl": "https://jw.rzky.com.cn/",
+  "id": "s0389"
+ },
+ {
+  "name": "昆山登云科技职业学院",
+  "portalUrl": "https://jiaowu.dyc.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0390"
+ },
+ {
+  "name": "昆明传媒学院（原云南艺术学院文华学院）",
+  "portalUrl": "https://whxyjw.yinghuaonline.com/ynysxywhxy/",
+  "id": "s0391"
+ },
+ {
+  "name": "昆明冶金高等专科学校",
+  "portalUrl": "https://cas.kmyz.edu.cn/lyuapServer/login?service=http%3A%2F%2Fehall.kmyz.edu.cn%2Fjwapp%2Fsys%2Femaphome%2Fportal%2Findex.do",
+  "id": "s0392"
+ },
+ {
+  "name": "昆明工业职业技术学院",
+  "portalUrl": "https://jwxt.kmvtc.net/",
+  "id": "s0393"
+ },
+ {
+  "name": "昆明理工大学津桥学院",
+  "portalUrl": "https://jwc.oxbridge.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0394"
+ },
+ {
+  "name": "昌吉学院",
+  "portalUrl": "https://jwgl.cjc.edu.cn/jsxsd/framework/jsMain.htmlx",
+  "id": "s0395"
+ },
+ {
+  "name": "明达职业技术学院",
+  "portalUrl": "https://mdutjw.yinghuaonline.com/mdzyjsxy/",
+  "id": "s0396"
+ },
+ {
+  "name": "星海音乐学院",
+  "portalUrl": "https://jiaowu.xhcom.edu.cn/",
+  "id": "s0397"
+ },
+ {
+  "name": "昭通卫生职业学院",
+  "portalUrl": "https://jwxt.ztwzy.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0398"
+ },
+ {
+  "name": "昭通学院",
+  "portalUrl": "https://jwxt.ztu.edu.cn/xtgl/login_slogin.html",
+  "id": "s0399"
+ },
+ {
+  "name": "昭通职业学院",
+  "portalUrl": "https://www.ztzyxy.cn/html/1011/#",
+  "id": "s0400"
+ },
+ {
+  "name": "晋中师范高等专科学校",
+  "portalUrl": "https://jw.sxjzsf.edu.cn/cas/login.action",
+  "id": "s0401"
+ },
+ {
+  "name": "普洱学院",
+  "portalUrl": "https://jwxt.peu.edu.cn/xtgl/login_slogin.html",
+  "id": "s0402"
+ },
+ {
+  "name": "曲靖师范学院",
+  "portalUrl": "https://jw.qjnu.edu.cn",
+  "id": "s0403"
+ },
+ {
+  "name": "朝阳师范学院（原朝阳师范高等专科学校）",
+  "portalUrl": "https://jwc.cynu.edu.cn/jxgl/jwxt.htm",
+  "id": "s0404"
+ },
+ {
+  "name": "杨凌职业技术学院",
+  "portalUrl": "https://jwxt.ylvtc.com/jwglxt/xtgl/login_slogin.html",
+  "id": "s0405"
+ },
+ {
+  "name": "杭州万向职业技术学院",
+  "portalUrl": "https://jwgl.wxpoly.cn/xtgl/login_slogin.html?language=zh_CN&_t=1580729083904",
+  "id": "s0406"
+ },
+ {
+  "name": "松原职业技术学院",
+  "portalUrl": "https://szyjw.jw.chaoxing.com/admin/login",
+  "id": "s0407"
+ },
+ {
+  "name": "林州建筑职业技术学院",
+  "portalUrl": "https://lcat.jw.chaoxing.com/admin/login",
+  "id": "s0408"
+ },
+ {
+  "name": "枣庄应用职业技术学院",
+  "portalUrl": "https://eas.zzyyxy.com/jwglxt/",
+  "id": "s0409"
+ },
+ {
+  "name": "枣庄职业学院",
+  "portalUrl": "https://jwgl.uzz.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0410"
+ },
+ {
+  "name": "柳州工学院",
+  "portalUrl": "https://jwglxt.lzhit.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0411"
+ },
+ {
+  "name": "柳州职业技术大学",
+  "portalUrl": "https://authserver.lzzy.net/authserver/login?service=http%3A%2F%2Fzfjw.lzzy.net%2Fsso%2Fjziotlogin",
+  "id": "s0412"
+ },
+ {
+  "name": "株洲师范高等专科学校",
+  "portalUrl": "https://zzyesf.jw.chaoxing.com/",
+  "id": "s0413"
+ },
+ {
+  "name": "桂林医学院",
+  "portalUrl": "https://ejwc.glmc.edu.cn",
+  "id": "s0414"
+ },
+ {
+  "name": "桂林医科大学",
+  "portalUrl": "https://ejwc.glmu.edu.cn",
+  "id": "s0415"
+ },
+ {
+  "name": "桂林学院",
+  "portalUrl": "https://www.glc.edu.cn/kstd/jxfw.htm",
+  "id": "s0416"
+ },
+ {
+  "name": "桂林理工大学",
+  "portalUrl": "https://jw.glut.edu.cn/",
+  "id": "s0417"
+ },
+ {
+  "name": "梅河口康美职业技术学院",
+  "portalUrl": "https://kmzy.jw.chaoxing.com/admin/login",
+  "id": "s0418"
+ },
+ {
+  "name": "梧州学院",
+  "portalUrl": "https://jwxt.gxuwz.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0419"
+ },
+ {
+  "name": "楚雄师范学院",
+  "portalUrl": "https://jwglxt.cxtc.edu.cn/",
+  "id": "s0420"
+ },
+ {
+  "name": "正德职业技术学院",
+  "portalUrl": "https://jwxt.zdxy.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0421"
+ },
+ {
+  "name": "武夷学院",
+  "portalUrl": "https://sso.wuyiu.edu.cn/login?service=https:%2F%2Fjwxt.wuyiu.edu.cn%2Fjsxsd%2F",
+  "id": "s0422"
+ },
+ {
+  "name": "武夷山职业学院",
+  "portalUrl": "https://jwxt.wyszyxy.com/",
+  "id": "s0423"
+ },
+ {
+  "name": "武昌工学院",
+  "portalUrl": "https://jwglxt.wuit.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0424"
+ },
+ {
+  "name": "武昌理工学院",
+  "portalUrl": "https://jwxt.wut.edu.cn",
+  "id": "s0425"
+ },
+ {
+  "name": "武昌职业学院",
+  "portalUrl": "https://new-jwxt.wczy.cn/jsxsd/",
+  "id": "s0426"
+ },
+ {
+  "name": "武汉东湖学院",
+  "portalUrl": "https://zfjw.wdu.edu.cn/jwglxt",
+  "id": "s0427"
+ },
+ {
+  "name": "武汉交通职业学院",
+  "portalUrl": "https://xjw.whtcc.edu.cn/",
+  "id": "s0428"
+ },
+ {
+  "name": "武汉传媒学院",
+  "portalUrl": "https://jw.whmc.edu.cn/",
+  "id": "s0429"
+ },
+ {
+  "name": "武汉城市学院",
+  "portalUrl": "https://jw.wic.edu.cn/cas/login.action",
+  "id": "s0430"
+ },
+ {
+  "name": "武汉城市职业学院",
+  "portalUrl": "https://jw.whcp.edu.cn/",
+  "id": "s0431"
+ },
+ {
+  "name": "武汉外语外事职业学院",
+  "portalUrl": "https://jw.wifa.edu.cn/",
+  "id": "s0432"
+ },
+ {
+  "name": "武汉大学",
+  "portalUrl": "https://jwgl.whu.edu.cn/",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0433"
+ },
+ {
+  "name": "武汉学院",
+  "portalUrl": "https://whxyjwxt.whxy.edu.cn/eams/login.action",
+  "id": "s0434"
+ },
+ {
+  "name": "武汉工程科技学院",
+  "portalUrl": "https://wuhuesjw.yinghuaonline.com/whgckjxy/",
+  "id": "s0435"
+ },
+ {
+  "name": "武汉文理学院",
+  "portalUrl": "https://jwxt.whwl.edu.cn:8088/jwglxt/xtgl/login_slogin.html",
+  "id": "s0436"
+ },
+ {
+  "name": "武汉民政职业学院",
+  "portalUrl": "https://whmzxy.jw.chaoxing.com/admin/login",
+  "id": "s0437"
+ },
+ {
+  "name": "武汉理工大学",
+  "portalUrl": "https://jwxt.whut.edu.cn",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0438"
+ },
+ {
+  "name": "武汉生物工程学院",
+  "portalUrl": "https://whsw.jw.chaoxing.com/",
+  "id": "s0439"
+ },
+ {
+  "name": "武汉纺织大学",
+  "portalUrl": "https://jwglxt.wtu.edu.cn/sso/jziotlogin",
+  "id": "s0440"
+ },
+ {
+  "name": "武汉设计工程学院",
+  "portalUrl": "https://wids.jw.chaoxing.com/",
+  "id": "s0441"
+ },
+ {
+  "name": "武汉软件工程职业学院",
+  "portalUrl": "https://jwgl.whvcse.edu.cn/",
+  "id": "s0442"
+ },
+ {
+  "name": "武汉轻工大学",
+  "portalUrl": "https://jwglxt.whpu.edu.cn/xtgl/",
+  "id": "s0443"
+ },
+ {
+  "name": "毕节幼儿师范高等专科学校",
+  "portalUrl": "https://gzbjyz.jw.chaoxing.com/admin/login",
+  "id": "s0444"
+ },
+ {
+  "name": "毕节职业技术学院",
+  "portalUrl": "https://gzbjzy.jw.chaoxing.com/admin/login",
+  "id": "s0445"
+ },
+ {
+  "name": "民政职业大学（原北京社会管理职业学院）",
+  "portalUrl": "https://jw.bcsa.edu.cn/admin/login",
+  "id": "s0446"
+ },
+ {
+  "name": "永州师范高等专科学校",
+  "portalUrl": "https://hndxsf.jw.chaoxing.com/admin/login",
+  "id": "s0447"
+ },
+ {
+  "name": "汉阳大学",
+  "portalUrl": "https://sdjwxt.syu.edu.cn/",
+  "id": "s0448"
+ },
+ {
+  "name": "汕尾职业技术学院",
+  "portalUrl": "https://jw.swpt.edu.cn/",
+  "id": "s0449"
+ },
+ {
+  "name": "江南大学",
+  "portalUrl": "https://jwglxt.jiangnan.edu.cn/sso/jziotlogin",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0450"
+ },
+ {
+  "name": "江南影视艺术职业学院",
+  "portalUrl": "https://jnys.jw.chaoxing.com/admin/login",
+  "id": "s0451"
+ },
+ {
+  "name": "江汉大学",
+  "portalUrl": "https://jwxt.jhun.edu.cn/cas/login.action",
+  "id": "s0452"
+ },
+ {
+  "name": "江海职业技术学院",
+  "portalUrl": "https://jxgl.jhu.cn/",
+  "id": "s0453"
+ },
+ {
+  "name": "江苏城市职业学院",
+  "portalUrl": "https://jw.jscvc.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0454"
+ },
+ {
+  "name": "江苏大学京江学院",
+  "portalUrl": "https://pass.ujs.edu.cn/cas/login?service=http%3A%2F%2Fjjxk.ujs.edu.cn%2Fsso%2Fjziotlogin",
+  "id": "s0455"
+ },
+ {
+  "name": "江西中医药大学",
+  "portalUrl": "https://jiaowu.jxutcm.edu.cn/",
+  "id": "s0456"
+ },
+ {
+  "name": "江西交通职业技术学院",
+  "portalUrl": "https://jw.jxjtxy.edu.cn/jxjtxy/cas/login.action",
+  "id": "s0457"
+ },
+ {
+  "name": "江西农业大学",
+  "portalUrl": "https://jwgl.jxau.edu.cn/",
+  "id": "s0458"
+ },
+ {
+  "name": "江西农业大学南昌商学院",
+  "portalUrl": "https://jwxt.ncbcjxau.edu.cn:8443/jsxsd/",
+  "id": "s0459"
+ },
+ {
+  "name": "江西工程职业学院",
+  "portalUrl": "https://jxgcxx.jw.chaoxing.com/admin/login",
+  "id": "s0460"
+ },
+ {
+  "name": "江西应用技术职业学院",
+  "portalUrl": "https://jw.jxyy.edu.cn:9002/jwglxt/xtgl/login_slogin.html",
+  "id": "s0461"
+ },
+ {
+  "name": "江西水利职业学院",
+  "portalUrl": "https://jxslzyxy.jw.chaoxing.com/admin/login",
+  "id": "s0462"
+ },
+ {
+  "name": "江西泰豪动漫职业学院",
+  "portalUrl": "https://cas.thdm.edu.cn/lyuapServer/login?service=http%3A%2F%2Fjw.tellhowedu.com%3A19090%2Fapi%2Fcas%2Flogin%3Fpattern%3Dteacher-login%26returnUrl%3Dhttp%253A%252F%252Fjw.thdm.edu.cn%253A19995%252F",
+  "id": "s0463"
+ },
+ {
+  "name": "江西洪州职业学院",
+  "portalUrl": "https://ssl.jxhzxy.com/login?service=http%3A%2F%2Fjw.jxhzxy.com%3A8866%2Fsso.jsp",
+  "id": "s0464"
+ },
+ {
+  "name": "江西环境工程职业学院",
+  "portalUrl": "https://jwglxt.jxhjxy.com/jwglxt/xtgl/login_slogin.html",
+  "id": "s0465"
+ },
+ {
+  "name": "江西经济管理干部学院即江西飞行学院",
+  "portalUrl": "https://jwxt.jxfu.edu.cn/",
+  "id": "s0466"
+ },
+ {
+  "name": "江西航空职业技术学院",
+  "portalUrl": "https://jw.jhzyedu.cn/xtgl/login_slogin.html?",
+  "id": "s0467"
+ },
+ {
+  "name": "江西青年职业学院",
+  "portalUrl": "https://jwmis.jxqy.edu.cn:8443/admin/login",
+  "id": "s0468"
+ },
+ {
+  "name": "池州学院",
+  "portalUrl": "https://jwxt.czu.edu.cn/student/login",
+  "id": "s0469"
+ },
+ {
+  "name": "沈阳农业大学",
+  "portalUrl": "https://jwc.syau.edu.cn/info/1033/4703.htm",
+  "id": "s0470"
+ },
+ {
+  "name": "沈阳城市学院",
+  "portalUrl": "https://jw.shenyangcu.edu.cn:14304/jwglxt/xtgl/login_slogin.html",
+  "id": "s0471"
+ },
+ {
+  "name": "沈阳大学",
+  "portalUrl": "https://sdjw.syu.edu.cn/",
+  "id": "s0472"
+ },
+ {
+  "name": "沈阳工业大学",
+  "portalUrl": "https://jwxt.sut.edu.cn/jsxsd/",
+  "id": "s0473"
+ },
+ {
+  "name": "沈阳药科大学",
+  "portalUrl": "https://jw.syphu.edu.cn/",
+  "id": "s0474"
+ },
+ {
+  "name": "河北传媒学院",
+  "portalUrl": "https://jwxt.hebic.cn/xtgl/login_slogin.html",
+  "id": "s0475"
+ },
+ {
+  "name": "河北劳动关系职业学院",
+  "portalUrl": "https://hbgy.jw.chaoxing.com/admin/login",
+  "id": "s0476"
+ },
+ {
+  "name": "河北北方学院",
+  "portalUrl": "https://jw.hebeinu.edu.cn/xtgl/login_slogin.html",
+  "id": "s0477"
+ },
+ {
+  "name": "河北医科大学",
+  "portalUrl": "https://jwweb.hebmu.edu.cn",
+  "id": "s0478"
+ },
+ {
+  "name": "河北大学",
+  "portalUrl": "https://zhjw.hbu.edu.cn/",
+  "id": "s0479"
+ },
+ {
+  "name": "河北工程大学",
+  "portalUrl": "https://jwglxxfwpt.hebeu.edu.cn",
+  "id": "s0480"
+ },
+ {
+  "name": "河北工程大学科信学院",
+  "portalUrl": "https://jwglxxfwpt.hebeu.edu.cn/xtgl/login_slogin.html",
+  "id": "s0481"
+ },
+ {
+  "name": "河北水利电力学院",
+  "portalUrl": "https://jwxt.hbwe.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0482"
+ },
+ {
+  "name": "河北科技大学",
+  "portalUrl": "https://jw.hebust.edu.cn/hbkjjw/cas/login.action",
+  "id": "s0483"
+ },
+ {
+  "name": "河北科技学院",
+  "portalUrl": "https://jw.hbkjxy.cn",
+  "id": "s0484"
+ },
+ {
+  "name": "河北能源职业技术学院",
+  "portalUrl": "https://hbnyxy.jw.chaoxing.com/admin/login",
+  "id": "s0485"
+ },
+ {
+  "name": "河南农业大学",
+  "portalUrl": "https://jw.henau.edu.cn/cas/login.action",
+  "id": "s0486"
+ },
+ {
+  "name": "河南医学高等专科学校",
+  "portalUrl": "https://authserver.hamc.edu.cn/authserver/login?service=https%3A%2F%2Fzf.hamc.edu.cn%2Fsso%2Fjziotlogin",
+  "id": "s0487"
+ },
+ {
+  "name": "河南地矿职业学院",
+  "portalUrl": "https://jwxt.hagmc.edu.cn/cas/login.action",
+  "id": "s0488"
+ },
+ {
+  "name": "河南城建学院",
+  "portalUrl": "https://icas.huuc.edu.cn/cas/login?service=http%3A%2F%2Fjwglxt.huuc.edu.cn%3A8061%2Fadmin%2Fcaslogin",
+  "id": "s0489"
+ },
+ {
+  "name": "河南大学",
+  "portalUrl": "https://xk.henu.edu.cn/cas/login.action",
+  "id": "s0490"
+ },
+ {
+  "name": "河南工业大学",
+  "portalUrl": "https://jwglxt.haut.edu.cn/",
+  "id": "s0491"
+ },
+ {
+  "name": "河南工业职业技术学院",
+  "portalUrl": "https://jwgl.hnpi.edu.cn/",
+  "id": "s0492"
+ },
+ {
+  "name": "河南工业贸易职业学院",
+  "portalUrl": "https://jw.hngm.edu.cn/hngmjw/cas/login.action",
+  "id": "s0493"
+ },
+ {
+  "name": "河南师范大学",
+  "portalUrl": "https://jwc.htu.edu.cn/",
+  "id": "s0494"
+ },
+ {
+  "name": "河南推拿职业学院",
+  "portalUrl": "https://jwc.hltn.edu.cn/rcpy/zxjxzy.htm",
+  "id": "s0495"
+ },
+ {
+  "name": "河南水利与环境职业学院",
+  "portalUrl": "https://jw.hwec.edu.cn/cas/login.action",
+  "id": "s0496"
+ },
+ {
+  "name": "河南物流职业学院",
+  "portalUrl": "https://hnwl.jw.chaoxing.com",
+  "id": "s0497"
+ },
+ {
+  "name": "河南理工大学",
+  "portalUrl": "https://uia.hpu.edu.cn/cas/login?service=http%3A%2F%2Fzhjw.hpu.edu.cn%2Feams%2Flogin.action#/https://zhjw.hpu.edu.cn/eams/loginExt.action",
+  "id": "s0498"
+ },
+ {
+  "name": "河南科技职业大学",
+  "portalUrl": "https://havust.jijiaox.com/mg/login?type=3",
+  "id": "s0499"
+ },
+ {
+  "name": "河南职业技术学院",
+  "portalUrl": "https://jwgl.hnzj.edu.cn/cas/login.action",
+  "id": "s0500"
+ },
+ {
+  "name": "河南艺术职业学院",
+  "portalUrl": "https://jw.hnys.edu.cn/hnysjw/cas/login.action",
+  "id": "s0501"
+ },
+ {
+  "name": "河南警察学院",
+  "portalUrl": "https://jwxt.hnp.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0502"
+ },
+ {
+  "name": "河南财经政法大学",
+  "portalUrl": "https://xk.huel.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0503"
+ },
+ {
+  "name": "河南质量工程职业学院",
+  "portalUrl": "https://zlgcxy.jw.chaoxing.com/admin/login",
+  "id": "s0504"
+ },
+ {
+  "name": "河套学院",
+  "portalUrl": "https://hetaoxueyuan.jw.chaoxing.com/admin/login",
+  "id": "s0505"
+ },
+ {
+  "name": "河海大学",
+  "portalUrl": "https://jwxt.hhu.edu.cn/jsxsd/",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0506"
+ },
+ {
+  "name": "泉州华光职业学院",
+  "portalUrl": "https://jwgl.hgu.cn/qzhgjw/cas/login.action",
+  "id": "s0507"
+ },
+ {
+  "name": "泉州轻工职业学院",
+  "portalUrl": "https://jw.qzqgxy.com:8001/jsxsd/",
+  "id": "s0508"
+ },
+ {
+  "name": "泰山学院",
+  "portalUrl": "https://jwxt.tsu.edu.cn/cas/login.action",
+  "id": "s0509"
+ },
+ {
+  "name": "泰山科技学院",
+  "portalUrl": "https://jw.tskjxy.edu.cn/",
+  "id": "s0510"
+ },
+ {
+  "name": "泰山职业技术学院",
+  "portalUrl": "https://jwxt.tsu.edu.cn/cas/login.action",
+  "id": "s0511"
+ },
+ {
+  "name": "泸州职业技术学院",
+  "portalUrl": "https://jwxt.lzy.edu.cn/jwapp/sys/yjsrzfwapp/dbLogin/index.do",
+  "id": "s0512"
+ },
+ {
+  "name": "洛阳商业职业学院",
+  "portalUrl": "https://lyvcc.jw.chaoxing.com/admin/login",
+  "id": "s0513"
+ },
+ {
+  "name": "洛阳理工学院",
+  "portalUrl": "https://lljw.lit.edu.cn/",
+  "id": "s0514"
+ },
+ {
+  "name": "洛阳科技职业学院",
+  "portalUrl": "https://jw.lku.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0515"
+ },
+ {
+  "name": "济南大学",
+  "portalUrl": "https://sso.ujn.edu.cn/tpass/login?service=http%3A%2F%2Fjwgl.ujn.edu.cn%2Fsso%2Fdriotlogin",
+  "id": "s0516"
+ },
+ {
+  "name": "济南幼儿师范高等专科学校",
+  "portalUrl": "https://jw.jnpec.edu.cn/cas/login.action",
+  "id": "s0517"
+ },
+ {
+  "name": "济南护理职业学院",
+  "portalUrl": "https://sdjnwx.jw.chaoxing.com/admin/login",
+  "id": "s0518"
+ },
+ {
+  "name": "济南职业学院",
+  "portalUrl": "https://jwgl.jyvtc.edu.cn/jyvtcjw/cas/login.action",
+  "id": "s0519"
+ },
+ {
+  "name": "济源职业技术学院",
+  "portalUrl": "https://jwgl.jyvtc.edu.cn/jyvtcjw/cas/login.action",
+  "id": "s0520"
+ },
+ {
+  "name": "浙江中医药大学",
+  "portalUrl": "https://jwmk.zcmu.edu.cn/jwglxt/",
+  "id": "s0521"
+ },
+ {
+  "name": "浙江中医药大学滨江学院",
+  "portalUrl": "https://jwmk.zcmu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0522"
+ },
+ {
+  "name": "浙江传媒学院",
+  "portalUrl": "https://newjw.cuz.edu.cn/jwglxt",
+  "id": "s0523"
+ },
+ {
+  "name": "浙江体育职业技术学院",
+  "portalUrl": "https://jw.zjcs.net.cn:6069/jwglxt/xtgl/login_slogin.html",
+  "id": "s0524"
+ },
+ {
+  "name": "浙江农林大学暨阳学院",
+  "portalUrl": "https://uis.zjyc.edu.cn/cas/login?service=https%3A%2F%2Fjwglxt.zjyc.edu.cn%2Fsso%2Fzfiotlogin",
+  "id": "s0525"
+ },
+ {
+  "name": "浙江外国语学院",
+  "portalUrl": "https://portaljw.zisu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0526"
+ },
+ {
+  "name": "浙江大学",
+  "portalUrl": "https://zdbk.zju.edu.cn/jwglxt/xtgl/login_slogin.html?language=zh_CN&_t=1755507467598",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0527"
+ },
+ {
+  "name": "浙江宇翔职业技术学院",
+  "portalUrl": "https://yxwy.jw.chaoxing.com/",
+  "id": "s0528"
+ },
+ {
+  "name": "浙江工商大学杭州商学院",
+  "portalUrl": "https://jwxt.zjhzcc.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0529"
+ },
+ {
+  "name": "浙江工商职业技术学院",
+  "portalUrl": "https://jwxt.zjgsu.edu.cn/jwglxt/xtgl/login_slogin.html?language=zh_CN&_t=1619664005667",
+  "id": "s0530"
+ },
+ {
+  "name": "浙江工贸职业技术学院",
+  "portalUrl": "https://sso.zjitc.edu.cn/login?service=https://jw.zjitc.edu.cn/sso/ddlogin",
+  "id": "s0531"
+ },
+ {
+  "name": "浙江师范大学",
+  "portalUrl": "https://webvpn.zjnu.edu.cn/https/77726476706e69737468656265737421fae04598692a625e6b468ca88d1b203b/jwglxt/xtgl/login_slogin.html",
+  "id": "s0532"
+ },
+ {
+  "name": "浙江树人学院",
+  "portalUrl": "https://rz.zjsru.edu.cn/cas/login?service=http://xk.jwc.zjsru.edu.cn/login_cas.aspx",
+  "id": "s0533"
+ },
+ {
+  "name": "浙江经贸职业技术学院",
+  "portalUrl": "https://jwgl.zjiet.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0534"
+ },
+ {
+  "name": "海南东方新丝路职业学院",
+  "portalUrl": "https://nsr.jw.chaoxing.com/admin/login",
+  "id": "s0535"
+ },
+ {
+  "name": "海南卫生健康职业学院",
+  "portalUrl": "https://jwxt.hnhvc.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0536"
+ },
+ {
+  "name": "海南大学",
+  "portalUrl": "https://jxgl.hainanu.edu.cn/jsxsd",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0537"
+ },
+ {
+  "name": "海南经贸职业技术学院",
+  "portalUrl": "https://jw2.hceb.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0538"
+ },
+ {
+  "name": "海南艺术职业学院",
+  "portalUrl": "https://www.hnys.edu.cn/info/1023/1247.htm",
+  "id": "s0539"
+ },
+ {
+  "name": "海口经济学院",
+  "portalUrl": "https://jw.hkc.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0540"
+ },
+ {
+  "name": "淮南师范学院",
+  "portalUrl": "https://jwgl.hnnu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0541"
+ },
+ {
+  "name": "淮南联合大学",
+  "portalUrl": "https://jwgl.hnuu.edu.cn/hnlhdxjw/cas/login.action",
+  "id": "s0542"
+ },
+ {
+  "name": "深圳大学",
+  "portalUrl": "https://ehall.szu.edu.cn/jwapp/sys/kcbcx/*default/index.do",
+  "id": "s0543"
+ },
+ {
+  "name": "深圳开放大学",
+  "portalUrl": "https://szddgzh.szou.edu.cn/edu-student/dist/login.html",
+  "id": "s0544"
+ },
+ {
+  "name": "深圳技术大学",
+  "portalUrl": "https://auth.sztu.edu.cn/idp/authcenter/ActionAuthChain?entityId=jiaowu",
+  "id": "s0545"
+ },
+ {
+  "name": "清华大学",
+  "portalUrl": "https://zhjwxk.cic.tsinghua.edu.cn/xklogin.do",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0546"
+ },
+ {
+  "name": "渤海船舶职业学院",
+  "portalUrl": "https://bhcy.jw.chaoxing.com/admin/login",
+  "id": "s0547"
+ },
+ {
+  "name": "温州医科大学",
+  "portalUrl": "https://jwxt.wmu.edu.cn",
+  "id": "s0548"
+ },
+ {
+  "name": "温州医科大学仁济学院",
+  "portalUrl": "https://jwxt.wmu.edu.cn/xtgl/login_slogin.html",
+  "id": "s0549"
+ },
+ {
+  "name": "温州理工学院",
+  "portalUrl": "https://jwxt.wzut.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0550"
+ },
+ {
+  "name": "温州科技职业学院",
+  "portalUrl": "https://jwxt.wzvcst.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0551"
+ },
+ {
+  "name": "湄洲湾职业技术学院",
+  "portalUrl": "https://jw.mzwu.edu.cn/jsxsd/",
+  "id": "s0552"
+ },
+ {
+  "name": "湖北三峡职业技术学院",
+  "portalUrl": "https://tms.tgc.edu.cn/jwglxt/",
+  "id": "s0553"
+ },
+ {
+  "name": "湖北中医药大学",
+  "portalUrl": "https://jwxt.hbucm.edu.cn/jwglxt/xtgl/login_slogin.html?language=zh_CN&login_type=undefined",
+  "id": "s0554"
+ },
+ {
+  "name": "湖北健康职业学院",
+  "portalUrl": "https://jwxt.hbhvc.edu.cn/xtgl/login_slogin.html",
+  "id": "s0555"
+ },
+ {
+  "name": "湖北医药学院",
+  "portalUrl": "https://jw.hbmu.edu.cn",
+  "id": "s0556"
+ },
+ {
+  "name": "湖北商贸学院",
+  "portalUrl": "https://jwxt.hbc.edu.cn/",
+  "id": "s0557"
+ },
+ {
+  "name": "湖北大学知行学院",
+  "portalUrl": "https://jwgl.hudazx.edu.cn/jsxsd",
+  "id": "s0558"
+ },
+ {
+  "name": "湖北工业大学",
+  "portalUrl": "https://jwxt.hbut.edu.cn/admin/login",
+  "id": "s0559"
+ },
+ {
+  "name": "湖北水利水电职业技术学院",
+  "portalUrl": "https://ids.hbsy.cn/authserver/login?service=https%3A%2F%2Fjwxt.hbsy.cn%2Fjwapp%2Fsys%2Fhomeapp%2Findex.do",
+  "id": "s0560"
+ },
+ {
+  "name": "湖北理工学院",
+  "portalUrl": "https://jwglnew.hbpu.edu.cn/xtgl/login_slogin.html",
+  "id": "s0561"
+ },
+ {
+  "name": "湖北省纺织职工大学",
+  "portalUrl": "https://jwglxt.wtu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0562"
+ },
+ {
+  "name": "湖北科技学院",
+  "portalUrl": "https://jwgl.hbust.edu.cn/",
+  "id": "s0563"
+ },
+ {
+  "name": "湖北第二师范学院",
+  "portalUrl": "https://jwxt.hue.edu.cn/jsxsd/",
+  "id": "s0564"
+ },
+ {
+  "name": "湖南中医药大学",
+  "portalUrl": "https://jwxt.hnucm.edu.cn/",
+  "id": "s0565"
+ },
+ {
+  "name": "湖南交通工程学院",
+  "portalUrl": "https://jw.hnjt.edu.cn/cas/login.action",
+  "id": "s0566"
+ },
+ {
+  "name": "湖南交通职业技术学院",
+  "portalUrl": "https://jwxt.hnjtzy.com.cn/jsxsd/",
+  "id": "s0567"
+ },
+ {
+  "name": "湖南司法警官职业学院",
+  "portalUrl": "https://jwglxt.hnsfjy.cn/",
+  "id": "s0568"
+ },
+ {
+  "name": "湖南女子学院",
+  "portalUrl": "https://jwgl.hnwu.edu.cn/",
+  "id": "s0569"
+ },
+ {
+  "name": "湖南安全技术职业学院",
+  "portalUrl": "https://jwxt.hnvist.cn:8090/",
+  "id": "s0570"
+ },
+ {
+  "name": "湖南工商职业学院",
+  "portalUrl": "https://lao.hngsxy.com/pages/anon/educationaladministrationsystem/educationalpage.html",
+  "id": "s0571"
+ },
+ {
+  "name": "湖南幼儿师范高等专科学校",
+  "portalUrl": "https://hnyz.jw.chaoxing.com/",
+  "id": "s0572"
+ },
+ {
+  "name": "湖南有色金属职业技术学院",
+  "portalUrl": "https://jwxt.hnyszy.com.cn/jsxsd/",
+  "id": "s0573"
+ },
+ {
+  "name": "湖南民族职业学院",
+  "portalUrl": "https://hnvc.jw.chaoxing.com/admin/login",
+  "id": "s0574"
+ },
+ {
+  "name": "湖南水利水电职业技术学院",
+  "portalUrl": "https://zfjw.hnslsdxy.com/jwglxt/xtgl/login_slogin.html",
+  "id": "s0575"
+ },
+ {
+  "name": "湖南涉外经济学院",
+  "portalUrl": "https://jw.hieu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0576"
+ },
+ {
+  "name": "湖南现代物流职业技术学院",
+  "portalUrl": "https://jwglxt.hmlc.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0577"
+ },
+ {
+  "name": "湖南理工职业技术学院",
+  "portalUrl": "https://hnlgzy.jw.chaoxing.com/",
+  "id": "s0578"
+ },
+ {
+  "name": "湖南石油化工职业技术学院",
+  "portalUrl": "https://jwc.hnshzy.cn:90/hnshjw/cas/login.action",
+  "id": "s0579"
+ },
+ {
+  "name": "湖南科技大学",
+  "portalUrl": "https://kdjw.hnust.edu.cn/",
+  "id": "s0580"
+ },
+ {
+  "name": "湖南科技大学潇湘学院",
+  "portalUrl": "https://xxjw.hnust.edu.cn/",
+  "id": "s0581"
+ },
+ {
+  "name": "湖南都市职业学院",
+  "portalUrl": "https://dushijwgl.xqbg.net/login?redirect=%2Fdashboard",
+  "id": "s0582"
+ },
+ {
+  "name": "湖南食品药品职业学院",
+  "portalUrl": "https://jw.hnyzy.cn/jsxsd",
+  "id": "s0583"
+ },
+ {
+  "name": "湘南学院",
+  "portalUrl": "https://ehall.xnu.edu.cn/sso/login?redirect_uri=https%3A%2F%2Fehall.xnu.edu.cn%2Fcas%2Flogin%3Fservice%3Dhttp%253A%252F%252Fjw.xnu.edu.cn%252F#/",
+  "id": "s0584"
+ },
+ {
+  "name": "湘南幼儿师范高等专科学校",
+  "portalUrl": "https://jwxt.xnyesfgdzkxx.cn/jsxsd/",
+  "id": "s0585"
+ },
+ {
+  "name": "湘西民族职业技术学院",
+  "portalUrl": "https://www.xxmzyjwc.cn:50001/",
+  "id": "s0586"
+ },
+ {
+  "name": "湛江科技学院",
+  "portalUrl": "https://newjwxt.zjkju.edu.cn/xtgl/login_slogin.html",
+  "id": "s0587"
+ },
+ {
+  "name": "滁州学院",
+  "portalUrl": "https://sso.chzu.edu.cn/login?service=https:%2F%2Fjwgl.chzu.edu.cn%2Feams%2FloginExt.action",
+  "id": "s0588"
+ },
+ {
+  "name": "滇西应用技术大学",
+  "portalUrl": "https://jwglxt.wyuas.edu.cn/",
+  "id": "s0589"
+ },
+ {
+  "name": "漯河食品职业学院",
+  "portalUrl": "https://lhsp.jinkex.com/mg/studentlogin",
+  "id": "s0590"
+ },
+ {
+  "name": "漳州职业技术学院",
+  "portalUrl": "https://jxgl.fjzzit.edu.cn:10001/",
+  "id": "s0591"
+ },
+ {
+  "name": "潍坊理工学院",
+  "portalUrl": "https://cxxxt.wfit.edu.cn/admin/login",
+  "id": "s0592"
+ },
+ {
+  "name": "烟台城市科技职业学院",
+  "portalUrl": "https://jw.ytcc.edu.cn/jwapp/sys/yjsrzfwapp/dbLogin/index.do",
+  "id": "s0593"
+ },
+ {
+  "name": "烟台工程职业技术学院",
+  "portalUrl": "https://ytetc.jw.chaoxing.com/admin/login",
+  "id": "s0594"
+ },
+ {
+  "name": "烟台理工学院",
+  "portalUrl": "https://jwxt.yitsd.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0595"
+ },
+ {
+  "name": "烟台黄金职业学院",
+  "portalUrl": "https://ytgc.jw.chaoxing.com/admin/login",
+  "id": "s0596"
+ },
+ {
+  "name": "焦作大学",
+  "portalUrl": "https://jwxt.jzu.edu.cn/eams/login.action",
+  "id": "s0597"
+ },
+ {
+  "name": "焦作新材料职业学院",
+  "portalUrl": "https://zhjw.jzxcl.edu.cn/eams/loginExt.action",
+  "id": "s0598"
+ },
+ {
+  "name": "燕京理工学院",
+  "portalUrl": "https://yitjw.yinghuaonline.com/yjlgxy/",
+  "id": "s0599"
+ },
+ {
+  "name": "燕山大学",
+  "portalUrl": "https://jwxt.ysu.edu.cn/jwapp/sys/homeapp/home/index.html?av=&contextPath=/jwapp#/",
+  "id": "s0600"
+ },
+ {
+  "name": "牡丹江医科大学",
+  "portalUrl": "https://jwgl.mdjmu.cn",
+  "id": "s0601"
+ },
+ {
+  "name": "珠海科技学院",
+  "portalUrl": "https://jw.zcst.edu.cn/xtgl/login_slogin.html",
+  "id": "s0602"
+ },
+ {
+  "name": "甘肃中医药大学",
+  "portalUrl": "https://cas.gszy.edu.cn/cas/login?service=https%3A%2F%2Fjwxt.gszy.edu.cn%2Fsso.jsp",
+  "id": "s0603"
+ },
+ {
+  "name": "甘肃交通职业技术学院",
+  "portalUrl": "https://jiaowu.gsjtxy.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0604"
+ },
+ {
+  "name": "甘肃农业大学",
+  "portalUrl": "https://jwgl.gsau.edu.cn",
+  "id": "s0605"
+ },
+ {
+  "name": "甘肃林业职业技术学院",
+  "portalUrl": "https://jwgl.gsfc.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0606"
+ },
+ {
+  "name": "电子科技大学",
+  "portalUrl": "https://idas.uestc.edu.cn/authserver/login?service=https://eams.uestc.edu.cn/eams/login.action",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0607"
+ },
+ {
+  "name": "电子科技大学成都学院",
+  "portalUrl": "https://www.cduestc.cn/eams/loginExt.action",
+  "id": "s0608"
+ },
+ {
+  "name": "百色学院",
+  "portalUrl": "https://jwgl.bsuc.edu.cn/bsxyjw/cas/login.action",
+  "id": "s0609"
+ },
+ {
+  "name": "百色职业学院",
+  "portalUrl": "https://jw.gxbszy.cn/bszyxyjw/cas/login.action",
+  "id": "s0610"
+ },
+ {
+  "name": "皖南医学院",
+  "portalUrl": "https://jiaowu.wnmc.edu.cn:443/handcourseService/getStudentkb",
+  "id": "s0611"
+ },
+ {
+  "name": "皖西卫生职业学院",
+  "portalUrl": "https://sfrz.wahvc.edu.cn/sso/login?service=http://jw.wahvc.edu.cn/jwweb/cas_lyg.aspx",
+  "id": "s0612"
+ },
+ {
+  "name": "益阳师范高等专科学校",
+  "portalUrl": "https://jw.newyishi.com/",
+  "id": "s0613"
+ },
+ {
+  "name": "盘锦职业技术学院",
+  "portalUrl": "https://pjzy.jw.chaoxing.com/admin/login",
+  "id": "s0614"
+ },
+ {
+  "name": "眉山职业技术学院",
+  "portalUrl": "https://jwzx.msvtc.cn/admin/login",
+  "id": "s0615"
+ },
+ {
+  "name": "眉山药科职业学院",
+  "portalUrl": "https://zfjw.msykxy.edu.cn/xtgl/login_slogin.html",
+  "id": "s0616"
+ },
+ {
+  "name": "石家庄幼儿师范高等专科学校",
+  "portalUrl": "https://sjzptc.jw.chaoxing.com/admin/login",
+  "id": "s0617"
+ },
+ {
+  "name": "石家庄邮电职业技术学院",
+  "portalUrl": "https://jwxt.sjzpc.edu.cn/",
+  "id": "s0618"
+ },
+ {
+  "name": "石家庄铁道大学四方学院",
+  "portalUrl": "https://jwgl.stdusfc.edu.cn/",
+  "id": "s0619"
+ },
+ {
+  "name": "石河子大学师范学院",
+  "portalUrl": "https://authserver.shzu.edu.cn/authserver/login?service=https%3A%2F%2Fjwgl.shzu.edu.cn%2Fsso.jsp",
+  "id": "s0620"
+ },
+ {
+  "name": "磨料磨具工业职工大学",
+  "portalUrl": "https://mapp.haut.edu.cn/cas/login?service=http%3A%2F%2Fjwglxt.haut.edu.cn%2Fsso%2Fjhlogin",
+  "id": "s0621"
+ },
+ {
+  "name": "神木职业技术学院",
+  "portalUrl": "https://cas.smzy.edu.cn/lyuapServer/login?service=http%3A%2F%2Fjwxt.smzy.edu.cn%2Fcaslogin",
+  "id": "s0622"
+ },
+ {
+  "name": "福州大学",
+  "portalUrl": "https://jwcjwxt2.fzu.edu.cn:82/login.htm",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0623"
+ },
+ {
+  "name": "福州大学至诚学院",
+  "portalUrl": "https://jwc.fdzcxy.edu.cn/",
+  "id": "s0624"
+ },
+ {
+  "name": "福建师范大学",
+  "portalUrl": "https://jwglxt.fjnu.edu.cn/",
+  "id": "s0625"
+ },
+ {
+  "name": "福建幼儿师范高等专科学校",
+  "portalUrl": "https://jw.fjys.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0626"
+ },
+ {
+  "name": "福建技术师范学院",
+  "portalUrl": "https://xjxt-ls.fpnu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0627"
+ },
+ {
+  "name": "福建林业职业技术学院",
+  "portalUrl": "https://zfjw.fjlzy.com/jwglxt",
+  "id": "s0628"
+ },
+ {
+  "name": "福建水利电力职业技术学院",
+  "portalUrl": "https://fjsdxy.jw.chaoxing.com/admin/login",
+  "id": "s0629"
+ },
+ {
+  "name": "福建生物工程职业技术学院",
+  "portalUrl": "https://jw.fjvcb.cn/",
+  "id": "s0630"
+ },
+ {
+  "name": "福建艺术职业学院",
+  "portalUrl": "https://fjyszyxy.jw.chaoxing.com/admin/login",
+  "id": "s0631"
+ },
+ {
+  "name": "福建警察学院",
+  "portalUrl": "https://fjpsc.jw.chaoxing.com/admin/login",
+  "id": "s0632"
+ },
+ {
+  "name": "红河卫生职业学院",
+  "portalUrl": "https://hhwzy.jw.chaoxing.com/admin/login",
+  "id": "s0633"
+ },
+ {
+  "name": "绥化学院",
+  "portalUrl": "https://jwgl.shxy.edu.cn",
+  "id": "s0634"
+ },
+ {
+  "name": "绵阳城市学院",
+  "portalUrl": "https://sso.mycc.edu.cn/mcauth/login?service=http://jwgl.mycc.edu.cn/caslogin",
+  "id": "s0635"
+ },
+ {
+  "name": "绵阳飞行职业学院",
+  "portalUrl": "https://topflying.jw.chaoxing.com/admin/login",
+  "id": "s0636"
+ },
+ {
+  "name": "聊城大学东昌学院",
+  "portalUrl": "https://jw.lcudcc.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0637"
+ },
+ {
+  "name": "肇庆医学高等专科学校",
+  "portalUrl": "https://jwxt2.zqmc.edu.cn/xtgl/login_slogin.html",
+  "id": "s0638"
+ },
+ {
+  "name": "芜湖航空职业学院",
+  "portalUrl": "https://whhk.jw.chaoxing.com/admin/login",
+  "id": "s0639"
+ },
+ {
+  "name": "苏州工业园区服务外包职业学院",
+  "portalUrl": "https://siso.jw.chaoxing.com/admin/login",
+  "id": "s0640"
+ },
+ {
+  "name": "苏州工艺美术职业技术学院",
+  "portalUrl": "https://zfjw.sgmart.edu.cn/default2.aspx",
+  "id": "s0641"
+ },
+ {
+  "name": "苏州百年职业学院",
+  "portalUrl": "https://scc.jw.chaoxing.com/admin/login",
+  "id": "s0642"
+ },
+ {
+  "name": "苏州科技大学",
+  "portalUrl": "https://jwgl.usts.edu.cn/sso/jasiglogin/jwglxt",
+  "id": "s0643"
+ },
+ {
+  "name": "茅台学院",
+  "portalUrl": "https://ids.mtxy.edu.cn/authserver/login?service=https%3A%2F%2Fjwxt.mtxy.edu.cn%2Fapi%2F%2Fcas%2Flogin%3Fpattern%3Dmanager-login%26returnUrl%3Dhttps%253A%252F%252Fjwxt.mtxy.edu.cn%252F",
+  "id": "s0644"
+ },
+ {
+  "name": "荆楚理工学院",
+  "portalUrl": "https://jwglxt.jcut.edu.cn/xtgl/login_slogin.html",
+  "id": "s0645"
+ },
+ {
+  "name": "菏泽医学专科学校",
+  "portalUrl": "https://authserver.hzmc.edu.cn/authserver/login?service=http%3A%2F%2Fwww.jwc.hzmc.edu.cn%2Fcaslogin.jsp",
+  "id": "s0646"
+ },
+ {
+  "name": "菏泽职业学院",
+  "portalUrl": "https://sso.hezevc.edu.cn/login?service=https%3A%2F%2Fjw.hezevc.edu.cn%2FCASLogin",
+  "id": "s0647"
+ },
+ {
+  "name": "襄阳科技职业学院",
+  "portalUrl": "https://authserver.hbxytc.cn/authserver/login?service=https%3A%2F%2Fjwxt.hbxytc.cn%2Fjwapp%2Fsys%2Fhomeapp%2Findex.do%3FforceCas%3D1",
+  "id": "s0648"
+ },
+ {
+  "name": "襄阳职业技术学院",
+  "portalUrl": "https://jwxt.hbxytc.cn/",
+  "id": "s0649"
+ },
+ {
+  "name": "西京学院",
+  "portalUrl": "https://jwxt.xijing.edu.cn/jwapp/sys/homeapp/home/index.html",
+  "id": "s0650"
+ },
+ {
+  "name": "西北大学",
+  "portalUrl": "https://jwgl.nwu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0651"
+ },
+ {
+  "name": "西南交通大学",
+  "portalUrl": "https://jwc.swjtu.edu.cn/service/login.html",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0652"
+ },
+ {
+  "name": "西南大学",
+  "portalUrl": "https://v4study.eduwest.com/login.shtml",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0653"
+ },
+ {
+  "name": "西南林业大学",
+  "portalUrl": "https://jw.swfu.edu.cn/jwglxt/xtgl/index_initMenu.html",
+  "id": "s0654"
+ },
+ {
+  "name": "西南石油大学南充校区",
+  "portalUrl": "https://deancs.swpu.edu.cn/xsxk/profile/index.html",
+  "id": "s0655"
+ },
+ {
+  "name": "西南财经大学天府学院",
+  "portalUrl": "https://urp.tfswufe.edu.cn/cas/login?service=https%3A%2F%2Fjwc.tfswufe.edu.cn%2Feams%2Fhome.action",
+  "id": "s0656"
+ },
+ {
+  "name": "西双版纳职业技术学院",
+  "portalUrl": "https://jw.xsbnzy.cn/#",
+  "id": "s0657"
+ },
+ {
+  "name": "西安交通大学",
+  "portalUrl": "https://gmis.xjtu.edu.cn/pyxx/pygl/xskbcx",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0658"
+ },
+ {
+  "name": "西安医学高等专科学校",
+  "portalUrl": "https://xayxgd.jw.chaoxing.com/admin/login",
+  "id": "s0659"
+ },
+ {
+  "name": "西安外国语大学",
+  "portalUrl": "https://jwxt.xisu.edu.cn/eams/login.action",
+  "id": "s0660"
+ },
+ {
+  "name": "西安建筑科技大学",
+  "portalUrl": "https://swjw.xauat.edu.cn/student/login",
+  "id": "s0661"
+ },
+ {
+  "name": "西安理工大学",
+  "portalUrl": "https://jwgl.xaut.edu.cn/jsxsd",
+  "id": "s0662"
+ },
+ {
+  "name": "西安石油大学",
+  "portalUrl": "https://ids.xsyu.edu.cn/authserver/login?service=http%3A%2F%2Fjwxt.xsyu.edu.cn%2Feams%2Fhome.action",
+  "id": "s0663"
+ },
+ {
+  "name": "西安航空学院",
+  "portalUrl": "https://cas.xaau.edu.cn/lyuapServer/login?service=https%3A%2F%2Fscore.xaau.edu.cn%2Feams%2Fhome.action",
+  "id": "s0664"
+ },
+ {
+  "name": "西安航空职业技术学院",
+  "portalUrl": "https://jwgl.xihang.com.cn/",
+  "id": "s0665"
+ },
+ {
+  "name": "西安高新科技职业学院",
+  "portalUrl": "https://xhtu.com.cn/index.php?s=/Index/view/s/1/c/10/id/4209.html",
+  "id": "s0666"
+ },
+ {
+  "name": "许昌学院",
+  "portalUrl": "https://jwglxt.xcu.edu.cn/",
+  "id": "s0667"
+ },
+ {
+  "name": "许昌陶瓷职业学院",
+  "portalUrl": "https://xctc.jw.chaoxing.com/admin/login",
+  "id": "s0668"
+ },
+ {
+  "name": "贵州中医药大学",
+  "portalUrl": "https://jwgl.gzy.edu.cn/jsxsd/",
+  "id": "s0669"
+ },
+ {
+  "name": "贵州中医药大学时珍学院",
+  "portalUrl": "https://jw.gzyszxy.cn:3389/jwglxt/xtgl/login_slogin.html",
+  "id": "s0670"
+ },
+ {
+  "name": "贵州商学院",
+  "portalUrl": "https://qzjwgl.gzcc.edu.cn/",
+  "id": "s0671"
+ },
+ {
+  "name": "贵州工业职业技术学院",
+  "portalUrl": "https://jwgl.gzky.edu.cn/cas/login.action",
+  "id": "s0672"
+ },
+ {
+  "name": "贵州师范大学",
+  "portalUrl": "https://jwgl.gznu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0673"
+ },
+ {
+  "name": "贵州师范学院",
+  "portalUrl": "https://xywxj.gznc.edu.cn/forward/jwxt.html",
+  "id": "s0674"
+ },
+ {
+  "name": "贵州职业技术学院",
+  "portalUrl": "https://eas.gzvti.com/eams/loginExt.action",
+  "id": "s0675"
+ },
+ {
+  "name": "贵州航空职业技术学院",
+  "portalUrl": "https://jwxt.gzzbzy.cn/admin/login",
+  "id": "s0676"
+ },
+ {
+  "name": "贵州警察学院",
+  "portalUrl": "https://jwxt.gzpc.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0677"
+ },
+ {
+  "name": "贵州铜仁数据职业学院",
+  "portalUrl": "https://trsjzy.jw.chaoxing.com/admin/login",
+  "id": "s0678"
+ },
+ {
+  "name": "贵阳人文科技学院",
+  "portalUrl": "https://gzmyrw.jw.chaoxing.com/admin/login",
+  "id": "s0679"
+ },
+ {
+  "name": "贵阳幼儿师范高等专科学校",
+  "portalUrl": "https://jwapp.gypec.edu.cn/",
+  "id": "s0680"
+ },
+ {
+  "name": "贵阳康养职业大学",
+  "portalUrl": "https://gkd.jw.chaoxing.com/admin/login",
+  "id": "s0681"
+ },
+ {
+  "name": "赣东学院",
+  "portalUrl": "https://jwgl.gdc.edu.cn/",
+  "id": "s0682"
+ },
+ {
+  "name": "赣东职业技术学院",
+  "portalUrl": "https://gdzy.jw.chaoxing.com/admin/login",
+  "id": "s0683"
+ },
+ {
+  "name": "赣南医学院",
+  "portalUrl": "https://gmu.jw.chaoxing.com/admin/login",
+  "id": "s0684"
+ },
+ {
+  "name": "赣南师范大学",
+  "portalUrl": "https://jwgl.gnnu.edu.cn",
+  "id": "s0685"
+ },
+ {
+  "name": "赣南师范大学科技学院",
+  "portalUrl": "https://gnnustc.jw.chaoxing.com/admin/login",
+  "id": "s0686"
+ },
+ {
+  "name": "赣南科技学院",
+  "portalUrl": "https://jw.gnust.edu.cn/cas/login.action",
+  "id": "s0687"
+ },
+ {
+  "name": "赣州职业技术学院",
+  "portalUrl": "https://jwxt.gzpt.edu.cn:19995/#/jwxt/js/student",
+  "id": "s0688"
+ },
+ {
+  "name": "辽宁医药职业学院",
+  "portalUrl": "https://authserver.lnvcm.edu.cn/authserver/login?service=https%3A%2F%2Fjwxt.lnvcm.edu.cn%2Fjwapp%2Fsys%2Fhomeapp%2Findex.do",
+  "id": "s0689"
+ },
+ {
+  "name": "辽宁地质工程职业学院",
+  "portalUrl": "https://jw.lngc.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0690"
+ },
+ {
+  "name": "辽宁对外经贸学院",
+  "portalUrl": "https://jwpt.luibe.edu.cn/jsxsd/",
+  "id": "s0691"
+ },
+ {
+  "name": "辽宁工业大学",
+  "portalUrl": "https://jwglxt.lnut.edu.cn/",
+  "id": "s0692"
+ },
+ {
+  "name": "辽宁生态工程职业学院",
+  "portalUrl": "https://zf.lnstzy.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0693"
+ },
+ {
+  "name": "辽宁省交通高等专科学校",
+  "portalUrl": "https://zhjx.lncc.edu.cn/login?redirect=/index",
+  "id": "s0694"
+ },
+ {
+  "name": "辽宁科技大学",
+  "portalUrl": "https://ustl.jw.chaoxing.com/",
+  "id": "s0695"
+ },
+ {
+  "name": "辽宁科技学院",
+  "portalUrl": "https://mea.lnist.edu.cn/eams/loginExt.action",
+  "id": "s0696"
+ },
+ {
+  "name": "辽源职业技术学院",
+  "portalUrl": "https://lyvtc.jw.chaoxing.com/admin/login",
+  "id": "s0697"
+ },
+ {
+  "name": "达州中医药职业学院",
+  "portalUrl": "https://jw.dzvccm.edu.cn/",
+  "id": "s0698"
+ },
+ {
+  "name": "运城学院",
+  "portalUrl": "https://sfzt.ycu.edu.cn/auth/#/login?service=https://jwxt.ycu.edu.cn/sso/sxcjlogin",
+  "id": "s0699"
+ },
+ {
+  "name": "连云港职业技术学院",
+  "portalUrl": "https://jw.lygtc.edu.cn/eams/sso/login.action",
+  "id": "s0700"
+ },
+ {
+  "name": "遂宁工程职业学院",
+  "portalUrl": "https://snevc.jw.chaoxing.com/admin/login",
+  "id": "s0701"
+ },
+ {
+  "name": "遵义医科大学",
+  "portalUrl": "https://jwxt.zmu.edu.cn/",
+  "id": "s0702"
+ },
+ {
+  "name": "邢台新能源职业学院",
+  "portalUrl": "https://jw.xtxny.edu.cn:37586/jwglxt/xtgl/login_slogin.html",
+  "id": "s0703"
+ },
+ {
+  "name": "邯郸学院",
+  "portalUrl": "https://jwgl.hdc.edu.cn/xtgl/login_slogin.html",
+  "id": "s0704"
+ },
+ {
+  "name": "郑州亚欧交通职业学院",
+  "portalUrl": "https://jwxt.zzyaou.edu.cn/cas/login.action",
+  "id": "s0705"
+ },
+ {
+  "name": "郑州体育职业学院",
+  "portalUrl": "https://jiaowu.zhengzhoutiyuan.cn/eams/loginExt.action",
+  "id": "s0706"
+ },
+ {
+  "name": "郑州信息工程职业学院",
+  "portalUrl": "https://cas.zxxyedu.com/cas/login?service=http%3A%2F%2F125.40.191.81%3A8083%2Feams%2Fsso%2Flogin.action%3FtargetUrl%3Dbase64aHR0cDovLzEyNS40MC4xOTEuODE6ODA4My9lYW1zL2hvbWVFeHQuYWN0aW9u",
+  "id": "s0707"
+ },
+ {
+  "name": "郑州师范学院",
+  "portalUrl": "https://jwgl.zznu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0708"
+ },
+ {
+  "name": "郑州汽车工程职业学院",
+  "portalUrl": "https://jw.zzvcae.edu.cn/eams/loginExt.action",
+  "id": "s0709"
+ },
+ {
+  "name": "郑州电子信息职业技术学院",
+  "portalUrl": "https://cas.zyfb.com/cas/login?service=https%3A%2F%2Fjwxt.zyfb.com%2Feams%2Fsso%2Flogin.action%3FtargetUrl%3Dbase64aHR0cHM6Ly9qd3h0Lnp5ZmIuY29tL2VhbXMvaG9tZUV4dC5hY3Rpb24%3D",
+  "id": "s0710"
+ },
+ {
+  "name": "郑州科技学院",
+  "portalUrl": "https://jwgl.zit.edu.cn/cas/login.action",
+  "id": "s0711"
+ },
+ {
+  "name": "郑州美术学院",
+  "portalUrl": "https://jw.zzafa.edu.cn/admin/login",
+  "id": "s0712"
+ },
+ {
+  "name": "郑州财经学院",
+  "portalUrl": "https://authserver.zzife.edu.cn/authserver/login?service=https%3A%2F%2Fjw.zzife.edu.cn%2Fcaslogin",
+  "id": "s0713"
+ },
+ {
+  "name": "郑州黄河护理职业学院",
+  "portalUrl": "https://zyrnvc.jijiaox.com/mg/login?type=3",
+  "id": "s0714"
+ },
+ {
+  "name": "郴州职业技术学院",
+  "portalUrl": "https://jwc.czzy-edu.com/admin/login",
+  "id": "s0715"
+ },
+ {
+  "name": "鄂州职业大学",
+  "portalUrl": "https://jwxt.ezu.cn/ezzyjw/cas/login.action",
+  "id": "s0716"
+ },
+ {
+  "name": "重庆中医药学院",
+  "portalUrl": "https://es.cqctcm.edu.cn/sso/zfiotlogin",
+  "id": "s0717"
+ },
+ {
+  "name": "重庆交通大学",
+  "portalUrl": "https://ids.cqjtu.edu.cn/authserver/login?service=http%3A%2F%2Fjwgln.cqjtu.edu.cn%2Fjsxsd%2Fsso.jsp",
+  "id": "s0718"
+ },
+ {
+  "name": "重庆传媒职业学院",
+  "portalUrl": "https://jwxt.cqcmxy.com:85/jsxsd/",
+  "id": "s0719"
+ },
+ {
+  "name": "重庆公共运输职业学院",
+  "portalUrl": "https://jwxt.cqgyzy.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0720"
+ },
+ {
+  "name": "重庆医科大学",
+  "portalUrl": "https://jiaowu.cqmu.edu.cn:8080/eams",
+  "id": "s0721"
+ },
+ {
+  "name": "重庆外语外事学院",
+  "portalUrl": "https://jw.educationgroup.cn/cqwywsxy/",
+  "id": "s0722"
+ },
+ {
+  "name": "重庆大学",
+  "portalUrl": "https://my.cqu.edu.cn/",
+  "tiers": [
+   "211",
+   "985"
+  ],
+  "id": "s0723"
+ },
+ {
+  "name": "重庆大学城市科技学院",
+  "portalUrl": "https://cquccjw.yinghuaonline.com/cqdxcskjxy/",
+  "id": "s0724"
+ },
+ {
+  "name": "重庆工商大学派斯学校",
+  "portalUrl": "https://jwgl.cqtbi.edu.cn/",
+  "id": "s0725"
+ },
+ {
+  "name": "重庆工商大学派斯学院",
+  "portalUrl": "https://www.paisi.edu.cn:8181/jsxsd/?tdsourcetag=s_pcqq_aiomsg",
+  "id": "s0726"
+ },
+ {
+  "name": "重庆工程学院",
+  "portalUrl": "https://jw.cqie.edu.cn/cas/login.action",
+  "id": "s0727"
+ },
+ {
+  "name": "重庆护理职业学院",
+  "portalUrl": "https://jw.cqnvc.edu.cn/admin/login",
+  "id": "s0728"
+ },
+ {
+  "name": "重庆文化艺术职业学院",
+  "portalUrl": "https://jwxt.cqca.edu.cn/",
+  "id": "s0729"
+ },
+ {
+  "name": "重庆海联职业技术学院",
+  "portalUrl": "https://cas.cqhvtc.edu.cn/cas/login?service=https%3A%2F%2Fjw.cqhvtc.edu.cn%2Fsso%2Fzfiotlogin",
+  "id": "s0730"
+ },
+ {
+  "name": "重庆科技职业学院",
+  "portalUrl": "https://cxjw.cqkjzyxy.com/admin/login",
+  "id": "s0731"
+ },
+ {
+  "name": "重庆能源职业学院",
+  "portalUrl": "https://cas.cqny.edu.cn/lyuapServer/login?service=https%3A%2F%2Fjwxt.cqny.edu.cn%2Fadmin%2Fcaslogin",
+  "id": "s0732"
+ },
+ {
+  "name": "重庆艺术工程职业学院",
+  "portalUrl": "https://ysjw.cqysxy.com:83/jsxsd/",
+  "id": "s0733"
+ },
+ {
+  "name": "重庆财经职业学院",
+  "portalUrl": "https://ids.cqcfe.com/cas/login.html?appId=0e72e5df-3f27-4a1d-996c-aaedd868e00c&service=http%3A%2F%2Fjw.cqcfe.com%2Fsso.jsp",
+  "id": "s0734"
+ },
+ {
+  "name": "重庆资源与环境保护职业学院",
+  "portalUrl": "https://jwxt.cqzhxy.cn:8003/admin/login",
+  "id": "s0735"
+ },
+ {
+  "name": "金华职业技术学院",
+  "portalUrl": "https://rz.jhc.cn/zfca/login",
+  "id": "s0736"
+ },
+ {
+  "name": "金陵科技学院",
+  "portalUrl": "https://jwxt.jit.edu.cn",
+  "id": "s0737"
+ },
+ {
+  "name": "铁门关职业技术学院",
+  "portalUrl": "https://tmgzj.jw.chaoxing.com/admin/login",
+  "id": "s0738"
+ },
+ {
+  "name": "铜仁职业技术大学",
+  "portalUrl": "https://trzy.jw.chaoxing.com/admin/login",
+  "id": "s0739"
+ },
+ {
+  "name": "铜陵职业技术学院",
+  "portalUrl": "https://jw.tlpt.net.cn/cas/login.action",
+  "id": "s0740"
+ },
+ {
+  "name": "银川科技学院",
+  "portalUrl": "https://cumtycjw.yinghuaonline.com/yckjxy_jsxsd/",
+  "id": "s0741"
+ },
+ {
+  "name": "银川能源学院",
+  "portalUrl": "https://jwgl.ycu.com.cn",
+  "id": "s0742"
+ },
+ {
+  "name": "长安大学",
+  "portalUrl": "https://ids.chd.edu.cn/authserver/login?service=http%3A%2F%2Fbkjw.chd.edu.cn%2Feams%2Fhome.action",
+  "tiers": [
+   "211"
+  ],
+  "id": "s0743"
+ },
+ {
+  "name": "长春东方职业学院",
+  "portalUrl": "https://dfzy.jw.chaoxing.com/admin/login",
+  "id": "s0744"
+ },
+ {
+  "name": "长春医学高等专科学校",
+  "portalUrl": "https://jwxt.ccmc.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0745"
+ },
+ {
+  "name": "长春大学旅游学院",
+  "portalUrl": "https://cdly.jw.chaoxing.com/admin/login",
+  "id": "s0746"
+ },
+ {
+  "name": "长春师范大学",
+  "portalUrl": "https://www.ccsfu.edu.cn/ggfw/jwxt.htm",
+  "id": "s0747"
+ },
+ {
+  "name": "长春数字科技职业学院",
+  "portalUrl": "https://szkj.jw.chaoxing.com/admin/login",
+  "id": "s0748"
+ },
+ {
+  "name": "长春早期教育职业学院",
+  "portalUrl": "https://cczjxy.jw.chaoxing.com/admin/login",
+  "id": "s0749"
+ },
+ {
+  "name": "长春科技学院",
+  "portalUrl": "https://cckjxy.jw.chaoxing.com/admin/login",
+  "id": "s0750"
+ },
+ {
+  "name": "长春金融高等专科学校",
+  "portalUrl": "https://cjgz.jw.chaoxing.com/admin/login",
+  "id": "s0751"
+ },
+ {
+  "name": "长江大学",
+  "portalUrl": "https://atrust.yangtzeu.edu.cn:4443/",
+  "pluginRepo": "cursimple/YangtzU_course_plugin",
+  "pluginId": "yangtzeu-eams-js-v1",
+  "id": "s0752",
+  "timingProfile": {
+   "termStartDate": "",
+   "timezone": "Asia/Shanghai",
+   "slotTimes": [
+    { "startNode": 1, "endNode": 1, "startTime": "08:00", "endTime": "09:35", "label": "第一节" },
+    { "startNode": 2, "endNode": 2, "startTime": "10:05", "endTime": "11:40", "label": "第二节" },
+    { "startNode": 3, "endNode": 3, "startTime": "12:00", "endTime": "13:35", "label": "午间课" },
+    { "startNode": 4, "endNode": 4, "startTime": "14:00", "endTime": "15:35", "label": "第三节" },
+    { "startNode": 5, "endNode": 5, "startTime": "16:05", "endTime": "17:40", "label": "第四节" },
+    { "startNode": 6, "endNode": 6, "startTime": "18:00", "endTime": "18:45", "label": "晚间课" },
+    { "startNode": 7, "endNode": 7, "startTime": "19:00", "endTime": "20:35", "label": "第五节" },
+    { "startNode": 8, "endNode": 8, "startTime": "20:45", "endTime": "22:20", "label": "第六节" }
+   ]
+  }
+ },
+ {
+  "name": "长江大学文理学院",
+  "portalUrl": "https://jw.wlxy.edu.cn/eams/loginExt.action",
+  "id": "s0753"
+ },
+ {
+  "name": "长江工程职业技术学院",
+  "portalUrl": "https://jwxt.cjit.edu.cn/admin/login",
+  "id": "s0754"
+ },
+ {
+  "name": "长江师范学院",
+  "portalUrl": "https://authserver.yznu.cn/authserver/login?service=https%3A%2F%2Fjwxt.yznu.edu.cn%2Fjsxsd%2F",
+  "id": "s0755"
+ },
+ {
+  "name": "长沙工业学院",
+  "portalUrl": "https://csgyxy.jw.chaoxing.com/admin/login",
+  "id": "s0756"
+ },
+ {
+  "name": "长沙文创艺术职业学院",
+  "portalUrl": "https://jwxt.cswcxyedu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0757"
+ },
+ {
+  "name": "长沙科技学院",
+  "portalUrl": "https://jw.csuse.edu.cn/",
+  "id": "s0758"
+ },
+ {
+  "name": "长沙职业技术学院",
+  "portalUrl": "https://jwgl.cszyedu.cn/",
+  "id": "s0759"
+ },
+ {
+  "name": "闽南科技学院",
+  "portalUrl": "https://jwgl.mku.edu.cn/jsxsd/",
+  "id": "s0760"
+ },
+ {
+  "name": "闽江师范高等专科学校",
+  "portalUrl": "https://edums.app.fzmjtc.cn/",
+  "id": "s0761"
+ },
+ {
+  "name": "闽西职业技术学院",
+  "portalUrl": "https://mxdx.jw.chaoxing.com/",
+  "id": "s0762"
+ },
+ {
+  "name": "阜阳职业技术学院",
+  "portalUrl": "https://jwgl.fyvtc.edu.cn",
+  "id": "s0763"
+ },
+ {
+  "name": "防灾科技学院",
+  "portalUrl": "https://jwc-dd.cidp.edu.cn",
+  "id": "s0764"
+ },
+ {
+  "name": "阳泉职业技术学院",
+  "portalUrl": "https://yqzyjsxy.jw.chaoxing.com/admin/login",
+  "id": "s0765"
+ },
+ {
+  "name": "阿坝师范学院",
+  "portalUrl": "https://jwcs.abtu.edu.cn/",
+  "id": "s0766"
+ },
+ {
+  "name": "阿坝职业学院",
+  "portalUrl": "https://jw.abvc.edu.cn/",
+  "id": "s0767"
+ },
+ {
+  "name": "陇东学院",
+  "portalUrl": "https://jwxt.ldxy.edu.cn/cas/login.action",
+  "id": "s0768"
+ },
+ {
+  "name": "陇南师范高等专科学校",
+  "portalUrl": "https://lnszjw.lntc.edu.cn/lnszjw/cas/login.action",
+  "id": "s0769"
+ },
+ {
+  "name": "陕西国防工业职业技术学院",
+  "portalUrl": "https://jw.gfxy.com/cas/login.action",
+  "id": "s0770"
+ },
+ {
+  "name": "陕西开放大学",
+  "portalUrl": "https://authserver.snouedu.cn/authserver/login?service=http%3A%2F%2Fjwgl.snouedu.cn%2Fsso.jsp",
+  "id": "s0771"
+ },
+ {
+  "name": "陕西职业技术学院",
+  "portalUrl": "https://cas.svtc.edu.cn:8443/lyuapServer/login?service=http%3A%2F%2Fjwc.svtc.edu.cn%2Fsso%2Flyiotlogin",
+  "id": "s0772"
+ },
+ {
+  "name": "陕西财经职业技术学院",
+  "portalUrl": "https://jwgl.scy.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0773"
+ },
+ {
+  "name": "随州职业技术学院",
+  "portalUrl": "https://jwsys.szvtc.cn:8282/admin/login",
+  "id": "s0774"
+ },
+ {
+  "name": "青岛农业大学海都学院",
+  "portalUrl": "https://hdxy.jw.chaoxing.com",
+  "id": "s0775"
+ },
+ {
+  "name": "青岛大学",
+  "portalUrl": "https://xjw.qdu.edu.cn",
+  "id": "s0776"
+ },
+ {
+  "name": "青岛恒星科技学院",
+  "portalUrl": "https://jwgl.hx.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0777"
+ },
+ {
+  "name": "青岛理工大学",
+  "portalUrl": "https://jxgl.qut.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0778"
+ },
+ {
+  "name": "青岛理工大学琴岛学院",
+  "portalUrl": "https://jwgl.qdc.edu.cn/jwglxt/xtgl/login_slogin.html?language=zh_CN",
+  "id": "s0779"
+ },
+ {
+  "name": "青岛航空科技职业学院",
+  "portalUrl": "https://qdhkxy.jw.chaoxing.com/admin/login",
+  "id": "s0780"
+ },
+ {
+  "name": "青岛远洋船员职业学院",
+  "portalUrl": "https://ets.qmc.edu.cn/tpass/login?service=https%3A%2F%2Fjw.qmc.edu.cn%2Fjwapp%2Fsys%2Femaphome%2Fportal%2Findex.do",
+  "id": "s0781"
+ },
+ {
+  "name": "青岛黄海学院",
+  "portalUrl": "https://jwxt.qdhhc.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0782"
+ },
+ {
+  "name": "青海开放大学",
+  "portalUrl": "https://jwc.qhou.edu.cn/",
+  "id": "s0783"
+ },
+ {
+  "name": "鞍山师范学院",
+  "portalUrl": "https://assh.jw.chaoxing.com/admin/login",
+  "id": "s0784"
+ },
+ {
+  "name": "鞍山职业技术学院",
+  "portalUrl": "https://aszyjsxy.jw.chaoxing.com/admin/login",
+  "id": "s0785"
+ },
+ {
+  "name": "首都体育学院",
+  "portalUrl": "https://auth.cupes.edu.cn/authserver/login?service=https%3A%2F%2Fjwgl.cupes.edu.cn%2Fsso%2Fjziotlogin",
+  "id": "s0786"
+ },
+ {
+  "name": "首都师范大学科德学院",
+  "portalUrl": "https://kdcnujw.yinghuaonline.com/sdsfdxkdxy/",
+  "id": "s0787"
+ },
+ {
+  "name": "首都经济贸易大学",
+  "portalUrl": "https://jwc.cueb.edu.cn/",
+  "id": "s0788"
+ },
+ {
+  "name": "马鞍山学院",
+  "portalUrl": "https://jwxt.masu.edu.cn/eams/login.action",
+  "id": "s0789"
+ },
+ {
+  "name": "驻马店幼儿师范高等专科学校",
+  "portalUrl": "https://www.zyz.edu.cn/jwc/",
+  "id": "s0790"
+ },
+ {
+  "name": "鲁东大学",
+  "portalUrl": "https://xsjw.ldu.edu.cn/login",
+  "id": "s0791"
+ },
+ {
+  "name": "鹤壁能源化工职业学院",
+  "portalUrl": "https://hbnyhgzyxy.jijiaox.com/mg/login?type=3",
+  "id": "s0792"
+ },
+ {
+  "name": "黄冈科技职业学院",
+  "portalUrl": "https://jw.hbhgkj.edu.cn/",
+  "id": "s0793"
+ },
+ {
+  "name": "黄山健康职业学院",
+  "portalUrl": "https://jwxt.hsu.edu.cn/jwglxt/xtgl/login_slogin.html?time=1753879724956",
+  "id": "s0794"
+ },
+ {
+  "name": "黄山学院",
+  "portalUrl": "https://jwxt.hsu.edu.cn/jwglxt",
+  "id": "s0795"
+ },
+ {
+  "name": "黄河科技学院",
+  "portalUrl": "https://vpn.hhstu.edu.cn/login/index?redirect_authurl=https%3A%2F%2Fjw.hhstu.edu.cn%2F",
+  "id": "s0796"
+ },
+ {
+  "name": "黄淮学院",
+  "portalUrl": "https://huanghuai.jijiaox.com/mg/login?type=3",
+  "id": "s0797"
+ },
+ {
+  "name": "黎明职业大学",
+  "portalUrl": "https://jw.lmu.cn/",
+  "id": "s0798"
+ },
+ {
+  "name": "黑河学院",
+  "portalUrl": "https://172-16-121-26.webvpn.hhxy.edu.cn/jwglxt/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default&ticket=ST-374089-3CkiIcJUxGgkOrGZ7ptH-zfsoft.com",
+  "id": "s0799"
+ },
+ {
+  "name": "黑龙江东方学院",
+  "portalUrl": "https://jw.hljeu.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0800"
+ },
+ {
+  "name": "黑龙江农业工程职业学院",
+  "portalUrl": "https://hljswkj.jw.chaoxing.com/admin/login",
+  "id": "s0801"
+ },
+ {
+  "name": "黑龙江外国语学院",
+  "portalUrl": "https://jwxt.hiu.edu.cn/",
+  "id": "s0802"
+ },
+ {
+  "name": "黑龙江护理高等专科学校",
+  "portalUrl": "https://jwc.hljnc.edu.cn:8080/admin/login",
+  "id": "s0803"
+ },
+ {
+  "name": "黑龙江生物科技职业学院",
+  "portalUrl": "https://hljstgc.jw.chaoxing.com/admin/login",
+  "id": "s0804"
+ },
+ {
+  "name": "黑龙江能源职业学院",
+  "portalUrl": "https://hljny.jw.chaoxing.com/admin/login",
+  "id": "s0805"
+ },
+ {
+  "name": "黔东南民族职业技术学院",
+  "portalUrl": "https://jw.qdnpt.edu.cn/jwglxt/xtgl/login_slogin.html",
+  "id": "s0806"
+ },
+ {
+  "name": "黔南民族职业技术学院",
+  "portalUrl": "https://jwc.qnzy.net:9997/",
+  "id": "s0807"
+ },
+ {
+  "name": "黔西南民族职业技术学院",
+  "portalUrl": "https://cas.qnzy.net/lyuapServer/login?service=http%3A%2F%2Fjwc.qnzy.net%3A9090%2Fapi%2Fcas%2Flogin%3Fpattern%3Dteacher-login",
+  "id": "s0808"
+ },
+ {
+  "name": "齐齐哈尔医学院",
+  "portalUrl": "https://jiaowu.qmu.edu.cn/",
+  "id": "s0809"
+ }
+]

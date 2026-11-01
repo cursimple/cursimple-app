@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import androidx.activity.compose.setContent
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -17,6 +18,13 @@ import com.x500x.cursimple.app.util.ScheduleShareCodec
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
+import com.x500x.cursimple.app.theme.ClassScheduleTheme
+import com.x500x.cursimple.app.ai.AiImportConfig
+import com.x500x.cursimple.app.ai.AiScheduleImportClient
+import com.x500x.cursimple.app.webdav.WebDavClient
+import com.x500x.cursimple.app.webdav.WebDavConfig
+import com.x500x.cursimple.core.data.ThemeAccent
+import com.x500x.cursimple.core.data.ThemeMode
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -50,16 +58,46 @@ class SharedFreeTimeUiQaTest {
     }
     @get:Rule val rules: RuleChain = RuleChain.outerRule(setup).around(compose)
 
+    // My own week: Monday 1-2, Wednesday 3-4 and Friday 5-6, so both grids show real course blocks.
+    private val myCourses = listOf(
+        CourseItem("mine-math", "高等数学", teacher = "", location = "", weeks = (1..16).toList(), time = CourseTimeSlot(1, 1, 2)),
+        CourseItem("mine-english", "大学英语", teacher = "", location = "", weeks = (1..16).toList(), time = CourseTimeSlot(3, 3, 4)),
+        CourseItem("mine-physics", "大学物理", teacher = "", location = "", weeks = (1..16).toList(), time = CourseTimeSlot(5, 5, 6)),
+    )
+
+    /** The entry lives on the share page now: show that page, then tap the row. */
     private fun openSharedFreeTime() {
-        val activity = compose.activity
-        compose.onNodeWithContentDescription(activity.getString(R.string.main_add_to_schedule)).performClick()
-        compose.onNodeWithTag("menu-shared-free-time").performClick()
+        showSharePage()
+        compose.onNodeWithText(compose.activity.getString(ScheduleR.string.free_time_entry)).performScrollTo().performClick()
         compose.onNodeWithTag("shared-free-dialog").assertIsDisplayed()
     }
 
+    private fun showSharePage() {
+        compose.activity.setContent {
+            ClassScheduleTheme(themeMode = ThemeMode.Light, themeAccent = ThemeAccent.Green) {
+                ImportExportScreen(schedule = null, manualCourses = myCourses, termName = null, termStartDate = java.time.LocalDate.of(2026, 9, 14),
+                    timingProfile = null, temporaryScheduleOverrides = emptyList(),
+                    webDavConfig = WebDavConfig("", "", ""), webDavClient = WebDavClient(),
+                    aiImportConfig = AiImportConfig("", "", ""), aiImportClient = AiScheduleImportClient(),
+                    onApplyImport = { _, _, _, _ -> }, onApplyTermStartDate = {},
+                    onCreateAppBackup = { error("Not used") }, onRestoreAppBackup = {},
+                    onOpenWebDavSettings = {}, onOpenAiImportSettings = {}, onBack = {})
+            }
+        }
+    }
+
     private fun shot(name: String) {
-        Thread.sleep(300)
+        // Escape drops the keyboard the code field left open, so the grids are not hidden behind it.
+        InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("input keyevent 111").close()
+        Thread.sleep(600)
         ScreenshotCapture.save(ScreenshotCapture.take(), File(context.filesDir, "free-time-qa/$name.png"))
+    }
+
+    @Test fun theEntryIsOnTheSharePage() {
+        assumeTrue(enabled())
+        showSharePage()
+        compose.onNodeWithText(compose.activity.getString(ScheduleR.string.free_time_entry)).performScrollTo().assertIsDisplayed()
+        shot("share-page")
     }
 
     @Test fun anInvalidCodeIsRejectedWithAClearMessage() {
@@ -90,6 +128,12 @@ class SharedFreeTimeUiQaTest {
         // The code decoded: no error, and the count of their classes is shown.
         assertTrue("valid code is not rejected", compose.onAllNodesWithTag("shared-free-error").fetchSemanticsNodes().isEmpty())
         compose.onNodeWithText(compose.activity.getString(ScheduleR.string.free_time_their_count, 2)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("shared-free-week-grid").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("shared-free-mine").assertIsDisplayed()
+        compose.onNodeWithTag("shared-free-theirs").assertIsDisplayed()
         shot("valid-code")
+        // Release-note shot: back to the top of the page so the code box, both timetables and the title are in view.
+        compose.onNodeWithTag("shared-free-code").performScrollTo()
+        shot("announce")
     }
 }

@@ -741,6 +741,7 @@ fun ScheduleScreen(
                 sourceWeekOf = { selected -> detailCourseWeekNumber(request.targetDate, selected, overrideTermStart,
                     temporaryScheduleOverrides, holidayCalendar) },
                 isManual = { c -> state.manualCourses.any { it.id == c.id } },
+                sourceName = state.schedule?.sourceName,
                 examReminderEnabled = examRules.isNotEmpty(),
                 mutedExamCourseIds = examRules.flatMap { it.mutedCourseIds }.toSet(),
                 targetDate = request.targetDate,
@@ -2683,7 +2684,9 @@ private fun ScheduleGrid(
         val dayEventGroups = dayLayout.dayEventGroups
         val lanes = dayLayout.lanes
         val fittedColumns = dayLayout.columns
-        val dayColumnWidth = (gridAvailable / fittedColumns.totalUnits).coerceAtLeast(MIN_DAY_COLUMN_DP.dp)
+        // The days always fill exactly the space beside the time column, so a saved gutter width is honoured;
+        // crowded weeks get narrower columns instead of pushing the grid past the screen.
+        val dayColumnWidth = gridAvailable / fittedColumns.totalUnits
         val gridWidth = dayColumnWidth * fittedColumns.totalUnits
         val columnX: (Int) -> Dp = { index -> dayColumnWidth * fittedColumns.start(index) }
         val columnWidth: (Int) -> Dp = { index -> dayColumnWidth * fittedColumns.width(index) }
@@ -2755,7 +2758,8 @@ private fun ScheduleGrid(
                         .zIndex(1f)
                         .graphicsLayer { translationX = stickyOffset().x.toFloat() }
                         .then(pinnedBackground)
-                        .width(timeColumnWidth),
+                        .width(timeColumnWidth)
+                        .testTag("schedule-time-column"),
                 ) {
                     rows.forEach { row ->
                         when (row) {
@@ -3005,7 +3009,10 @@ private fun ScheduleGrid(
                             val cellHeight = slotHeight * (courseBottom - courseTop) - 3.dp
                             val (cellX, cellWidth) = laneBounds(lanes[cell] ?: LanePosition(0, 1), cell.dayIndex)
                             val cellY = slotHeight * courseTop + 1.dp
-                            val stack = stackCellItems(cell.entries, cellHeight)
+                            // Courses in one period show one card: the count sits at its top-left, and three or more also
+                            // get a dots badge for the courses behind it (this week's course first).
+                            val hiddenCount = if (cell.entries.size >= 3) cell.entries.size - 1 else 0
+                            val stack = stackCellItems(cell.entries.take(1), cellHeight)
                             stack.pieces.forEach { piece ->
                             val entry = piece.entry
                             val placement = entry.placement
@@ -3024,14 +3031,13 @@ private fun ScheduleGrid(
                                 ),
                                 hasReminder = hasReminderForCourse(course, reminderRules, timingProfile),
                                 hasNote = courseNotes.hasNote(course.id),
-                                pendingTodoCount = LocalPendingTodoCounts.current[memoCourseKey(course.title)] ?: 0,
                                 attendanceStatus = LocalAttendanceMarks.current[memoCourseKey(course.title) to columnDate.toString()],
                                 selected = course.id == selectedCourseId,
                                 inactive = entry.inactive,
                                 onHoliday = entry.onHoliday,
                                 temporarilyCancelled = entry.temporarilyCancelled,
                                 movedIn = entry.movedIn,
-                                cellCount = if (stack.whole) count else 1,
+                                cellCount = if (stack.whole) (if (hiddenCount > 0) 1 else count) else 1,
                                 multiSelectMode = multiSelectMode,
                                 multiSelected = isMultiSelected,
                                 scheduleTextStyle = scheduleTextStyle,
@@ -3155,6 +3161,15 @@ private fun ScheduleGrid(
                                     offsetX = cellX,
                                     offsetY = cellY + cellHeight - stack.moreHeight,
                                     cornerRadius = scheduleCardStyle.courseCornerRadiusDp.dp,
+                                    onClick = { onCellClick(sortedCourses, columnDate) },
+                                )
+                            }
+                            if (hiddenCount > 0) {
+                                CourseOtherWeekBadge(
+                                    count = hiddenCount,
+                                    dots = true,
+                                    offsetX = cellX + cellWidth - 30.dp,
+                                    offsetY = cellY + cellHeight - 22.dp,
                                     onClick = { onCellClick(sortedCourses, columnDate) },
                                 )
                             }
@@ -3490,19 +3505,25 @@ private fun CourseRenderEntry.span(timeline: GridTimeline, minUnits: Float): Pai
     timeline.courseSpan(placement.rowIndex, placement.rowSpan, course.clockRange(), minUnits)
 
 /**
- * Courses with the same span share one cell; this-week courses come first. Partly overlapping
- * courses keep separate cells, so lanes show each at its own start and end.
+ * Courses in the same period share one cell and stack top and bottom; this-week courses come first.
+ * Courses in different periods that overlap keep separate cells and sit side by side.
  */
 internal fun groupCourseCells(entries: List<CourseRenderEntry>, timeline: GridTimeline): List<CourseCell> {
     // Short typed-time courses grow to the event minimum, so compare spans with that height in mind.
     val minUnits = EVENT_MIN_HEIGHT / MIN_FIT_SLOT_HEIGHT
-    val order = entries.withIndex().associate { (index, entry) -> entry to index }
-    return entries.groupBy { it.placement.dayIndex }.values.flatMap { day ->
-        day.groupBy { entry ->
-            val (top, bottom) = entry.span(timeline, minUnits)
-            kotlin.math.round(top * 1000f) to kotlin.math.round(bottom * 1000f)
-        }
-            .toSortedMap(compareBy<Pair<Float, Float>>({ it.first }, { it.second }))
+    // The same course listed twice in one slot (for example imported and added by hand) is one course:
+    // keep the first copy so it does not take a second lane and fold the real neighbour into a chip.
+    val seenSlots = HashSet<List<Any?>>()
+    val unique = entries.filter { entry ->
+        val c = entry.course
+        seenSlots.add(listOf(entry.placement.dayIndex, c.time.startNode, c.time.endNode, c.title.trim(),
+            c.teacher.trim(), c.location.trim()))
+    }
+    val order = unique.withIndex().associate { (index, entry) -> entry to index }
+    return unique.groupBy { it.placement.dayIndex }.values.flatMap { day ->
+        // Same period (row and span) means same slot: those courses stack top and bottom in one cell.
+        day.groupBy { entry -> entry.placement.rowIndex to entry.placement.rowSpan }
+            .toSortedMap(compareBy<Pair<Int, Int>>({ it.first }, { it.second }))
             .values
             .map { group ->
                 CourseCell(
@@ -3680,7 +3701,7 @@ internal data class CellStack<T>(val pieces: List<CellPiece<T>>, val moreHeight:
 
 internal val CELL_STACK_GAP = 3.dp
 private val LANE_INNER_INSET = 3.dp
-private val CELL_SPLIT_MIN_HEIGHT = 26.dp
+private val CELL_SPLIT_MIN_HEIGHT = 22.dp
 private val CELL_MORE_HEIGHT = 22.dp
 private val CELL_MORE_MIN_TOP = 28.dp
 
@@ -4480,7 +4501,6 @@ private fun CourseBlock(
     hasReminder: Boolean,
     hasNote: Boolean = false,
     /** Open to-dos filed under this course; shown as a small number on the card. */
-    pendingTodoCount: Int = 0,
     /** Mark made for this very session, if any: missed and leave get a small letter on the card. */
     attendanceStatus: com.x500x.cursimple.core.data.attendance.AttendanceStatus? = null,
     selected: Boolean,
@@ -4535,6 +4555,7 @@ private fun CourseBlock(
     }
     val horizontalCentered = scheduleTextStyle.horizontalCenter
     val verticalCentered = scheduleTextStyle.verticalCenter
+    val countBadgeSize = (with(LocalDensity.current) { 10.sp.toDp() } + 2.dp).coerceAtLeast(12.dp)
     val cellTextOverflow = if (scheduleTextStyle.truncationEllipsis) {
         TextOverflow.Ellipsis
     } else {
@@ -4684,7 +4705,8 @@ private fun CourseBlock(
                     .padding(
                         start = sidePadding,
                         end = sidePadding,
-                        top = if (hasCountBadge && !verticalCentered) 16.dp else 3.dp,
+                        // The count badge now sits just above the top edge, so the title only needs to clear it.
+                        top = if (hasCountBadge && !verticalCentered) (countBadgeSize - 2.dp).coerceAtLeast(6.dp) else 3.dp,
                         bottom = 3.dp,
                     ),
                 verticalArrangement = if (verticalCentered) Arrangement.Center else Arrangement.spacedBy(1.dp),
@@ -4876,7 +4898,7 @@ private fun CourseBlock(
                             style = titleStyle,
                             maxLines = plan.titleLines,
                             overflow = cellTextOverflow,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().testTag("schedule-course-title-${course.id}"),
                         )
                         if (plan.showLocation && locationLayout != null) {
                             Text(
@@ -5045,40 +5067,19 @@ private fun CourseBlock(
             }
         }
 
-        if (pendingTodoCount > 0 && !inactive && width >= 36.dp && height >= 28.dp) {
-            // Sits left of the note and moved markers so the three never overlap.
-            val startOffset = 2 + (if (movedIn) 17 else 0) + (if (hasNote) 17 else 0)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .offset(x = (-startOffset).dp, y = (-2).dp)
-                    .defaultMinSize(minWidth = 13.dp, minHeight = 13.dp)
-                    .clip(androidx.compose.foundation.shape.CircleShape)
-                    .background(MaterialTheme.colorScheme.tertiary)
-                    .semantics { contentDescription = "$pendingTodoCount" }
-                    .testTag("course-todo-badge-${course.id}"),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = if (pendingTodoCount > 9) "9+" else pendingTodoCount.toString(),
-                    color = MaterialTheme.colorScheme.onTertiary,
-                    fontSize = 8.sp,
-                    lineHeight = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 2.dp),
-                )
-            }
-        }
 
-        // Inset overlap-count badge avoids parent clipping.
+        // Small overlap-count badge sitting just outside the card's top-left corner, in the lane gutter.
         if (cellCount > 1 && !(multiSelectMode && multiSelected)) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(top = 2.dp, start = 2.dp)
-                    .size(14.dp)
+                    .offset(x = (-2).dp, y = (-2).dp)
+                    .height(countBadgeSize)
+                    .widthIn(min = countBadgeSize)
                     .clip(androidx.compose.foundation.shape.CircleShape)
-                    .background(MaterialTheme.colorScheme.secondary),
+                    .background(MaterialTheme.colorScheme.secondary)
+                    .testTag("schedule-course-count-${course.id}")
+                    .padding(horizontal = 2.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(

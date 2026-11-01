@@ -57,7 +57,7 @@
     <string name="schedule_week_values_pick_hint">Tap weeks to select; slide sideways to select a run</string>
     <string name="schedule_week_values_select_all">All</string>
     <string name="schedule_week_values_select_none">Clear</string>
-    <string name="schedule_week_values_nothing_selected">Select the weeks to change above</string>
+    <string name="schedule_week_values_nothing_selected">Pick the weeks to change above first</string>
     <string name="schedule_week_values_selected">Selected: %1$s</string>
     <string name="schedule_week_values_mixed">These weeks differ; type to set them all</string>
     <string name="schedule_week_values_apply">Apply</string>
@@ -68,7 +68,7 @@
     <string name="schedule_week_values_filter_all">All %1$d</string>
     <string name="schedule_week_values_filter_custom">Set %1$d</string>
     <string name="schedule_week_values_filter_default">Unset %1$d</string>
-    <string name="schedule_week_values_none_custom">No week has its own value yet</string>
+    <string name="schedule_week_values_none_custom">No special weeks yet, everything follows the default~</string>
     <string name="schedule_week_values_none_default">Every week has its own value</string>
     <string name="schedule_week_start_label">Start week</string>
     <string name="schedule_week_end_label">End week</string>
@@ -88,7 +88,7 @@
     <string name="schedule_placeholder_end_label">End</string>
     <string name="schedule_placeholder_weeks_label">Active weeks</string>
     <string name="schedule_placeholder_days_label">Active weekdays</string>
-    <string name="schedule_placeholder_days_empty">Pick at least one day</string>
+    <string name="schedule_placeholder_days_empty">Pick at least one day~</string>
     <string name="schedule_placeholder_label_label">Period label</string>
     <string name="schedule_placeholder_label_hint">Reminder rules match this label. Pick one or type your own</string>
     <string name="schedule_placeholder_time_label">Time</string>
@@ -160,7 +160,7 @@
     <string name="schedule_reminder_rule_section_when">When all of these hold that day</string>
     <string name="schedule_reminder_rule_section_then">Then</string>
     <string name="schedule_next_alarm_label">Next alarm</string>
-    <string name="schedule_next_alarm_none">No upcoming alarms</string>
+    <string name="schedule_next_alarm_none">The alarms are all asleep zZ</string>
     <string name="schedule_next_alarm_none_hint">Turn on exam alarms below, add a period rule, or create one yourself.</string>
     <plurals name="schedule_next_alarm_more">
         <item quantity="one">%1$d more after this</item>
@@ -222,7 +222,7 @@
     <string name="schedule_note_hint">Textbook, room change, quiz... jot a note for yourself</string>
     <string name="schedule_note_over_limit">%1$d over the limit, max %2$d characters</string>
     <string name="schedule_action_clear">Clear</string>
-    <string name="schedule_note_empty">No note yet, tap Add to write one</string>
+    <string name="schedule_note_empty">No notes for this class yet, tap \"Add\" to jot one down</string>
     <string name="schedule_exam_mute_title">Global exam alarms</string>
     <string name="schedule_exam_mute_disabled">Off, enable it under Alarms on the Reminders page</string>
     <string name="schedule_exam_mute_muted">Alarm cancelled for this exam</string>
@@ -355,7 +355,7 @@
         <item quantity="one">%1$d course</item>
         <item quantity="other">%1$d courses</item>
     </plurals>
-    <string name="schedule_library_empty">No courses in this term yet</string>
+    <string name="schedule_library_empty">No classes this term yet, the timetable is on its way~</string>
     <string name="schedule_library_no_match">No matching course</string>
     <string name="schedule_library_variants_expand">Show variants</string>
     <string name="schedule_library_variants_collapse">Hide variants</string>
@@ -477,16 +477,16 @@
     <string name="schedule_conflict_warning_overflow">" and %1$d in total"</string>
     <string name="schedule_holiday_unnamed">Holiday</string>
     <string name="schedule_hint_needs_sync">No timetable yet. Sync one from the plugin page, or tap an empty cell to add a course.</string>
-    <string name="schedule_hint_no_courses">The timetable is still empty. Tap an empty cell to add a course.</string>
+    <string name="schedule_hint_no_courses">The timetable is still empty. Tap an empty cell to add your first class</string>
     <string name="schedule_hint_no_course_this_week">No courses this week. Switch to another week, or tap an empty cell to add one.</string>
     <string name="schedule_empty_holiday_subtitle">This day is a holiday: no courses are scheduled and no course alarms will ring.</string>
-    <string name="schedule_empty_not_started_title">Term has not started</string>
+    <string name="schedule_empty_not_started_title">Not in session yet, rest a little longer~</string>
     <string name="schedule_empty_not_started_subtitle_date">The term starts on %1$d/%2$d, and courses will show up then.</string>
     <string name="schedule_empty_not_started_subtitle">Courses will show up once the term starts.</string>
-    <string name="schedule_empty_no_schedule_title">No timetable synced yet</string>
-    <string name="schedule_empty_no_schedule_subtitle">Sync a timetable from the plugin page, or manage alarms in settings.</string>
-    <string name="schedule_empty_week_title">No courses this week</string>
-    <string name="schedule_empty_week_subtitle">Switch to another week, or sync the latest data from the plugin page.</string>
+    <string name="schedule_empty_no_schedule_title">Your timetable is on its way</string>
+    <string name="schedule_empty_no_schedule_subtitle">Sync it from the plugin page, or set up alarms in Settings</string>
+    <string name="schedule_empty_week_title">This week is wonderfully free</string>
+    <string name="schedule_empty_week_subtitle">Try another week, or sync the latest timetable from the plugin page.</string>
     <string name="schedule_legacy_rule_scope_single_course">Single-course alarm (legacy)</string>
     <string name="schedule_legacy_rule_scope_time_slot">Time-slot alarm (legacy)</string>
     <string name="schedule_legacy_rule_scope_exam">Exam alarm (legacy)</string>
@@ -630,18 +630,25 @@
     <string name="schedule_weeks_fill_term">Whole term</string>
     <string name="free_time_title">Shared free time</string>
     <string name="free_time_code_label">Paste their share code</string>
-    <string name="free_time_code_hint">Create a share code in their timetable and paste it here</string>
+    <string name="free_time_code_hint">Ask them to create a share code from their timetable, then paste it here~</string>
     <string name="free_time_compare">Compare</string>
     <string name="free_time_decode_failed">This is not a valid timetable share code</string>
     <string name="free_time_prev_week">Previous week</string>
     <string name="free_time_next_week">Next week</string>
     <string name="free_time_week_range">%1$d/%2$d – %3$d/%4$d</string>
     <string name="free_time_their_count">Their classes this week: %1$d</string>
-    <string name="free_time_none">You are both busy in every period this week</string>
+    <string name="free_time_none">Both of your weeks are packed, no shared gaps this time</string>
     <string name="free_time_day">%1$s %2$d/%3$d</string>
     <string name="free_time_one_period">Period %1$d</string>
     <string name="free_time_periods">Periods %1$d–%2$d</string>
     <string name="free_time_entry">Shared free time</string>
+    <string name="free_time_legend_both">Both free</string>
+    <string name="free_time_legend_busy">Class</string>
+    <string name="free_time_mine">Me</string>
+    <string name="free_time_theirs">Them</string>
+    <string name="free_time_empty_period">Free</string>
+    <string name="free_time_cell_free">Period %1$d, both free</string>
+    <string name="free_time_cell_busy">Period %1$d, class</string>
     <string name="stats_no_term">Set the term start date to see statistics</string>
     <string name="stats_total_sessions">Total</string>
     <string name="stats_done_sessions">Done</string>
@@ -651,7 +658,7 @@
     <string name="stats_course_count">%1$d of %2$d</string>
     <string name="stats_no_courses">No courses yet</string>
     <string name="stats_attendance">Attendance</string>
-    <string name="stats_attendance_none">No attendance marked yet</string>
+    <string name="stats_attendance_none">No attendance yet, tap when you make it to class</string>
     <string name="stats_attendance_rate">Attended %1$d%%</string>
     <string name="stats_attendance_counts">%1$d attended · %2$d missed · %3$d on leave</string>
     <string name="attendance_title">Attendance</string>
@@ -675,7 +682,7 @@
     <string name="attendance_badge_leave">L</string>
     <string name="course_todos_title">Homework and to-dos</string>
     <string name="course_todos_open_count">%1$d open</string>
-    <string name="course_todos_none">Nothing to do for this course</string>
+    <string name="course_todos_none">No homework for this class right now, enjoy it</string>
     <string name="course_todos_more">%1$d more not shown, see them in Notes</string>
     <string name="course_todos_done_count">%1$d done</string>
     <string name="course_todos_add">Add homework</string>
@@ -688,7 +695,7 @@
     <string name="course_todos_due_tomorrow">Tomorrow</string>
     <string name="course_todos_due_pick">Pick a date</string>
     <string name="course_todos_due_none">No deadline</string>
-    <string name="schedule_week_empty_hint">Nothing scheduled this week\nDouble-tap an empty cell to add a course</string>
+    <string name="schedule_week_empty_hint">No classes this week yet\nDouble-tap an empty cell to add one</string>
     <string name="schedule_appearance_section">Colors and border</string>
     <string name="schedule_appearance_fill">Fill</string>
     <string name="schedule_appearance_presets">Presets</string>
@@ -705,7 +712,7 @@
     <string name="schedule_course_place_section">Location and teacher</string>
     <string name="schedule_week_custom_title">Pick weeks</string>
     <string name="schedule_week_custom_hint">Tap to select, tap again to clear.</string>
-    <string name="schedule_week_custom_empty">No weeks picked yet</string>
+    <string name="schedule_week_custom_empty">No weeks picked yet, tap to choose</string>
     <string name="schedule_week_custom_summary">%1$d weeks picked</string>
     <string name="schedule_week_custom_edit">Edit</string>
     <string name="schedule_week_custom_all">Select all</string>
@@ -726,7 +733,7 @@
     <string name="schedule_library_add_event">Add event</string>
     <string name="schedule_library_tab_courses">Courses %1$d</string>
     <string name="schedule_library_tab_events">Events %1$d</string>
-    <string name="schedule_library_events_empty">No events yet\nTap \"Add event\" for meetings, clubs or interviews</string>
+    <string name="schedule_library_events_empty">No events yet\nTap \"Add event\" to note meetings, clubs, interviews and more</string>
     <string name="schedule_event_add_title">Add event</string>
     <string name="schedule_event_edit_title">Edit event</string>
     <string name="schedule_event_edit">Edit</string>
@@ -789,9 +796,9 @@
     <string name="memo_delete_title">Delete note</string>
     <string name="memo_delete_body">Delete \"%1$s\"? This cannot be undone.</string>
     <string name="memo_untitled">Untitled</string>
-    <string name="memo_empty_filter">Nothing here</string>
-    <string name="memo_empty_all">No notes yet\nTap New note to start</string>
-    <string name="memo_empty_notebook">No notes for this course yet. Tap New note to add one.</string>
+    <string name="memo_empty_filter">Nothing in this category yet, want to jot something down?</string>
+    <string name="memo_empty_all">Your notebook is still blank.\nTap \"New note\" at the bottom right and write your first line</string>
+    <string name="memo_empty_notebook">This class\'s notebook is still empty, tap the bottom right to write the first one</string>
     <string name="memo_new">New note</string>
     <string name="memo_stat_todo">Open</string>
     <string name="memo_stat_today">Due today</string>
@@ -814,7 +821,7 @@
     <string name="memo_editor_new">New note</string>
     <string name="memo_editor_edit">Edit note</string>
     <string name="memo_editor_notebook">Notebook</string>
-    <string name="memo_editor_title_hint">Title</string>
+    <string name="memo_editor_title_hint">Give it a title</string>
     <string name="memo_tool_check">Checkbox</string>
     <string name="memo_tool_bullet">List</string>
     <string name="memo_tool_numbered">Numbered</string>
@@ -833,7 +840,7 @@
     <string name="memo_editor_discard">Discard</string>
     <string name="memo_editor_keep_editing">Keep editing</string>
     <string name="memo_editor_body_hint">Write something…\nUse the toolbar below for checkboxes, lists or numbering; Enter just starts a new line</string>
-    <string name="memo_editor_preview_empty">Nothing written yet</string>
+    <string name="memo_editor_preview_empty">Nothing here yet, write something</string>
     <string name="memo_editor_priority">Priority</string>
     <string name="memo_editor_due">Deadline</string>
     <string name="memo_editor_due_add">Add deadline</string>
@@ -851,16 +858,16 @@
     <string name="memo_notebook_orphan_short">No longer on the timetable</string>
     <string name="memo_notebook_search">Search course, teacher or room</string>
     <string name="memo_notebook_search_clear">Clear search</string>
-    <string name="memo_notebook_search_empty">No matching course</string>
-    <string name="memo_search_hint">Title, text or course</string>
+    <string name="memo_notebook_search_empty">No such class, try another name</string>
+    <string name="memo_search_hint">Search titles, content or classes~</string>
     <string name="memo_search_clear">Clear search</string>
-    <string name="memo_search_empty">No matching notes</string>
+    <string name="memo_search_empty">Nothing found, try another word</string>
     <string name="memo_share">Share</string>
     <string name="memo_share_title">Share notes</string>
     <string name="memo_share_scope_all">All notes</string>
     <string name="memo_share_scope_summary">%1$s · %2$s</string>
     <plurals name="memo_share_count"><item quantity="one">%1$d note</item><item quantity="other">%1$d notes</item></plurals>
-    <string name="memo_share_empty">There are no notes in this list to share</string>
+    <string name="memo_share_empty">No notes to share here yet</string>
     <string name="memo_share_format_image">Image</string>
     <string name="memo_share_format_image_desc">A long image; very long content is split into several</string>
     <string name="memo_share_format_word">Word document</string>
@@ -1005,4 +1012,13 @@
     <string name="schedule_custom_course_color_reset">Reset</string>
     <string name="schedule_exam_seat_line">Exam seat: %1$s</string>
     <string name="schedule_exam_bring_items">Bring your ID, student card and admission ticket, and arrive early</string>
+    <string name="course_todo_complete_title">Mark “%1$s” as done?</string>
+    <string name="course_todo_complete_body">The matching note in Notes will be updated too.</string>
+    <string name="course_todo_complete_confirm">Mark done</string>
+    <string name="schedule_action_color">Colour</string>
+    <string name="free_time_shared_title">Shared free periods</string>
+    <string name="free_time_block_label">Free</string>
+    <string name="school_portal_import_done">Timetable imported.</string>
+    <string name="school_portal_plugin_no_portal">This plugin does not provide a usable portal address.</string>
+    <string name="stats_week_detail">Week %1$d: %2$d classes</string>
 </resources>

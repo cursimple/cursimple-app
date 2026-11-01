@@ -32,6 +32,7 @@ data class PluginManifest(
      */
     @SerialName("kind") val kind: String = KIND_SCHEDULE,
     @SerialName("extension") val extension: PluginExtensionSpec? = null,
+    @SerialName("home") val home: PluginHomeSpec? = null,
 ) {
     val pluginId: String get() = id
 
@@ -42,6 +43,24 @@ data class PluginManifest(
         const val KIND_EXTENSION = "extension"
     }
 }
+
+/** A schedule plugin owns the queries and section labels; the host renders and stores results. */
+@Serializable
+data class PluginHomeSpec(
+    val entry: String,
+    val runUrl: String,
+    val loginUrl: String,
+    val sections: List<PluginHomeSectionSpec>,
+    val loginHelp: Map<String, String> = emptyMap(),
+)
+
+@Serializable
+data class PluginHomeSectionSpec(
+    val id: String,
+    val title: String,
+    val titles: Map<String, String> = emptyMap(),
+    val url: String? = null,
+)
 
 /**
  * Extensions export checkLogin and sync for background feed production. Expand settings

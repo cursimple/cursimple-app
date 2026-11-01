@@ -1,6 +1,5 @@
 package com.x500x.cursimple.app
 
-import androidx.compose.material.icons.rounded.Schedule
 import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import com.x500x.cursimple.feature.plugin.ui.rememberAppHaptics
 
@@ -47,6 +46,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -505,7 +505,6 @@ class MainActivity : ComponentActivity() {
                     var openSettingsDestination by rememberSaveable { mutableStateOf<SettingsDestinationKey?>(null) }
                     var settingsReturnTarget by rememberSaveable { mutableStateOf<SettingsReturnTargetKey?>(null) }
                     var showAddMenu by remember { mutableStateOf(false) }
-                    var showSharedFreeTime by rememberSaveable { mutableStateOf(false) }
                     val scheduleViewModel: ScheduleViewModel = viewModel(
                         factory = ScheduleViewModelFactory(
                             appContext = applicationContext,
@@ -521,6 +520,9 @@ class MainActivity : ComponentActivity() {
                                 container.normalizeTimingProfileForActiveTerm(profile)
                             },
                             onSyncCompleted = { profile -> container.refreshWidgets(profile) },
+                            onSchoolTimingImported = { name, profile ->
+                                container.widgetPreferencesRepository.selectImportedTimingProfile(name, profile)
+                            },
                             onAlarmSyncChecked = {
                                 container.userPreferencesRepository.markAlarmPollAt(System.currentTimeMillis())
                             },
@@ -697,6 +699,7 @@ class MainActivity : ComponentActivity() {
                     )
                     var showThemeSheet by rememberSaveable { mutableStateOf(false) }
                     var showThemeAccentDialog by rememberSaveable { mutableStateOf(false) }
+                    var drawerAppearance by rememberSaveable { mutableStateOf<DrawerAppearance?>(null) }
                     var showAppLanguageDialog by rememberSaveable { mutableStateOf(false) }
                     var showWidgetThemeAccentDialog by rememberSaveable { mutableStateOf(false) }
                     var showAddCourseDialog by rememberSaveable { mutableStateOf(false) }
@@ -920,7 +923,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onPickThemeAccent = {
                                     scope.launch { drawerState.close() }
-                                    showThemeAccentDialog = true
+                                    drawerAppearance = DrawerAppearance.Theme
                                 },
                                 onOpenTemporaryOverrides = {
                                 scope.launch { drawerState.close() }
@@ -935,8 +938,7 @@ class MainActivity : ComponentActivity() {
                             },
                             onPickScheduleBackground = {
                                     scope.launch { drawerState.close() }
-                                    openSettingsDestination = SettingsDestinationKey.ScheduleBackground
-                                    currentScreen = AppScreen.Settings
+                                    drawerAppearance = DrawerAppearance.Background
                                 },
                             )
                         },
@@ -1201,15 +1203,6 @@ class MainActivity : ComponentActivity() {
                                                         },
                                                     )
                                                     DropdownMenuItem(
-                                                        text = { Text(stringResource(com.x500x.cursimple.feature.schedule.R.string.free_time_entry)) },
-                                                        leadingIcon = { Icon(Icons.Rounded.Schedule, contentDescription = null) },
-                                                        onClick = {
-                                                            showAddMenu = false
-                                                            showSharedFreeTime = true
-                                                        },
-                                                        modifier = Modifier.testTag("menu-shared-free-time"),
-                                                    )
-                                                    DropdownMenuItem(
                                                         text = { Text(stringResource(R.string.main_manage_terms)) },
                                                         leadingIcon = {
                                                             Icon(
@@ -1278,23 +1271,6 @@ class MainActivity : ComponentActivity() {
                                                     )
                                                 }
 
-                                                if (showSharedFreeTime) {
-                                                    val freeTimeContext = LocalContext.current
-                                                    com.x500x.cursimple.feature.schedule.SharedFreeTimeDialog(
-                                                        myCourses = scheduleState.schedule.allCoursesWith(scheduleState.manualCourses),
-                                                        myTermStart = prefs.termStartDate,
-                                                        timingSlots = scheduleState.timingProfile?.slotTimes.orEmpty(),
-                                                        decode = { text ->
-                                                            com.x500x.cursimple.app.util.ScheduleShareCodec.decode(text).map { payload ->
-                                                                com.x500x.cursimple.feature.schedule.SharedTimetable(
-                                                                    courses = payload.schedule.allCoursesWith(payload.manualCourses),
-                                                                    termStart = payload.termStartDate?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() },
-                                                                )
-                                                            }
-                                                        },
-                                                        onDismiss = { showSharedFreeTime = false },
-                                                    )
-                                                }
                                             }
                                         }
                                     },
@@ -1993,6 +1969,7 @@ class MainActivity : ComponentActivity() {
                                 onSyncPlugin = scheduleViewModel::syncSchedule,
                                 onCompleteWebSession = scheduleViewModel::completeWebSession,
                                 onCancelWebSession = scheduleViewModel::cancelWebSession,
+                                onOpenSchoolPortal = scheduleViewModel::startSchoolPortal,
                                 onBack = { subScreen = null },
                                 onBrowseAllPlugins = {
                                     subScreen = null
@@ -2093,6 +2070,34 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    drawerAppearance?.let { kind ->
+                        DrawerAppearanceChooser(
+                            kind = kind,
+                            onDismiss = { drawerAppearance = null },
+                            onThemeColor = {
+                                drawerAppearance = null
+                                showThemeAccentDialog = true
+                            },
+                            onScheduleStyle = {
+                                drawerAppearance = null
+                                openSettingsDestination = SettingsDestinationKey.ScheduleStyle
+                                currentScreen = AppScreen.Settings
+                                subScreen = null
+                            },
+                            onScheduleBackground = {
+                                drawerAppearance = null
+                                openSettingsDestination = SettingsDestinationKey.ScheduleBackground
+                                currentScreen = AppScreen.Settings
+                                subScreen = null
+                            },
+                            onWidgetBackground = {
+                                drawerAppearance = null
+                                openSettingsDestination = SettingsDestinationKey.WidgetBackground
+                                currentScreen = AppScreen.Settings
+                                subScreen = null
+                            },
+                        )
+                    }
                     if (showThemeAccentDialog) {
                         ThemeAccentDialog(
                             current = prefs.themeAccent,
@@ -3079,3 +3084,94 @@ internal fun resolveDayOffsetForSelectedWeek(
 }
 
 private const val PLUGIN_PREFETCH_DELAY_MILLIS = 3_000L
+
+/** Which appearance shortcut opened the chooser: theme (colour or schedule style) or background. */
+internal enum class DrawerAppearance { Theme, Background }
+
+/**
+ * First step of the drawer's appearance shortcuts: pick what to change before opening its editor.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DrawerAppearanceChooser(
+    kind: DrawerAppearance,
+    onDismiss: () -> Unit,
+    onThemeColor: () -> Unit,
+    onScheduleStyle: () -> Unit,
+    onScheduleBackground: () -> Unit,
+    onWidgetBackground: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(
+                    if (kind == DrawerAppearance.Theme) R.string.drawer_chooser_theme_title else R.string.drawer_chooser_background_title,
+                ),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            if (kind == DrawerAppearance.Theme) {
+                DrawerChooserRow(
+                    icon = Icons.Rounded.Palette,
+                    title = stringResource(R.string.drawer_chooser_theme_color),
+                    subtitle = stringResource(R.string.drawer_chooser_theme_color_hint),
+                    onClick = onThemeColor,
+                )
+                DrawerChooserRow(
+                    icon = Icons.Rounded.Style,
+                    title = stringResource(R.string.settings_dest_schedule_style),
+                    subtitle = stringResource(R.string.drawer_chooser_schedule_style_hint),
+                    onClick = onScheduleStyle,
+                )
+            } else {
+                DrawerChooserRow(
+                    icon = Icons.Rounded.Wallpaper,
+                    title = stringResource(R.string.settings_schedule_background),
+                    subtitle = stringResource(R.string.drawer_chooser_schedule_background_hint),
+                    onClick = onScheduleBackground,
+                )
+                DrawerChooserRow(
+                    icon = Icons.Rounded.Widgets,
+                    title = stringResource(R.string.settings_dest_widget_background),
+                    subtitle = stringResource(R.string.drawer_chooser_widget_background_hint),
+                    onClick = onWidgetBackground,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DrawerChooserRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}

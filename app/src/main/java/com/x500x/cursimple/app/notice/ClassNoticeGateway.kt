@@ -114,14 +114,20 @@ object ClassNoticeGateway {
             overrides = userPreferences.temporaryScheduleOverrides,
             holidayCalendar = userPreferences.holidayCalendar,
         )
-        val body = if (tomorrowClasses.isNotEmpty()) {
-            val first = tomorrowClasses.first()
-            val time = String.format("%02d:%02d", first.startAt.hour, first.startAt.minute)
-            val title = first.displayTitle()
-            val loc = first.displayLocation().let { if (it.isNotBlank()) "在 $it" else "" }
-            "明天共有 ${tomorrowClasses.size} 节课，第一节 $time《$title》$loc，记得设闹钟"
-        } else {
-            "明天没有课程，好好休息吧！"
+        // Without a timing profile the schedule cannot be placed on clock times, so say so instead of "no classes".
+        val body = when {
+            timingProfile == null || timingProfile.slotTimes.isEmpty() ->
+                app.getString(com.x500x.cursimple.R.string.notice_evening_unknown)
+            tomorrowClasses.isNotEmpty() -> {
+                val first = tomorrowClasses.first()
+                val time = String.format("%02d:%02d", first.startAt.hour, first.startAt.minute)
+                val title = first.displayTitle()
+                val loc = first.displayLocation().takeIf { it.isNotBlank() }
+                    ?.let { app.getString(com.x500x.cursimple.R.string.notice_evening_location, it) }
+                    .orEmpty()
+                app.getString(com.x500x.cursimple.R.string.notice_evening_body, tomorrowClasses.size, time, title, loc)
+            }
+            else -> app.getString(com.x500x.cursimple.R.string.notice_evening_empty)
         }
         // Loading tomorrow's courses can suspend; use the latest switches before posting.
         if (shouldDeliverScheduledClassNotice(

@@ -20,6 +20,9 @@ import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.manifest.PluginExtensionUiPage
 import com.x500x.cursimple.core.plugin.manifest.PluginPermission
 import com.x500x.cursimple.core.plugin.manifest.PluginWebEngineRequirement
+import com.x500x.cursimple.core.plugin.manifest.PluginWebSessionOptions
+import com.x500x.cursimple.core.plugin.school.SchoolPortalCatalog
+import com.x500x.cursimple.core.plugin.school.SchoolPortalEntry
 import com.x500x.cursimple.core.plugin.market.ComponentMarketIndexPayload
 import com.x500x.cursimple.core.plugin.market.MarketIndexRepository
 import com.x500x.cursimple.core.plugin.runtime.PluginSyncInput
@@ -269,6 +272,87 @@ class PluginManager(
         }
     }
 
+    /**
+     * Open a catalog school's portal without a plugin package. The bundled generic extractor
+     * runs in the signed-in page and only imports after the user taps upload.
+     */
+    suspend fun startSchoolPortal(school: SchoolPortalEntry, termId: String): WorkflowExecutionResult {
+        val startedAt = System.currentTimeMillis()
+        val traceId = "trace-${UUID.randomUUID().toString().take(12)}"
+        return try {
+            val portalUrl = school.portalUrl?.trim()?.takeIf { SchoolPortalCatalog.isOpenablePortal(it) }
+                ?: return WorkflowExecutionResult.Failure(appContext.getString(R.string.school_portal_missing_url))
+            val host = URI(portalUrl).host.orEmpty()
+            val permissions = listOf(PluginPermission.WebReadDom, PluginPermission.ScheduleWrite)
+            val record = InstalledPluginRecord(
+                pluginId = SCHOOL_PORTAL_PLUGIN_ID,
+                name = school.name,
+                version = "1",
+                versionCode = 1,
+                storagePath = "",
+                installedAt = "",
+                source = PluginInstallSource.Bundled,
+                permissions = permissions,
+                allowedHosts = SchoolPortalCatalog.allowedHostsFor(host),
+                isBundled = true,
+            )
+            val manifest = PluginManifest(
+                id = SCHOOL_PORTAL_PLUGIN_ID,
+                name = school.name,
+                version = "1",
+                versionCode = 1,
+                entry = SCHOOL_PORTAL_ENTRY_ASSET,
+                permissions = permissions,
+                allowedHosts = SchoolPortalCatalog.allowedHostsFor(host),
+                startUrl = portalUrl,
+                webSession = PluginWebSessionOptions(
+                    autoCompleteOnScheduleDraft = false,
+                    manualUploadHintDelayMs = 2_000,
+                ),
+            )
+            val entryScript = appContext.assets.open(SCHOOL_PORTAL_ENTRY_ASSET).bufferedReader().use { it.readText() }
+            val startUrl = resolveWebSessionStartUrl("", manifest.startUrl, manifest.allowedHosts)
+            val token = UUID.randomUUID().toString()
+            val sessionId = "${record.pluginId}-${token.take(8)}"
+            val input = PluginSyncInput(
+                pluginId = SCHOOL_PORTAL_PLUGIN_ID,
+                username = "",
+                password = "",
+                termId = termId,
+                baseUrl = portalUrl,
+            )
+            pendingSessions[token] = PendingPluginSession(
+                record = record,
+                manifest = manifest,
+                input = input,
+                uiSchema = PluginUiSchema(),
+                timingProfile = school.timingProfile,
+                messages = emptyList(),
+                traceId = traceId,
+            )
+            WorkflowExecutionResult.AwaitingWebSession(
+                request = buildWebSessionRequest(
+                    token = token,
+                    record = record,
+                    sessionId = sessionId,
+                    startUrl = startUrl,
+                    termId = termId,
+                    entryScript = entryScript,
+                    manifest = manifest,
+                    traceId = traceId,
+                ).copy(timingSlots = school.timingProfile?.slotTimes.orEmpty()),
+            ).also {
+                logRuntimeResult("plugin.school_portal.start.result", SCHOOL_PORTAL_PLUGIN_ID, startedAt, it, traceId)
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            appContext.pluginErrorTextOr(error, R.string.plugin_error_sync_start_failed).let {
+                WorkflowExecutionResult.Failure(it)
+            }
+        }
+    }
+
     suspend fun startSync(request: PluginSyncInput): WorkflowExecutionResult {
         val startedAt = System.currentTimeMillis()
         val traceId = "trace-${UUID.randomUUID().toString().take(12)}"
@@ -419,7 +503,11 @@ class PluginManager(
                 draft
             }
             WorkflowExecutionResult.Success(
-                schedule = effectiveDraft.toTermSchedule(session.manifest.limits).copy(sourcePluginId = session.record.pluginId),
+                // The school portal is not a plugin, so its import has no plugin origin.
+                schedule = effectiveDraft.toTermSchedule(session.manifest.limits).copy(
+                    sourcePluginId = session.record.pluginId.takeUnless { it == SCHOOL_PORTAL_PLUGIN_ID },
+                    sourceName = session.record.name.takeUnless { session.record.pluginId == SCHOOL_PORTAL_PLUGIN_ID },
+                ),
                 uiSchema = session.uiSchema,
                 timingProfile = session.timingProfile,
                 messages = session.messages,
@@ -594,6 +682,9 @@ class PluginManager(
         val traceId: String,
     )
 }
+
+internal const val SCHOOL_PORTAL_PLUGIN_ID = SchoolPortalCatalog.PLUGIN_ID
+internal const val SCHOOL_PORTAL_ENTRY_ASSET = "school-portal/generic-timetable.js"
 
 internal fun buildWebSessionRequest(
     token: String,

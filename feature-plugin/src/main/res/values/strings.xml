@@ -7,15 +7,15 @@
     <string name="plugin_market_read_component_package_failed">读取组件包失败</string>
     <string name="plugin_market_read_file_failed">无法读取文件内容</string>
     <string name="plugin_market_loading_title">正在加载...</string>
-    <string name="plugin_market_empty_title">插件市场为空</string>
+    <string name="plugin_market_empty_title">插件市场空空的</string>
     <string name="plugin_market_loading_subtitle">稍候。</string>
-    <string name="plugin_market_empty_subtitle">刷新列表后再试，也可以从本地导入 ZIP。</string>
-    <string name="plugin_market_installed_empty_title">还没有任何插件</string>
-    <string name="plugin_market_installed_empty_subtitle">前往市场安装插件，或从本地导入 ZIP。</string>
+    <string name="plugin_market_empty_subtitle">刷新一下列表再来看看吧，也可以从本地导入 ZIP 哦～</string>
+    <string name="plugin_market_installed_empty_title">还没有安装插件呢</string>
+    <string name="plugin_market_installed_empty_subtitle">去市场挑几个装上吧，或者从本地导入 ZIP</string>
     <plurals name="plugin_market_browse_all">
         <item quantity="other">浏览全部 %1$d 个插件</item>
     </plurals>
-    <string name="plugin_market_search_empty">没有匹配「%1$s」的插件</string>
+    <string name="plugin_market_search_empty">没找到「%1$s」相关的插件，换个词试试～</string>
     <plurals name="plugin_market_search_count">
         <item quantity="other">共 %1$d 个插件</item>
     </plurals>
@@ -102,9 +102,9 @@
     </plurals>
     <string name="plugin_log_copied_one">已复制该条日志</string>
     <string name="plugin_log_cleared">已清空日志</string>
-    <string name="plugin_log_empty">暂无日志，操作插件后会自动产生</string>
-    <string name="plugin_log_no_match">当前筛选条件下没有匹配日志</string>
-    <string name="plugin_log_search_placeholder">搜索事件名/插件 ID/字段值…</string>
+    <string name="plugin_log_empty">还没有日志哦，操作一下插件，它们就会悄悄记下来</string>
+    <string name="plugin_log_no_match">这个筛选下没有日志呢</string>
+    <string name="plugin_log_search_placeholder">搜搜看：事件名、插件 ID 或字段值…</string>
     <string name="plugin_log_filter_all_levels">全部</string>
     <string name="plugin_log_filter_all_sources">全部来源</string>
     <string name="plugin_log_filter_trace_chip">trace=%1$s × 取消</string>
@@ -115,6 +115,9 @@
     <string name="plugin_web_stage_writing">写入课表数据</string>
     <string name="plugin_web_status_uploading">上传课表 · %1$s（%2$d/3）</string>
     <string name="plugin_web_status_page_error">页面加载失败：%1$s</string>
+    <string name="plugin_web_status_import_error">课表导入失败：%1$s</string>
+    <string name="plugin_web_yangtze_workbench_hint">网关已登录，请点击工作台上的「教务系统」，进入教务系统后再继续导入课表。</string>
+    <string name="plugin_web_yangtze_timetable_hint">已进入教务系统首页，请打开「我的课表」，等课表显示完整后，再点击「上传课表」。</string>
     <string name="plugin_web_status_blocked">已拦截非白名单跳转：%1$s</string>
     <string name="plugin_web_status_popup">已接管新窗口跳转：%1$s</string>
     <string name="plugin_web_status_pending_completion">数据已就绪，等待页面停止跳转…</string>
@@ -154,7 +157,7 @@
     <string name="plugin_market_status_registry_not_configured">请先在设置-插件中配置注册表仓库</string>
     <string name="plugin_market_status_loading">正在加载插件市场...</string>
     <string name="plugin_market_status_checking_update">正在检查「%1$s」有没有新版…</string>
-    <string name="plugin_market_status_market_empty">插件市场为空</string>
+    <string name="plugin_market_status_market_empty">插件市场空空的</string>
     <plurals name="plugin_market_status_market_loaded">
         <item quantity="other">已加载 %1$d 个插件</item>
     </plurals>
@@ -221,11 +224,11 @@
     <string name="school_import_step_install">装插件</string>
     <string name="school_import_step_login">登录导课</string>
     <string name="school_import_search_label">搜索学校</string>
-    <string name="school_import_market_empty">还没拉到插件列表，检查下网络再试一次</string>
+    <string name="school_import_market_empty">还没拉到插件列表呢，看看网络再试一次吧</string>
     <string name="school_import_retry">重新加载</string>
     <string name="school_import_refresh">刷新插件列表</string>
     <string name="school_import_refresh_list">刷新插件列表</string>
-    <string name="school_import_no_match">「%1$s」还没有对应的插件</string>
+    <string name="school_import_no_match">「%1$s」还没有对应的插件呢</string>
     <plurals name="school_import_catalog_count">
         <item quantity="other">目前收录 %1$d 个学校插件</item>
     </plurals>
@@ -235,7 +238,7 @@
     <plurals name="school_import_match_count">
         <item quantity="other">在 %1$d 个插件里搜到 %2$d 个</item>
     </plurals>
-    <string name="school_import_no_match_hint">插件由各校同学自己写、自己提交，你的学校可能还没人做。可以先手动加课，或者用「导入 / 导出课程」从文件导入。</string>
+    <string name="school_import_no_match_hint">插件都是同学们自己写的呀，你的学校说不定还没人做过呢。可以先手动加课，或者去「导入 / 导出课程」从文件导入。</string>
     <string name="school_import_add_manually">手动添加课程</string>
     <string name="school_import_browse_all">浏览全部插件</string>
     <string name="school_import_installed_enabled">已安装并启用</string>
@@ -278,15 +281,15 @@
     <string name="extension_account_logged_in">已登录：%1$s</string>
     <string name="extension_account_expired">登录已失效</string>
     <string name="extension_account_expired_desc">%1$s的登录过期了，重新登录后才能继续同步。</string>
-    <string name="extension_account_none">还没登录%1$s</string>
-    <string name="extension_account_none_desc">登录后课简才能替你看作业、考试和公告。</string>
+    <string name="extension_account_none">还没登录%1$s 呢</string>
+    <string name="extension_account_none_desc">登录之后，课简就能帮你盯着作业、考试和公告啦～</string>
     <string name="extension_sync_never">还没同步过</string>
     <string name="extension_interval_minutes">%1$d 分钟</string>
     <string name="extension_due_off">不提醒</string>
     <string name="extension_feed_open_settings">组件设置</string>
     <string name="extension_feed_banner_expired">登录已失效，这里显示的是上次同步的内容。点这里重新登录。</string>
-    <string name="extension_feed_empty_expired">登录已失效</string>
-    <string name="extension_feed_empty_login">登录后这里会显示作业、考试和公告</string>
+    <string name="extension_feed_empty_expired">登录过期啦，重新登一下吧</string>
+    <string name="extension_feed_empty_login">登录后，作业、考试和公告会在这里冒出来</string>
     <string name="extension_feed_go_login">去登录</string>
     <string name="extension_item_due">截止：%1$s（%2$s）</string>
     <string name="extension_item_start">开始：%1$s</string>
@@ -339,10 +342,10 @@
     <string name="extension_item_read">已读</string>
     <string name="extension_item_unread">未读</string>
     <string name="plugin_market_tab_extensions">组件</string>
-    <string name="extension_installed_empty_title">还没有安装组件</string>
-    <string name="extension_installed_empty_subtitle">前往市场安装组件，或导入 ZIP。安装后可直接打开组件，登录并查看内容。</string>
-    <string name="extension_market_empty_title">组件市场暂无组件</string>
-    <string name="extension_market_empty_subtitle">刷新列表后再试，也可以从本地导入 ZIP。</string>
+    <string name="extension_installed_empty_title">还没有安装组件呢</string>
+    <string name="extension_installed_empty_subtitle">去市场挑几个组件装上吧，或者导入 ZIP。装好后就能直接打开啦</string>
+    <string name="extension_market_empty_title">组件市场还空空的～</string>
+    <string name="extension_market_empty_subtitle">刷新一下再来看看，也可以从本地导入 ZIP</string>
     <string name="extension_schedule_section">在课表中显示</string>
     <string name="extension_schedule_details">事务详细设置</string>
     <string name="extension_schedule_independent">只影响课表显示，通知和组件日历保持各自设置</string>
@@ -353,7 +356,7 @@
     <string name="extension_schedule_tasks">只看任务</string>
     <string name="extension_schedule_notices">只看公告</string>
     <string name="extension_schedule_type_hint">下方可分别开关每一种内容，点开卡片可设置日期和时段。</string>
-    <string name="extension_schedule_none">尚未选择类型，课表上不会显示任何内容</string>
+    <string name="extension_schedule_none">还没挑类型呢，课表上暂时不会显示任何内容哦</string>
     <string name="extension_schedule_appearance">卡片显示方式</string>
     <string name="extension_schedule_time">默认显示时间</string>
     <string name="extension_schedule_time_desc">公告及没有实际时段的内容用此时间；仅用于显示</string>
@@ -373,7 +376,7 @@
     <string name="extension_schedule_days">最近 %d 天</string>
     <string name="extension_schedule_sync_scope">未来日期的内容会一直显示；已在组件同步设置中隐藏的内容无法写入事务。</string>
     <string name="extension_schedule_preview">效果预览</string>
-    <string name="extension_schedule_preview_empty">当前没有符合条件的内容。登录并同步后，这里会预览实际日期与时间。</string>
+    <string name="extension_schedule_preview_empty">暂时没有符合条件的内容，登录并同步之后，这里会预览实际的日期和时间。</string>
     <string name="extension_schedule_preview_footer">保存后自动更新已有事务，不会重复添加；关闭总开关会移除组件生成的事务。</string>
     <string name="extension_schedule_save">保存并更新课表</string>
     <string name="extension_schedule_other">其他内容</string>
@@ -401,7 +404,7 @@
     <string name="extension_feed_settings_scope">用于侧边栏专属页面</string>
     <string name="extension_feed_settings_count">当前显示 %d 项内容</string>
     <string name="extension_feed_settings_intro">可以只保留公告或待办任务，设置打开页面时的视图，以及周日历按哪种日期排列。</string>
-    <string name="extension_feed_settings_none">未选择类型，日历中不会显示内容</string>
+    <string name="extension_feed_settings_none">还没选类型，日历里暂时不会出现内容哦～</string>
     <string name="extension_feed_settings_layout">视图与日期</string>
     <string name="extension_feed_settings_date">周日历日期依据</string>
     <string name="extension_feed_settings_date_desc">自动：作业按截止日、考试按开考日、公告按发布日期。所选日期缺失时按其他可用日期显示；详情仍保留原始时间。</string>
@@ -418,7 +421,7 @@
     <string name="extension_feed_next_month">下个月</string>
     <string name="extension_feed_this_month">回到本月</string>
     <string name="extension_feed_day_accessibility">%1$s，%2$d 条内容</string>
-    <string name="extension_feed_day_empty">这一天没有内容</string>
+    <string name="extension_feed_day_empty">这一天还没有内容呢</string>
     <string name="extension_feed_day_count">这一天共 %1$d 条内容</string>
     <string name="extension_feed_media_title">图片与附件</string>
     <string name="extension_item_historical">往期公告</string>
@@ -429,7 +432,7 @@
     <string name="extension_search_label">搜索组件</string>
     <string name="plugin_catalog_search_hint">名称、学校、作者或来源</string>
     <string name="plugin_catalog_clear_search">清除搜索</string>
-    <string name="plugin_catalog_search_empty_hint">试试其他关键词，或清除搜索查看全部。</string>
+    <string name="plugin_catalog_search_empty_hint">换个关键词试试，或者清空搜索，看看全部吧</string>
     <string name="plugin_catalog_browse_market">前往市场</string>
     <string name="plugin_catalog_public_source">公有仓库</string>
     <string name="plugin_catalog_source">来源：%1$s</string>
@@ -440,7 +443,7 @@
     <string name="plugin_catalog_not_installed">未安装</string>
     <string name="plugin_catalog_loading_version">读取版本中…</string>
     <string name="plugin_catalog_stars">%1$d 个收藏</string>
-    <string name="extension_search_empty">没有匹配「%1$s」的组件</string>
+    <string name="extension_search_empty">没找到「%1$s」相关的组件，换个词试试</string>
     <string name="plugin_catalog_source_failed">%1$s 加载失败</string>
     <string name="plugin_catalog_source_retry">重试</string>
     <plurals name="plugin_catalog_installed_count">
@@ -456,8 +459,8 @@
 
     <string name="extension_detail_title">组件详情</string>
     <string name="plugin_detail_intro">简介</string>
-    <string name="plugin_detail_no_description">暂无简介</string>
-    <string name="plugin_detail_no_repository">未关联仓库</string>
+    <string name="plugin_detail_no_description">还没有简介呢</string>
+    <string name="plugin_detail_no_repository">还没关联仓库呢～</string>
     <string name="plugin_detail_expand_technical">查看权限与技术信息</string>
     <string name="plugin_detail_collapse_technical">收起权限与技术信息</string>
     <string name="extension_install_dialog_title">安装组件</string>
@@ -540,4 +543,76 @@
     <string name="plugin_timetable_legacy_saving">正在保存…</string>
     <string name="plugin_web_manual_upload_hint">自动导入还未完成，可点击「上传课表」手动导入。</string>
     <string name="plugin_web_manual_upload_not_ready">尚未读取到课程数据，请等待课表页面加载完成，或刷新后再上传。</string>
+    <string name="school_portal_section_title">学校名单</string>
+    <string name="school_portal_badge_portal">教务系统</string>
+    <string name="school_portal_badge_plugin">插件导入</string>
+    <string name="school_portal_tier_985">985</string>
+    <string name="school_portal_tier_211">211</string>
+    <string name="school_portal_action_open">通用导入</string>
+    <string name="school_portal_hint">登录后打开课表页面，再点击「上传课表」，课简会读取页面上的课程。</string>
+    <string name="school_portal_plugin_unavailable">插件暂不可用，请先刷新插件列表。</string>
+    <string name="school_portal_no_match">名单里还没有这所学校。可以用通用导入：输入教务系统的网址，直接打开后上传课表。</string>
+    <string name="school_portal_url_label">教务系统网址（https://）</string>
+    <string name="school_portal_url_invalid">请输入以 https:// 开头的网址</string>
+    <string name="plugin_web_generic_upload_failed">识别失败：没有读取到课表。请先进入课表页面，再点击「上传课表」。</string>
+    <string name="school_portal_general_alt">通用导入</string>
+    <string name="school_portal_general_alt_hint">输入这所学校的教务系统网址，用通用导入打开并上传课表。</string>
+    <plurals name="school_portal_count_total"><item quantity="other">目前收录 %1$d 所学校</item></plurals>
+    <plurals name="school_portal_count_match"><item quantity="other">搜到 %1$d 所学校</item></plurals>
+    <string name="plugin_web_generic_fail_no_table">没有找到课表。请先进入课表页面（有表格的那一页），再点击「上传课表」。</string>
+    <string name="plugin_web_generic_fail_no_courses">找到了课表结构，但没有识别出课程。请等课表页面加载完成后，再点击「上传课表」。</string>
+    <string name="plugin_web_generic_fail_incomplete">有 %1$d 门课无法识别（缺少周次、节次或课名），为了不导入残缺的课表，这次没有导入。</string>
+    <string name="school_portal_plugin_open">打开插件里的教务系统</string>
+    <string name="school_portal_plugin_need_install">先安装插件，就能直接用插件里的教务系统地址通用导入。</string>
+    <string name="plugin_home_title">插件主页</string>
+    <string name="plugin_home_back">返回插件列表</string>
+    <string name="plugin_home_refresh">刷新当前数据</string>
+    <string name="plugin_home_load_failed">主页或缓存读取失败。可以重试；原有数据不会被自动删除。</string>
+    <string name="plugin_home_query_failed">查询失败，请查看原因后重试。</string>
+    <string name="plugin_home_login_required">请先登录教务系统，再检查登录状态。</string>
+    <string name="plugin_home_invalid_result">返回的数据不完整，本次没有替换缓存。</string>
+    <string name="plugin_home_no_account">尚未确认教务身份</string>
+    <string name="plugin_home_logged_in">已确认登录</string>
+    <string name="plugin_home_login_expired">需要重新登录，历史缓存仍可查看</string>
+    <string name="plugin_home_login_not_checked">账号已保存，本次尚未检查在线状态</string>
+    <string name="plugin_home_credentials_saved">账号密码：已加密保存</string>
+    <string name="plugin_home_credentials_not_saved">账号密码：未保存</string>
+    <string name="plugin_home_credentials_shared">与导课共用，账号密码仅加密保存在此设备。</string>
+    <string name="plugin_home_clear_credentials">清除已保存登录信息</string>
+    <string name="plugin_home_clear_credentials_confirm">清除导课和插件主页共用的已保存账号密码？课表与查询缓存会保留，当前网页登录不会退出。</string>
+    <string name="plugin_home_credentials_cleared">已清除保存的账号密码，下次登录可重新保存。</string>
+    <string name="plugin_home_verified_at">上次确认登录：%1$s</string>
+    <string name="plugin_home_login">登录教务系统</string>
+    <string name="plugin_home_check_login">检查登录</string>
+    <string name="plugin_home_cached_accounts">查看缓存账号</string>
+    <string name="plugin_home_no_cache">这一项还没有查询记录</string>
+    <string name="plugin_home_saved_at">本地结果 · 更新于 %1$s</string>
+    <string name="plugin_home_cache_policy">查询结果持续保存在本机，不会自动更新。查询、刷新或检查登录由你手动发起；失败时保留上次结果。</string>
+    <string name="plugin_home_query">查询并保存</string>
+    <string name="plugin_home_empty_result">教务系统返回了空列表</string>
+    <string name="plugin_home_clear_cache">清除主页缓存</string>
+    <string name="plugin_home_clear_confirm">清除这个插件来源下所有账号的主页缓存？不会删除课表和已保存的登录信息。</string>
+    <string name="plugin_home_close">关闭</string>
+    <string name="plugin_home_cancel">取消</string>
+    <string name="plugin_home_save_login_title">保存登录信息？</string>
+    <string name="plugin_home_save_login_message">账号密码将加密保存在本机，用于下次登录这个教务系统。</string>
+    <string name="plugin_home_save_login">加密保存</string>
+    <string name="plugin_home_open_portal">打开教务页面</string>
+    <string name="plugin_home_save_page">保存当前查询</string>
+    <string name="plugin_home_search_hint">在结果中搜索</string>
+    <string name="plugin_home_search_clear">清除搜索</string>
+    <string name="plugin_home_filter_all">全部</string>
+    <string name="plugin_home_filter_field">筛选字段</string>
+    <string name="plugin_home_result_count">共 %1$d 条</string>
+    <string name="plugin_home_result_count_filtered">显示 %1$d / %2$d 条</string>
+    <string name="plugin_home_no_match">没有符合条件的记录</string>
+    <string name="plugin_home_reset_filters">清除搜索和筛选</string>
+    <string name="plugin_home_expand">展开全部字段</string>
+    <string name="plugin_home_collapse">收起</string>
+    <string name="plugin_home_menu_title">查询项目</string>
+    <string name="plugin_home_menu_not_queried">尚未查询，点开后获取</string>
+    <string name="plugin_home_menu_cached">%1$d 条 · 更新于 %2$s</string>
+    <string name="plugin_home_login_expired_saved">登录已过期，需要重新登录。账号密码已保存，点「登录教务系统」会自动填好，只需按提示输入短信验证码；登录后刷新会自动同步。</string>
+    <string name="plugin_home_school_unreachable">连不上学校的教务系统。这是学校官方系统的问题（可能在维护、网络故障或网关暂时不可用），不是软件的问题。已保存的结果和账号都还在，等教务系统恢复后点刷新即可。</string>
+    <string name="plugin_home_device_offline">手机当前没有网络，请联网后再刷新。已保存的结果仍可查看。</string>
 </resources>

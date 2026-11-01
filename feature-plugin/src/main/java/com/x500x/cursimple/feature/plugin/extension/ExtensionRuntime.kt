@@ -10,6 +10,7 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebSettings
 import com.x500x.cursimple.core.plugin.logging.PluginLogger
 import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.manifest.PluginPermission
@@ -61,6 +62,8 @@ data class ExtensionRunRequest(
     val notifications: JsonArray = JsonArray(emptyList()),
     val onReceipt: (suspend (JsonObject) -> Boolean)? = null,
     val onSession: (suspend (JsonObject) -> Boolean)? = null,
+    /** A portal may cross SSO intermediates before reaching the script's same-origin entry. */
+    val waitForRunUrl: Boolean = false,
 ) {
     companion object {
         fun from(
@@ -129,6 +132,7 @@ class ExtensionRuntime(
                 loadsImagesAutomatically = false
                 blockNetworkImage = true
                 blockNetworkLoads = request.isolated
+                if (request.waitForRunUrl) cacheMode = WebSettings.LOAD_NO_CACHE
                 request.userAgent?.let { userAgentString = it }
             }
             CookieManager.getInstance().setAcceptCookie(true)
@@ -142,6 +146,7 @@ class ExtensionRuntime(
                 override fun onPageFinished(view: WebView?, url: String?) {
                     if (injected || view == null) return
                     if (!request.isolated && !ExtensionUrls.isAllowed(url.orEmpty(), request.allowedHosts)) return
+                    if (!extensionEntryPageReached(request, url.orEmpty())) return
                     injected = true
                     view.evaluateJavascript(buildExtensionScript(request, token, useBridge = true), null)
                 }
@@ -231,6 +236,16 @@ class ExtensionRuntime(
     companion object {
         internal const val BRIDGE_NAME = "CurSimpleExtension"
     }
+}
+
+internal fun extensionEntryPageReached(request: ExtensionRunRequest, url: String): Boolean {
+    if (request.isolated || !request.waitForRunUrl) return true
+    val expected = runCatching { URI(request.url) }.getOrNull() ?: return false
+    val actual = runCatching { URI(url) }.getOrNull() ?: return false
+    fun URI.httpsPort() = if (port == -1) 443 else port
+    return actual.scheme.equals("https", true) && expected.scheme.equals("https", true) &&
+        actual.rawUserInfo == null && actual.host.equals(expected.host, true) &&
+        actual.httpsPort() == expected.httpsPort() && actual.path == expected.path
 }
 
 /** Parse items independently so one malformed row cannot discard the snapshot. */

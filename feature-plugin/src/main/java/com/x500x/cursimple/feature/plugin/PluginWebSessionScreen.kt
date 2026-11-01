@@ -60,9 +60,12 @@ import com.x500x.cursimple.core.plugin.web.WebCapturedPacket
 import com.x500x.cursimple.core.plugin.web.WebNetworkPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionCaptureSpec
 import com.x500x.cursimple.core.plugin.web.WebSessionPacket
+import com.x500x.cursimple.core.plugin.school.SchoolPortalCatalog
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.security.MessageDigest
@@ -110,12 +113,17 @@ fun PluginWebSessionScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    // General school imports explain the timetable-page step instead of the plugin wording.
+    val isGeneralImport = request.pluginId == SchoolPortalCatalog.PLUGIN_ID
+    val genericUploadFailedMessage = stringResource(R.string.plugin_web_generic_upload_failed)
     val currentUrl = remember(request.token) { mutableStateOf(request.startUrl) }
     val webViewState = remember(request.token) { mutableStateOf<WebView?>(null) }
     val isFinishing = remember(request.token) { mutableStateOf(false) }
     val isCapturing = remember(request.token) { mutableStateOf(false) }
     val blockedUrl = remember(request.token) { mutableStateOf<String?>(null) }
     val pageError = remember(request.token) { mutableStateOf<String?>(null) }
+    // Why a general import found nothing; kept until the next upload so it cannot vanish on navigation.
+    val generalImportFailure = remember(request.token) { mutableStateOf<String?>(null) }
     val pageTitle = remember(request.token) { mutableStateOf("") }
     val loadProgress = remember(request.token) { mutableStateOf(0) }
     val popupUrl = remember(request.token) { mutableStateOf<String?>(null) }
@@ -207,10 +215,11 @@ fun PluginWebSessionScreen(
             val packets = capturedPackets.value
             val latestPacket = packets.values.maxByOrNull { it.timestamp }
             val activeUploadStage = uploadStage.value
+            val failure = pluginWebFailureStatus(generalImportFailure.value, pageError.value)
             when {
                 activeUploadStage != null ->
                     PluginWebStatus.Uploading(activeUploadStage.labelRes, activeUploadStage.step)
-                pageError.value != null -> PluginWebStatus.PageError(pageError.value)
+                failure != null -> failure
                 blockedUrl.value != null -> PluginWebStatus.Blocked(blockedUrl.value)
                 popupUrl.value != null -> PluginWebStatus.Popup(popupUrl.value)
                 pendingCompletion.value != null -> PluginWebStatus.PendingCompletion
@@ -345,6 +354,14 @@ fun PluginWebSessionScreen(
         }
         if (forceFinish || manualUploadRequested.value) {
             if (request.autoCompleteOnScheduleDraft && request.entryScript.isNotBlank() && packet.scheduleDraftJson.isNullOrBlank()) return
+            // General import: a manual upload with no timetable on the page fails at once.
+            // The upload button always arrives here with forceFinish = true, so that flag must not bypass this gate.
+            if (isGeneralImport && packet.scheduleDraftJson.isNullOrBlank()) {
+                manualUploadRequested.value = false
+                uploadStage.value = null
+                generalImportFailure.value = generalImportFailureText(context, packet.scheduleRunError)
+                return
+            }
             manualUploadRequested.value = false
             finishWithPacket(packet, updatedPackets)
         } else if (request.autoCompleteOnScheduleDraft && !packet.scheduleDraftJson.isNullOrBlank()) {
@@ -364,6 +381,8 @@ fun PluginWebSessionScreen(
 
     fun probeWebSession(view: WebView?, target: String, forceFinish: Boolean = false) {
         val webView = view ?: return
+        // General imports read the page only when the user taps upload; the 800ms poll must not scrape.
+        if (request.pluginId == SchoolPortalCatalog.PLUGIN_ID && !forceFinish && !manualUploadRequested.value) return
         val canAutoCompleteDraft = request.autoCompleteOnScheduleDraft && request.entryScript.isNotBlank()
         val hasCaptureSpecs = effectiveCaptureSpecs(request).isNotEmpty()
         if (!forceFinish && !hasCaptureSpecs && !canAutoCompleteDraft) {
@@ -431,6 +450,7 @@ fun PluginWebSessionScreen(
             return
         }
         manualUploadRequested.value = true
+        generalImportFailure.value = null
         pendingCompletion.value = null
         uploadStage.value = UploadStage.Capturing
         PluginLogger.info(
@@ -494,6 +514,8 @@ fun PluginWebSessionScreen(
             delay(800)
             val webView = foregroundWebView() ?: continue
             val target = webView.url?.toString()?.takeIf(String::isNotBlank) ?: currentUrl.value
+            // Gateway hash routes can change after login without a page-load callback.
+            if (!isInternalWebViewUrl(target)) currentUrl.value = target
             probeWebSession(webView, target)
         }
     }
@@ -508,7 +530,8 @@ fun PluginWebSessionScreen(
     // Match the /eams prefix without a trailing slash to include versioned portal paths.
     val onScrapeablePage = urlLowerForOverlay.contains("/eams") &&
         !urlLowerForOverlay.contains("login")
-    val browsingForCapture = onScrapeablePage &&
+    // The "capturing" overlay is the plugin's /eams heuristic; general imports never show it.
+    val browsingForCapture = !isGeneralImport && onScrapeablePage &&
         pageReadyAtMs.value > 0L &&
         pageError.value == null &&
         blockedUrl.value == null &&
@@ -517,19 +540,28 @@ fun PluginWebSessionScreen(
     // Keep progress visible through capture, parsing and timetable persistence.
     val uploading = uploadStage.value != null || isFinishing.value
     val hintUrl = popupWebViewState.value?.url ?: currentUrl.value
+    val portalGuidance = if (pageError.value == null && blockedUrl.value == null && !switchingAccount.value) {
+        schoolPortalGuidance(request, hintUrl)
+    } else null
     val hintStartedAt = remember(request.token, hintUrl, browserGeneration.value) { System.currentTimeMillis() }
     val showManualHint = shouldShowManualUploadHint(request, hintUrl, hintStartedAt, tickNow.value,
         busy = uploading || pendingCompletion.value != null || switchingAccount.value)
     // Resolved at composition level so a locale change is picked up; the effect body is not
     // recomposed and cannot read resources itself.
-    val manualUploadNotReadyMessage = stringResource(R.string.plugin_web_manual_upload_not_ready)
+    val manualUploadNotReadyMessage = stringResource(
+        if (isGeneralImport) R.string.plugin_web_generic_upload_failed else R.string.plugin_web_manual_upload_not_ready,
+    )
     LaunchedEffect(manualUploadRequested.value) {
         if (manualUploadRequested.value) {
             delay(request.limits.timeoutMs.coerceAtLeast(5_000))
             if (manualUploadRequested.value && !isFinishing.value) {
                 manualUploadRequested.value = false
                 uploadStage.value = null
-                pageError.value = manualUploadNotReadyMessage
+                if (isGeneralImport) {
+                    generalImportFailure.value = genericUploadFailedMessage
+                } else {
+                    pageError.value = manualUploadNotReadyMessage
+                }
             }
         }
     }
@@ -691,8 +723,17 @@ fun PluginWebSessionScreen(
                 }
             }
         }
-        if (showManualHint) {
-            Text(stringResource(R.string.plugin_web_manual_upload_hint), style = MaterialTheme.typography.bodySmall,
+        if (portalGuidance != null) {
+            Text(
+                text = stringResource(portalGuidance),
+                modifier = Modifier.fillMaxWidth().testTag("school-portal-guidance"),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        } else if (showManualHint) {
+            Text(
+                stringResource(if (isGeneralImport) R.string.school_portal_hint else R.string.plugin_web_manual_upload_hint),
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("manual-upload-hint"))
         } else if (effectiveCaptureSpecs(request).isNotEmpty()) {
             Text(
@@ -752,20 +793,21 @@ fun PluginWebSessionScreen(
                 )
             }
         }
+        val showFullStatus = status.value.showsFullMessage()
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(24.dp),
+                .defaultMinSize(minHeight = 24.dp),
         ) {
-            if (!showWorkingOverlay.value) {
+            if (!showWorkingOverlay.value || showFullStatus) {
                 Text(
                     text = statusText,
-                    modifier = Modifier.align(Alignment.CenterStart),
+                    modifier = Modifier.align(Alignment.CenterStart).testTag("web-session-status"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    softWrap = false,
+                    maxLines = if (showFullStatus) Int.MAX_VALUE else 1,
+                    overflow = if (showFullStatus) TextOverflow.Clip else TextOverflow.Ellipsis,
+                    softWrap = showFullStatus,
                 )
             }
         }
@@ -1381,6 +1423,8 @@ private fun WebView.configurePluginWebView(
                 return
             }
             val webView = view ?: return
+            // General imports never read the page on its own; the user taps upload when the timetable is open.
+            if (request.pluginId == SchoolPortalCatalog.PLUGIN_ID) return
             injectPluginRuntime(
                 webView = webView,
                 request = request,
@@ -1393,7 +1437,7 @@ private fun WebView.configurePluginWebView(
     }
 }
 
-private fun WebView.applyPluginBrowserSettings(userAgent: String) {
+internal fun WebView.applyPluginBrowserSettings(userAgent: String) {
     hardenLocalAccess()
     settings.javaScriptEnabled = true
     settings.javaScriptCanOpenWindowsAutomatically = true
@@ -1412,6 +1456,7 @@ private fun WebView.applyPluginBrowserSettings(userAgent: String) {
     settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
     settings.mixedContentMode = pluginMixedContentMode()
     userAgent.takeIf(String::isNotBlank)?.let { settings.userAgentString = it }
+    suppressRequestedWithHeader()
     isVerticalScrollBarEnabled = true
     isHorizontalScrollBarEnabled = true
     scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
@@ -1605,6 +1650,7 @@ private fun captureWebSessionPacket(
                 localStorageSnapshot: shouldCaptureLocalStorage ? readStorage("localStorage") : {},
                 sessionStorageSnapshot: shouldCaptureSessionStorage ? readStorage("sessionStorage") : {},
                 capturedFields: fields,
+                scheduleRunError: window.__CURSIMPLE_PLUGIN_RUN_ERROR || "",
                 scheduleDraftJson: (() => {
                   const draft = window.__CURSIMPLE_SCHEDULE_DRAFT_JSON;
                   if (!draft) return "";
@@ -1641,6 +1687,7 @@ private fun captureWebSessionPacket(
                     },
                     capturedFields = payload.optJSONObject("capturedFields").toStringMap(),
                     scheduleDraftJson = payload.optNullableString("scheduleDraftJson"),
+                    scheduleRunError = payload.optNullableString("scheduleRunError"),
                     timestamp = OffsetDateTime.now().toString(),
                 )
             }.getOrDefault(fallbackPacket)
@@ -1939,6 +1986,7 @@ internal fun buildPluginRuntimeScript(
     val sessionLiteral = request.sessionId.toJsStringLiteral()
     val currentUrlLiteral = currentUrl.toJsStringLiteral()
     val termIdLiteral = request.termId.toJsStringLiteral()
+    val timingSlotsLiteral = Json.encodeToString(request.timingSlots).toJsStringLiteral()
     val permissionLiteral = request.permissions.map { it.id }.toJsStringArrayLiteral()
     val allowedHostsLiteral = request.allowedHosts.toJsStringArrayLiteral()
     val networkPacketLiteral = networkPackets.toNetworkPacketJsonLiteral()
@@ -1952,6 +2000,7 @@ internal fun buildPluginRuntimeScript(
           const sessionId = $sessionLiteral;
           const currentUrl = $currentUrlLiteral;
           const termId = $termIdLiteral;
+          const timingSlots = JSON.parse($timingSlotsLiteral);
           const permissions = new Set($permissionLiteral);
           const allowedHosts = $allowedHostsLiteral.map((host) => (host || "").toLowerCase());
           const networkCaptureIds = new Set($networkCaptureIdsLiteral);
@@ -2281,7 +2330,7 @@ internal fun buildPluginRuntimeScript(
           };
           const ctx = {
             token,
-            term: { id: termId || "" },
+            term: { id: termId || "", slotTimes: timingSlots },
             // true only when the user explicitly triggered this run, such as pressing upload.
             manual: forceRun,
             permissions: Array.from(permissions),
@@ -2349,6 +2398,7 @@ internal fun buildPluginRuntimeScript(
             if (forceRun && retryIncompleteAfterMs > 0) delete window.__CURSIMPLE_SCHEDULE_DRAFT_JSON;
             // A manual run releases any hold the plugin asked for.
             if (forceRun) delete window.__CURSIMPLE_PLUGIN_HOLD_KEYS[runKey];
+            if (forceRun) delete window.__CURSIMPLE_PLUGIN_RUN_ERROR;
             window.__CURSIMPLE_PLUGIN_RUNTIME_ERROR = "";
             const runFactory = new Function(pluginSource + "\n; return (typeof run === 'function' ? run : null);");
             const run = runFactory();
@@ -2359,6 +2409,9 @@ internal fun buildPluginRuntimeScript(
               .then((result) => {
                 if (result && typeof result === "object" && Array.isArray(result.courses)) {
                   scheduleApi.commit(result);
+                }
+                if (result && typeof result === "object" && result.error) {
+                  window.__CURSIMPLE_PLUGIN_RUN_ERROR = JSON.stringify({ error: String(result.error), count: Number(result.count) || 0 });
                 }
                 // The plugin reports it cannot finish unattended; stop retrying until the user uploads.
                 if (result && typeof result === "object" && result.hold === true) {
@@ -2962,4 +3015,15 @@ fun JSONObject.optNullableString(name: String): String? {
 fun normalizeNullablePayloadString(raw: String?): String? {
     val value = raw.orEmpty().trim()
     return value.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
+}
+
+/** Turns the parser's reason into the message shown on the session page. */
+private fun generalImportFailureText(context: android.content.Context, runError: String?): String {
+    val json = runCatching { org.json.JSONObject(runError.orEmpty()) }.getOrNull()
+    return when (json?.optString("error")) {
+        "no_table" -> context.getString(R.string.plugin_web_generic_fail_no_table)
+        "no_courses" -> context.getString(R.string.plugin_web_generic_fail_no_courses)
+        "incomplete" -> context.getString(R.string.plugin_web_generic_fail_incomplete, json.optInt("count"))
+        else -> context.getString(R.string.plugin_web_generic_upload_failed)
+    }
 }

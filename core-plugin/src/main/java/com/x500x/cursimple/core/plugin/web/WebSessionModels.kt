@@ -3,6 +3,7 @@ package com.x500x.cursimple.core.plugin.web
 import com.x500x.cursimple.core.plugin.manifest.PluginPermission
 import com.x500x.cursimple.core.plugin.manifest.PluginNetworkCaptureSpec
 import com.x500x.cursimple.core.plugin.manifest.PluginRuntimeLimits
+import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -16,6 +17,7 @@ data class WebSessionRequest(
     @SerialName("title") val title: String,
     @SerialName("startUrl") val startUrl: String,
     @SerialName("termId") val termId: String = "",
+    @SerialName("timingSlots") val timingSlots: List<ClassSlotTime> = emptyList(),
     @SerialName("allowedHosts") val allowedHosts: List<String>,
     @SerialName("entryScript") val entryScript: String = "",
     @SerialName("permissions") val permissions: List<PluginPermission> = emptyList(),
@@ -78,6 +80,7 @@ data class WebSessionPacket(
     @SerialName("capturedPackets") val capturedPackets: Map<String, WebCapturedPacket> = emptyMap(),
     @SerialName("networkPackets") val networkPackets: Map<String, List<WebNetworkPacket>> = emptyMap(),
     @SerialName("scheduleDraftJson") val scheduleDraftJson: String? = null,
+    @SerialName("scheduleRunError") val scheduleRunError: String? = null,
     @SerialName("timestamp") val timestamp: String,
 )
 

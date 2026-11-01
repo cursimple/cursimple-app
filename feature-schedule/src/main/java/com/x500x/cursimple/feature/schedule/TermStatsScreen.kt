@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -15,6 +16,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -97,27 +104,66 @@ private fun SectionTitle(text: String) {
     Text(text, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
 }
 
-/** One bar per teaching week, scaled to the busiest week. */
+/**
+ * One bar per teaching week, scaled to the busiest week. Tapping or long-pressing a bar selects it and
+ * shows its exact count below; tapping the selected bar again clears the selection.
+ */
 @Composable
 private fun WeekBars(perWeek: List<Int>) {
     val peak = perWeek.maxOrNull()?.coerceAtLeast(1) ?: 1
+    var selected by rememberSaveable { mutableStateOf<Int?>(null) }
     Row(
-        modifier = Modifier.fillMaxWidth().height(96.dp).testTag("term-stats-weeks"),
+        modifier = Modifier.fillMaxWidth().height(116.dp).testTag("term-stats-weeks"),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
-        perWeek.forEach { count ->
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .height((88 * count / peak).coerceAtLeast(if (count > 0) 4 else 0).dp)
-                    .background(
-                        if (count > 0) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.surfaceVariant,
-                        RoundedCornerShape(4.dp),
-                    ),
-            )
+        perWeek.forEachIndexed { index, count ->
+            val isSelected = selected == index
+            Column(
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Bottom,
+            ) {
+                // The exact count sits directly above its bar; empty weeks show nothing.
+                Text(
+                    text = if (count > 0) count.toString() else "",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isSelected) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.testTag("term-stats-week-count-$index"),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height((84 * count / peak).coerceAtLeast(if (count > 0) 4 else 0).dp)
+                        .background(
+                            when {
+                                isSelected -> MaterialTheme.colorScheme.tertiary
+                                count > 0 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                                else -> MaterialTheme.colorScheme.surfaceVariant
+                            },
+                            RoundedCornerShape(4.dp),
+                        )
+                        .testTag("term-stats-week-$index")
+                        .pointerInput(index) {
+                            detectTapGestures(
+                                onTap = { selected = if (selected == index) null else index },
+                                onLongPress = { selected = index },
+                            )
+                        },
+                )
+            }
         }
+    }
+    selected?.let { index ->
+        Text(
+            text = stringResource(R.string.stats_week_detail, index + 1, perWeek[index]),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth().testTag("term-stats-week-detail"),
+        )
     }
 }
 

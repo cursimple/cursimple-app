@@ -91,11 +91,13 @@ class CourseTodosAndAttendanceUiQaTest {
         assertEquals(memoCourseKey("高等数学"), saved.courseKey)
         assertEquals(monday.plusDays(1).atTime(23, 59).toString(), saved.dueAt)
         compose.onNodeWithTag("course-todos-count").assertExists()
-        compose.onNode(hasTestTag("course-todo-badge-math") and hasAnyAncestor(hasTestTag("schedule-current-week")), useUnmergedTree = true).assertExists()
+        // The card carries no pending-todo badge any more; the count lives in the detail dialog.
+        compose.onAllNodes(hasTestTag("course-todo-badge-math"), useUnmergedTree = true).assertCountEquals(0)
         Thread.sleep(300)
         ScreenshotCapture.save(ScreenshotCapture.take(), File(context.filesDir, "todo-qa/detail.png"))
-        // Ticking the row off completes it and clears the card badge.
+        // Ticking the row off asks first, then completes it and clears the card badge.
         compose.onNodeWithTag("course-todo-row-${saved.id}").performScrollTo().performClick()
+        compose.onNodeWithTag("course-todo-complete-confirm").performClick()
         compose.waitForIdle()
         assertTrue(state.value.memos.single().completed)
         compose.onAllNodes(hasTestTag("course-todo-badge-math"), useUnmergedTree = true).assertCountEquals(0)
@@ -104,6 +106,7 @@ class CourseTodosAndAttendanceUiQaTest {
     @Test fun markingAMissedClassCountsItAgainstTheLimitAndFlagsTheCard() {
         show()
         openCourse()
+        compose.onNodeWithTag("course-attendance-toggle").performScrollTo().performClick()
         compose.onNodeWithTag("course-attendance-section").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("attendance-allowance-set").performScrollTo().performClick()
         compose.onNodeWithTag("attendance-allowance-less").performScrollTo().performClick()
@@ -123,10 +126,41 @@ class CourseTodosAndAttendanceUiQaTest {
         compose.onAllNodes(hasTestTag("course-attendance-badge-math"), useUnmergedTree = true).assertCountEquals(0)
     }
 
+    /** Screenshots of the new layout: tabs, the completion prompt, and the colour sheet from the action bar. */
+    @Test fun detailTabsCompletionPromptAndColourSheetLookRight() {
+        show()
+        openCourse()
+        compose.onNodeWithTag("course-todos-section").performScrollTo().assertIsDisplayed()
+        Thread.sleep(300)
+        ScreenshotCapture.save(ScreenshotCapture.take(), File(context.filesDir, "todo-qa/tabs-homework.png"))
+        compose.onNodeWithTag("course-attendance-toggle").performScrollTo().performClick()
+        compose.onNodeWithTag("course-attendance-section").performScrollTo().assertIsDisplayed()
+        Thread.sleep(300)
+        ScreenshotCapture.save(ScreenshotCapture.take(), File(context.filesDir, "todo-qa/tabs-attendance.png"))
+        compose.onNodeWithTag("course-todo-add").performScrollTo().performClick()
+        compose.onNodeWithTag("course-todo-title").performTextInput("交实验报告")
+        compose.onNodeWithTag("course-todo-save").performClick()
+        compose.waitForIdle()
+        val saved = state.value.memos.single()
+        compose.onNodeWithTag("course-todo-row-${saved.id}").performScrollTo().performClick()
+        compose.waitForIdle()
+        Thread.sleep(300)
+        ScreenshotCapture.save(ScreenshotCapture.take(), File(context.filesDir, "todo-qa/complete-prompt.png"))
+        compose.onNodeWithTag("course-todo-complete-confirm").performClick()
+        compose.waitForIdle()
+        assertTrue(state.value.memos.single().completed)
+        compose.onNodeWithText(text(ScheduleR.string.schedule_action_color)).performClick()
+        compose.onNodeWithTag("course-color-sheet").assertIsDisplayed()
+        compose.waitForIdle()
+        Thread.sleep(300)
+        ScreenshotCapture.save(ScreenshotCapture.take(), File(context.filesDir, "todo-qa/colour-sheet.png"))
+    }
+
     @Test fun aFutureClassCannotBeMarkedYet() {
         // Looking a week ahead of the clock, that Monday's class is still to come.
         show(weekOffset = 1)
         openCourse()
+        compose.onNodeWithTag("course-attendance-toggle").performScrollTo().performClick()
         compose.onNodeWithTag("course-attendance-section").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("attendance-mark-Absent").performScrollTo().assertIsNotEnabled()
         assertNotNull(state.value.manualCourses.firstOrNull())

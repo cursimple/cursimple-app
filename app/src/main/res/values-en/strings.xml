@@ -109,14 +109,14 @@
     <string name="term_mgmt_back">Back</string>
     <string name="term_mgmt_create">New term</string>
     <string name="term_mgmt_empty_title">No terms yet</string>
-    <string name="term_mgmt_empty_hint">Tap the plus in the top right to create one</string>
+    <string name="term_mgmt_empty_hint">Tap the little plus at the top right to start a term~</string>
     <string name="term_delete_title">Delete term</string>
     <string name="term_delete_message">Term \u201c%1$s\u201d and its timetable and manual courses will be deleted permanently.</string>
     <string name="term_delete_confirm">Delete</string>
     <string name="term_cancel">Cancel</string>
     <string name="term_start_prefix">Term starts: %1$s</string>
-    <string name="term_no_start_date">No term start date</string>
-    <string name="term_no_start_date_optional">No term start date (you can add it later)</string>
+    <string name="term_no_start_date">No start date yet</string>
+    <string name="term_no_start_date_optional">No start date yet, you can fill it in later</string>
     <string name="term_badge_current">Current</string>
     <string name="term_action_rename">Rename</string>
     <string name="term_action_date">Start date</string>
@@ -222,7 +222,7 @@
     <string name="update_dialog_later">Later</string>
     <string name="update_dialog_ignore_hint">Clears the dot as well; check in About yourself</string>
     <string name="update_badge_desc">Update available</string>
-    <string name="update_no_release_notes">No release notes.</string>
+    <string name="update_no_release_notes">No change notes for this one yet</string>
 
     <string name="widget_sheet_title">Add a home-screen widget</string>
     <string name="widget_help_desc">Widget help</string>
@@ -252,7 +252,7 @@
     <string name="ie_unknown">Unknown</string>
     <string name="ie_unknown_error">Unknown error</string>
     <string name="ie_not_set">not set</string>
-    <string name="ie_no_schedule_body">No timetable data yet. Sync or add courses before exporting.</string>
+    <string name="ie_no_schedule_body">The timetable is still empty. Sync or add a few classes first, then export~</string>
     <string name="ie_export_failed_retry">Export failed. Please try again later.</string>
     <string name="ie_share_launch_failed">Couldn\'t start sharing: %1$s</string>
     <string name="ie_text_share_title">Share timetable code</string>
@@ -268,7 +268,7 @@
     <string name="ie_text_import_body">Paste a shared timetable code</string>
     <string name="ie_text_import_hint">Paste the complete CSV1: timetable code. Review the course count before confirming the import.</string>
     <string name="ie_text_paste">Paste from clipboard</string>
-    <string name="ie_text_clipboard_empty">The clipboard has no text to paste</string>
+    <string name="ie_text_clipboard_empty">The clipboard is empty, copy a timetable code first</string>
     <string name="ie_text_read">Read timetable</string>
     <string name="ie_save_image">Save image</string>
     <string name="ie_save_to_local">Save to device</string>
@@ -549,7 +549,7 @@
     <string name="settings_override_source_day">Follow this day</string>
     <string name="settings_override_makeup_hint">On %1$s the timetable and alarms will use the classes from %2$s.</string>
     <string name="settings_override_add">Add rule</string>
-    <string name="settings_override_empty">No temporary changes yet</string>
+    <string name="settings_override_empty">No temporary swaps yet, your timetable is steady</string>
     <string name="settings_override_subtitle_multi">%1$d rules · %2$s</string>
     <string name="settings_override_source_cancel">Period %1$s cancelled</string>
     <string name="settings_override_source_cancel_invalid">Invalid period range</string>
@@ -602,7 +602,7 @@
         <item quantity="one">%1$s · %2$d manual adjustment</item>
         <item quantity="other">%1$s · %2$d manual adjustments</item>
     </plurals>
-    <string name="settings_holiday_builtin_none">No built-in data</string>
+    <string name="settings_holiday_builtin_none">No built-in holiday data yet~</string>
     <string name="settings_holiday_builtin_years">Covers the %1$s holiday schedule</string>
     <string name="settings_holiday_sync_title">Update holiday data</string>
     <string name="settings_holiday_skip_reminders_title">Automatically skip alarms on holidays</string>
@@ -673,17 +673,17 @@
     <string name="settings_background_image_transparency">Image transparency</string>
     <string name="settings_background_preview_title">Preview</string>
     <string name="settings_background_preview_course">Sample course</string>
-    <string name="settings_background_preview_empty">No background image chosen yet</string>
+    <string name="settings_background_preview_empty">No background picked yet, choose one</string>
     <string name="settings_background_crop_reset">Reset</string>
     <string name="settings_background_crop_zoom">Zoom %1$.1f×</string>
     <string name="settings_background_crop_frame_hint">The frame is what the timetable will show</string>
     <string name="settings_background_image_selected">Image selected</string>
-    <string name="settings_background_image_none">None selected</string>
+    <string name="settings_background_image_none">Not picked yet</string>
     <string name="settings_background_image_clear_title">Clear background image</string>
     <string name="settings_background_image_clear_subtitle">Go back to using the background color</string>
     <string name="settings_background_summary_color">Color %1$s</string>
     <string name="settings_background_summary_image">Image background</string>
-    <string name="settings_background_summary_image_none">No image selected</string>
+    <string name="settings_background_summary_image_none">No image picked yet</string>
     <string name="settings_background_summary_header">Matches the header background</string>
     <string name="settings_display_node_time_title">Show times in the period column</string>
     <string name="settings_display_node_time_subtitle">Shows the start and end time of each period</string>
@@ -801,7 +801,7 @@
         <item quantity="one">%1$d period</item>
         <item quantity="other">%1$d periods</item>
     </plurals>
-    <string name="settings_timing_profile_empty">Not filled in</string>
+    <string name="settings_timing_profile_empty">Not filled in yet</string>
     <string name="settings_timing_profile_use">Use</string>
     <string name="settings_timing_profile_create">New set</string>
     <string name="settings_timing_profile_duplicate">Duplicate</string>
@@ -809,7 +809,7 @@
     <string name="settings_timing_profile_delete">Delete</string>
     <string name="settings_timing_profile_delete_title">Delete this set?</string>
     <string name="settings_timing_profile_delete_body">"%1$s" will be removed. Terms bound to it fall back to the selected set.</string>
-    <string name="settings_timing_profile_name_hint">Set name</string>
+    <string name="settings_timing_profile_name_hint">Give this schedule a name</string>
     <string name="settings_timing_profile_copy_suffix">%1$s copy</string>
     <string name="settings_toast_timing_profile_created">Created "%1$s"</string>
     <plurals name="settings_timing_entry_subtitle_set">
@@ -817,8 +817,8 @@
         <item quantity="other">%1$d periods set · used for card times, alarms and exports</item>
     </plurals>
     <string name="settings_timing_entry_subtitle_unset">Not set · manually added courses need it to show times, create alarms and export</string>
-    <string name="settings_timing_empty_title">No period times yet</string>
-    <string name="settings_timing_empty_body">Course card times, alarms, calendar and image exports, and auto-silence in class all depend on them. Apply one of the templates below and adjust each row to your school\'s schedule, or add every period by hand.</string>
+    <string name="settings_timing_empty_title">Period times are not set yet</string>
+    <string name="settings_timing_empty_body">Course card times, alarms, calendar and image export, and auto-silence during class all rely on this. Apply a template below and tweak it to your school, or add them one by one</string>
     <string name="settings_timing_hint">Fill in the first period, last period and the start and end time for each row. Period ranges must not overlap, and periods run from %1$d to %2$d.</string>
     <string name="settings_timing_manual_notice">These times were edited by hand, so plugin sync will not overwrite them. To hand them back to plugin sync, tap \"Hand back to plugin sync\" below.</string>
     <string name="settings_timing_add_row">Add a period</string>
@@ -836,7 +836,7 @@
     <string name="settings_timing_end_node">Last period</string>
     <string name="settings_timing_start_time">Start</string>
     <string name="settings_timing_end_time">End</string>
-    <string name="settings_timing_label_hint">Name (optional, e.g. Morning block)</string>
+    <string name="settings_timing_label_hint">Any name (optional), e.g. Morning block~</string>
     <string name="settings_timing_template_title">Apply a schedule template</string>
     <string name="settings_timing_template_hint">Template times are examples. Applying one replaces what you have now, so adjust each row to your school\'s schedule.</string>
     <string name="settings_auto_silence_blocked_title">Auto-silence cannot run</string>
@@ -1129,9 +1129,9 @@
     <string name="nav_components">Components</string>
     <string name="nav_me">Me</string>
     <string name="components_hub_market">Component market</string>
-    <string name="components_hub_empty">No components are shown in navigation yet. Browse the component market.</string>
-    <string name="components_hub_empty_title">No Active Components</string>
-    <string name="components_hub_empty_desc">Components add widgets and extra views to your schedule. Browse the component market to explore and install more!</string>
+    <string name="components_hub_empty">No components in the navigation yet, take a look at the component market</string>
+    <string name="components_hub_empty_title">No components enabled yet</string>
+    <string name="components_hub_empty_desc">Components add widgets and more to your timetable! Browse the component market and pick a few you like~</string>
     <string name="me_version">Version %1$s</string>
     <string name="settings_sidebar_title">Sidebar</string>
     <string name="settings_sidebar_subtitle">Reorder and hide sidebar items</string>
@@ -1152,7 +1152,7 @@
     <string name="settings_sidebar_drag">Drag to reorder</string>
     <string name="main_drawer_more">More (%1$d)</string>
     <string name="main_drawer_more_title">More</string>
-    <string name="all_extensions_empty">No components to open yet</string>
+    <string name="all_extensions_empty">No components to open yet~</string>
     <string name="main_drawer_version">CurSimple · v%1$s</string>
     <string name="main_confirm">OK</string>
     <string name="main_term_start_prompt">Set the term start date so the current week can be worked out and the timetable shown correctly.</string>
@@ -1286,7 +1286,7 @@
     <string name="ics_failure_no_timing">Period times are not set, so each class\'s start and end times cannot be determined</string>
     <string name="ics_skip_no_timing">Period times are not set</string>
     <string name="ics_skip_missing_period">Missing period times</string>
-    <string name="ics_no_exportable_courses">This term has no courses to export</string>
+    <string name="ics_no_exportable_courses">No classes to export this term yet</string>
     <string name="ics_write_failed">Failed to write the calendar file</string>
     <string name="image_default_title">Schedule</string>
     <string name="image_week_label">Week %1$d</string>
@@ -1394,7 +1394,7 @@
     <string name="log_export_share_subject">CurSimple log %1$s</string>
     <string name="metadata_export_share_subject">CurSimple timetable metadata %1$s</string>
     <string name="backup_restore_version_too_new">This backup is from a newer version; update the app before restoring</string>
-    <string name="backup_restore_no_data">The backup file has nothing to restore</string>
+    <string name="backup_restore_no_data">This backup seems to have nothing to restore</string>
     <string name="term_default_name">Default term</string>
     <string name="share_decode_not_share_data">This is not CurSimple timetable share data</string>
     <string name="share_decode_too_large">The shared data is too large</string>
@@ -1424,7 +1424,7 @@
     <string name="import_diff_removed_header">%1$d removed</string>
     <string name="import_diff_kept">%1$d unchanged</string>
     <string name="import_diff_course_line">%1$s · %2$s, periods %3$s · %4$s</string>
-    <string name="import_diff_course_no_place">Room TBD</string>
+    <string name="import_diff_course_no_place">Room not decided yet</string>
     <string name="import_diff_overwrite">Overwrite</string>
     <string name="import_diff_new_term">Create a new one</string>
     <string name="import_diff_cancel">Not now</string>
@@ -1457,8 +1457,8 @@
     <string name="update_history_subtitle">What changed in each version</string>
     <string name="update_history_loading">Loading…</string>
     <string name="update_history_failed">Could not load the release history; check your network and retry</string>
-    <string name="update_history_empty">No releases yet</string>
-    <string name="update_history_no_notes">This release has no notes</string>
+    <string name="update_history_empty">No releases yet, stay tuned~</string>
+    <string name="update_history_no_notes">No release notes for this one yet, just upgrade quietly</string>
     <string name="update_history_prerelease">Pre-release</string>
     <string name="class_notice_title">Class in %1$d min · %2$s</string>
     <string name="class_notice_subtext">Class in %1$d min</string>
@@ -1570,8 +1570,8 @@
     <string name="settings_override_move_unknown_course">(course deleted)</string>
     <string name="settings_override_source_move">One course moved from %1$s</string>
     <string name="settings_group_quick">Quick settings</string>
-    <string name="settings_search_hint">Search settings, e.g. weekend, background</string>
-    <string name="settings_search_empty">No matching settings</string>
+    <string name="settings_search_hint">What are you looking for? e.g. weekend, background, keep-alive</string>
+    <string name="settings_search_empty">Nothing found, try another word~</string>
     <string name="settings_search_clear">Clear</string>
     <string name="settings_layout_to_grid">Switch to grid view</string>
     <string name="settings_layout_to_list">Switch to list view</string>
@@ -1583,7 +1583,7 @@
     <string name="settings_quick_widget_value">Add and style</string>
     <string name="settings_quick_notice_on">%1$d min before</string>
     <string name="settings_quick_add">Add to shortcuts</string>
-    <string name="settings_quick_empty">Tap + to pick a few, or long-press any item below and drag it up here</string>
+    <string name="settings_quick_empty">Tap the + at the top right to pick a few, or long-press an item below and drag it up</string>
     <string name="settings_quick_drop_here">Drop it in this box to add it</string>
     <string name="settings_quick_drop_release">Release to add</string>
     <string name="settings_quick_drop_remove">Release to remove</string>
@@ -1637,7 +1637,7 @@
     <string name="market_sources_plugin_title">Plugin sources</string>
     <string name="market_sources_component_title">Component sources</string>
     <string name="market_sources_subtitle">Read from these GitHub repositories, all at once. If two list the same item, the one higher up wins.</string>
-    <string name="market_sources_empty">The list is empty, so the market will show nothing.</string>
+    <string name="market_sources_empty">Nothing here yet, the market looks empty for now~</string>
     <string name="market_sources_add">Add repository</string>
     <string name="market_sources_restore_default">Restore public repo</string>
     <string name="market_sources_recheck">Check again</string>
@@ -1661,7 +1661,7 @@
     <string name="market_sources_add_plugin_title">Add plugin source</string>
     <string name="market_sources_add_component_title">Add component source</string>
     <string name="market_sources_add_label">Repository</string>
-    <string name="market_sources_add_hint">Enter owner/repo or paste a GitHub link. Either a registry repo or a single plugin\'s own repo.</string>
+    <string name="market_sources_add_hint">Enter owner/repo or paste a GitHub link. It can be a collection repo or a single plugin repo.</string>
     <string name="market_sources_add_invalid">Not a GitHub repository address</string>
     <string name="market_sources_add_duplicate">Already in the list</string>
     <string name="market_sources_add_parsed">Will add: %1$s</string>
@@ -1686,7 +1686,7 @@
     <string name="github_device_title">Sign in with GitHub</string>
     <string name="github_device_requesting">Getting a code from GitHub…</string>
     <string name="github_device_steps">The button copies this code and opens GitHub. Paste it there, authorize, then come back.</string>
-    <string name="github_device_waiting">Waiting for you to authorize…</string>
+    <string name="github_device_waiting">Approve it on the web page, I will wait right here</string>
     <string name="github_device_open">Copy and open GitHub</string>
     <string name="github_device_denied">Authorization was denied on GitHub</string>
     <string name="github_device_expired">The code expired. Close and try again</string>
@@ -1826,4 +1826,25 @@
     <string name="ie_ai_parse_failed">Xiaomi schedule parsing failed: %1$s</string>
     <string name="extension_notify_date_pattern">MMM d, HH:mm</string>
     <string name="extension_notify_due_prefix">Due: %1$s</string>
+    <string name="ie_free_time_body">Paste a classmate\'s code to find times you are both free</string>
+    <string name="settings_dest_dev_alarm">Alarm test</string>
+    <string name="settings_dev_hub_alarm_subtitle">Schedule a test alarm now to check ringing and the notification</string>
+    <string name="dev_alarm_test_intro">Tap to schedule a test alarm that rings in about 2 seconds, using the normal scheduling and ringing path. You can dismiss it or snooze it while it rings.</string>
+    <string name="dev_alarm_test_trigger">Trigger test alarm now</string>
+    <string name="dev_alarm_test_scheduled">Scheduled. It should ring in about 2 seconds; watch for the ringing screen and notification.</string>
+    <string name="dev_alarm_test_failed">Could not schedule: %1$s</string>
+    <string name="dev_alarm_test_alarm_title">Alarm test</string>
+    <string name="dev_alarm_test_alarm_message">A manually triggered alarm test</string>
+    <string name="notice_evening_body">Tomorrow has %1$d classes. The first is at %2$s, %3$s%4$s. Remember to set an alarm.</string>
+    <string name="notice_evening_location"> in %1$s</string>
+    <string name="notice_evening_empty">No classes tomorrow. Rest well!</string>
+    <string name="notice_evening_unknown">Class times are not set yet, so tomorrow\'s classes cannot be checked.</string>
+    <string name="ie_import_use_shared_timing">Use the shared class times (periods, lunch and evening slots)</string>
+    <string name="drawer_chooser_theme_title">Change theme</string>
+    <string name="drawer_chooser_background_title">Change background</string>
+    <string name="drawer_chooser_theme_color">Theme colour</string>
+    <string name="drawer_chooser_theme_color_hint">The app\'s main colour</string>
+    <string name="drawer_chooser_schedule_style_hint">Course card colours, corners and height</string>
+    <string name="drawer_chooser_schedule_background_hint">Only the timetable background image</string>
+    <string name="drawer_chooser_widget_background_hint">Only the home screen widget background</string>
 </resources>

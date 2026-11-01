@@ -84,6 +84,8 @@ data class TermSchedule(
     @SerialName("dailySchedules") val dailySchedules: List<DailySchedule> = emptyList(),
     /** Assigned by the host after plugin execution, never inherited from shared imports. */
     @SerialName("sourcePluginId") val sourcePluginId: String? = null,
+    /** Display name of the plugin that produced this timetable; kept when shared, unlike the id. */
+    @SerialName("sourceName") val sourceName: String? = null,
     /** User-confirmed legacy display binding; it does not claim recorded plugin execution. */
     @SerialName("legacyDisplayPluginId") val legacyDisplayPluginId: String? = null,
     @SerialName("externalImport") val externalImport: Boolean = false,

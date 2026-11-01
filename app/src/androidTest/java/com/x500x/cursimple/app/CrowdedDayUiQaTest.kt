@@ -24,6 +24,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import java.io.File
+import com.x500x.cursimple.feature.schedule.R as ScheduleR
 import java.time.LocalDate
 
 /**
@@ -102,9 +103,24 @@ class CrowdedDayUiQaTest {
         compose.onNode(hasText("汇编语言") and hasAnyAncestor(isDialog()), useUnmergedTree = true).assertExists()
         // Each folded course shows when it runs and where it stands against the clock.
         compose.onNode(hasText("08:00–09:35", substring = true) and hasAnyAncestor(isDialog()), useUnmergedTree = true).assertExists()
-        compose.onNode(hasText("Finished") and hasAnyAncestor(isDialog()), useUnmergedTree = true).assertExists()
+        compose.onNode(hasText(text(ScheduleR.string.schedule_overflow_finished)) and hasAnyAncestor(isDialog()), useUnmergedTree = true).assertExists()
         compose.onNode(hasText("数值分析") and hasAnyAncestor(isDialog()), useUnmergedTree = true).assertDoesNotExist()
         compose.onNode(hasText("组成原理") and hasAnyAncestor(isDialog()), useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    /** Language-neutral shots for the release notes: the week, then the folded courses behind the chip. */
+    @Test fun announcementShots() {
+        assumeTrue(args.getString("crowdedQa") == "true")
+        show()
+        save("week")
+        val chips = compose.onAllNodes(
+            hasTestTag("schedule-course-more") and hasAnyAncestor(hasTestTag("schedule-current-week")),
+            useUnmergedTree = true,
+        )
+        // A semantic click works wherever the chip sits, even partly off-screen at this density.
+        chips[0].performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
+        compose.waitForIdle()
+        save("expanded")
     }
 
     @Test fun wednesdayKeepsTwoOfFourSimultaneousCourses() {
@@ -138,27 +154,33 @@ class CrowdedDayUiQaTest {
         assumeTrue(args.getString("crowdedQa") == "true")
         show(widen = false, dark = true, fontScale = 1.3f)
         save("dark-large")
-        val density = context.resources.displayMetrics.density
+        // Pairs stay side by side even when the columns are narrow; the course cards are still drawn.
         val ids = listOf("a", "b", "c", "d", "e", "f", "g", "h1", "h2", "h3", "h4").filter { drawn(it) }
         assertTrue("something is drawn", ids.isNotEmpty())
-        ids.forEach { id -> assertTrue("$id is a strip", bounds(id).width / density >= 34f) }
+        val e = bounds("e")
+        val f = bounds("f")
+        assertTrue("overlapping courses still sit side by side: $e / $f", f.left >= e.right - 1f)
     }
 
-    @Test fun theSavedPeriodColumnWidthMovesTheGrid() {
+    @Test fun theSavedPeriodColumnWidthIsHonouredAndTheDaysStartAfterIt() {
         assumeTrue(args.getString("crowdedQa") == "true")
         show(widen = false)
         val density = context.resources.displayMetrics.density
-        val automatic = bounds("e").left / density
-        display.value = display.value.copy(timeColumnWidthDp = 24)
-        compose.waitForIdle()
-        val narrow = bounds("e").left / density
-        display.value = display.value.copy(timeColumnWidthDp = 60)
-        compose.waitForIdle()
-        val wide = bounds("e").left / density
+        fun gutterWidthAt(setting: Int): Float {
+            display.value = display.value.copy(timeColumnWidthDp = setting)
+            compose.waitForIdle()
+            val gutter = compose.onNode(
+                hasTestTag("schedule-time-column") and hasAnyAncestor(hasTestTag("schedule-current-week")),
+                useUnmergedTree = true,
+            ).fetchSemanticsNode().boundsInRoot
+            assertTrue("the days start after a $setting dp gutter", bounds("e").left >= gutter.right - 1f)
+            return gutter.width / density
+        }
+        val narrow = gutterWidthAt(24)
+        val wide = gutterWidthAt(60)
         save("time-column-60")
-        assertTrue("24dp ($narrow) is slimmer than automatic ($automatic)", narrow < automatic - 2f)
-        assertTrue("60dp ($wide) is wider than automatic ($automatic)", wide > automatic + 10f)
-        assertEquals("the grid shifts by the width difference", 36f, wide - narrow, 4f)
+        assertTrue("24dp setting gives a ${narrow}dp gutter", kotlin.math.abs(narrow - 24f) < 3f)
+        assertTrue("60dp setting gives a ${wide}dp gutter", kotlin.math.abs(wide - 60f) < 3f)
     }
 
     @Test fun narrowPhoneNeverDrawsStripCards() {
@@ -178,6 +200,8 @@ class CrowdedDayUiQaTest {
             useUnmergedTree = true,
         ).fetchSemanticsNodes().isNotEmpty())
     }
+
+    private fun text(id: Int) = context.getString(id)
 
     private fun drawn(id: String) = compose.onAllNodes(
         hasTestTag("schedule-course-$id") and hasAnyAncestor(hasTestTag("schedule-current-week")),

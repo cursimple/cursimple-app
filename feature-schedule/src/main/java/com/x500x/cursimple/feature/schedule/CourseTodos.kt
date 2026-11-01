@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -16,6 +17,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -83,6 +86,7 @@ internal fun CourseTodosSection(
     today: LocalDate,
 ) {
     var adding by rememberSaveable(course.id) { mutableStateOf(false) }
+    var pendingComplete by remember(course.id) { mutableStateOf<MemoNote?>(null) }
     val open = todos.filter { !it.completed }
     val doneCount = todos.size - open.size
     Surface(
@@ -116,7 +120,7 @@ internal fun CourseTodosSection(
                 )
             }
             open.take(MAX_SHOWN_TODOS).forEach { todo ->
-                CourseTodoRow(todo, today, readOnly) { onSave(todo.copy(completed = true, updatedAt = System.currentTimeMillis())) }
+                CourseTodoRow(todo, today, readOnly) { pendingComplete = todo }
             }
             if (open.size > MAX_SHOWN_TODOS) {
                 Text(
@@ -133,12 +137,37 @@ internal fun CourseTodosSection(
                 )
             }
             if (!readOnly) {
-                AppOutlinedButton(onClick = { adding = true }, modifier = Modifier.testTag("course-todo-add")) {
+                AppOutlinedButton(onClick = { adding = true }, shape = CircleShape, modifier = Modifier.testTag("course-todo-add")) {
                     Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text(stringResource(R.string.course_todos_add), modifier = Modifier.padding(start = 6.dp))
                 }
             }
         }
+    }
+    pendingComplete?.let { todo ->
+        val label = todo.title.ifBlank { todo.body.lineSequence().firstOrNull().orEmpty() }
+        AlertDialog(
+            onDismissRequest = { pendingComplete = null },
+            title = { Text(stringResource(R.string.course_todo_complete_title, label)) },
+            text = { Text(stringResource(R.string.course_todo_complete_body)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onSave(todo.copy(completed = true, updatedAt = System.currentTimeMillis()))
+                        pendingComplete = null
+                    },
+                    shape = CircleShape,
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("course-todo-complete-confirm"),
+                ) { Text(stringResource(R.string.course_todo_complete_confirm)) }
+            },
+            dismissButton = {
+                AppOutlinedButton(
+                    onClick = { pendingComplete = null },
+                    shape = CircleShape,
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) { Text(stringResource(R.string.schedule_action_cancel)) }
+            },
+        )
     }
     if (adding) {
         CourseTodoDialog(

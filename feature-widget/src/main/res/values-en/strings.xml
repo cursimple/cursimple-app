@@ -27,15 +27,15 @@
 
     <string name="widget_holiday_default">Holiday</string>
     <string name="widget_empty_holiday">%1$s · No classes</string>
-    <string name="widget_empty_term_start_missing">No term start · Tap to set</string>
-    <string name="widget_empty_before_term_start">Not started</string>
-    <string name="widget_empty_before_term_start_date">Not started · from %1$d/%2$d</string>
+    <string name="widget_empty_term_start_missing">No start date yet · Tap to set one</string>
+    <string name="widget_empty_before_term_start">Not in session yet</string>
+    <string name="widget_empty_before_term_start_date">Not in session yet · starts %1$d/%2$d~</string>
     <string name="widget_empty_yesterday">No classes yesterday</string>
-    <string name="widget_empty_today">No classes today, enjoy</string>
-    <string name="widget_empty_tomorrow">No classes tomorrow</string>
+    <string name="widget_empty_today">No classes today, enjoy your day</string>
+    <string name="widget_empty_tomorrow">Nothing tomorrow, have a rest~</string>
     <string name="widget_empty_other_day">No classes that day</string>
     <string name="widget_agenda_empty_yesterday">Nothing planned yesterday</string>
-    <string name="widget_agenda_empty_today">Nothing planned today, enjoy</string>
+    <string name="widget_agenda_empty_today">Nothing planned today, take it easy~</string>
     <string name="widget_agenda_empty_tomorrow">Nothing planned tomorrow</string>
     <string name="widget_agenda_empty_other_day">Nothing planned that day</string>
 
@@ -49,10 +49,10 @@
     <string name="widget_next_header_holiday">%1$s · %2$s</string>
     <string name="widget_next_header_source">%1$s · Using %2$s</string>
     <string name="widget_next_header_status">%1$s · %2$s</string>
-    <string name="widget_next_empty_no_more_today">No more classes today</string>
-    <string name="widget_next_empty_today">No classes today</string>
-    <string name="widget_next_empty_tomorrow">No classes tomorrow</string>
-    <string name="widget_next_empty_other_day">No classes that day</string>
+    <string name="widget_next_empty_no_more_today">Today\'s classes are all done~</string>
+    <string name="widget_next_empty_today">No classes today, enjoy it</string>
+    <string name="widget_next_empty_tomorrow">No classes tomorrow, get some good sleep</string>
+    <string name="widget_next_empty_other_day">No classes that day, take it easy</string>
 
     <string name="widget_status_live">In class</string>
     <string name="widget_status_exam_live">In exam</string>
@@ -72,10 +72,10 @@
     <string name="widget_row_event_tag">Event</string>
 
     <string name="widget_reminder_badge_count">%1$d</string>
-    <string name="widget_reminder_empty_no_rules">No alarm rules yet</string>
-    <string name="widget_reminder_empty_no_rules_sub">Add alarms to a class in the app</string>
-    <string name="widget_reminder_empty_none_upcoming">No upcoming alarms</string>
-    <string name="widget_reminder_empty_none_upcoming_sub">Nothing scheduled for a while</string>
+    <string name="widget_reminder_empty_no_rules">No alarm rules yet~</string>
+    <string name="widget_reminder_empty_no_rules_sub">Add an alarm to a class in the app</string>
+    <string name="widget_reminder_empty_none_upcoming">No alarms coming up, rest easy</string>
+    <string name="widget_reminder_empty_none_upcoming_sub">Quiet for a while</string>
     <string name="widget_reminder_date_today">Today</string>
     <string name="widget_reminder_date_tomorrow">Tomorrow</string>
     <string name="widget_reminder_date_day_after">In 2d</string>
@@ -146,14 +146,14 @@
     <string name="widget_calendar_range">%1$s – %2$s</string>
     <string name="widget_calendar_month_title">%2$s %1$d</string>
     <string name="widget_calendar_today_subtitle">Today %1$s</string>
-    <string name="widget_calendar_no_term_start">Term start not set</string>
+    <string name="widget_calendar_no_term_start">No start date yet</string>
     <string name="widget_calendar_tag_holiday">Off</string>
     <string name="widget_calendar_tag_makeup">Work</string>
     <string name="widget_calendar_legend_class">Class</string>
     <string name="widget_calendar_legend_exam">Exam</string>
     <string name="widget_calendar_legend_event">Event</string>
-    <string name="widget_calendar_empty_week">No classes this week</string>
-    <string name="widget_calendar_empty_no_term">Set the term start to show classes</string>
+    <string name="widget_calendar_empty_week">No classes this week, nice and light~</string>
+    <string name="widget_calendar_empty_no_term">Set a start date and your classes will show up</string>
     <string name="widget_memo_overdue">Overdue</string>
     <string-array name="widget_calendar_weekdays">
         <item>M</item>
@@ -170,8 +170,7 @@
     <string name="widget_page_next">Next</string>
     <string name="widget_label_memo">Note to-dos</string>
     <string name="widget_catalog_memo_description">Complete tasks on the home screen. Tap the checkbox to finish or the text to edit.</string>
-    <string name="widget_memo_empty">All to-dos complete
-Add your next task in Notes</string>
+    <string name="widget_memo_empty">All to-dos done, great job!</string>
     <string name="widget_memo_notebook_other">Other notes</string>
     <string name="widget_memo_pending">To-do</string>
     <string name="widget_memo_subtitle">Check to finish · Tap text to edit</string>
@@ -192,6 +191,6 @@ Add your next task in Notes</string>
     <string name="widget_memo_changed">This task has changed. Refreshed; please try again.</string>
     <string name="widget_memo_save_failed">Could not save. Please try again.</string>
     <string name="widget_memo_add_action">Add task</string>
-    <string name="widget_memo_empty_compact">Tap + to add a task</string>
+    <string name="widget_memo_empty_compact">Tap + to add a to-do</string>
     <string name="widget_loading_text">Loading…</string>
 </resources>

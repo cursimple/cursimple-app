@@ -38,6 +38,7 @@ internal fun Context.widgetTodayMood(
     now: LocalTime,
     holidayLabel: WidgetHolidayLabel?,
     tomorrowHoliday: Boolean,
+    tomorrowHasClasses: Boolean,
     totalCourses: Int,
 ): String? {
     val mood = dayMood(
@@ -48,6 +49,7 @@ internal fun Context.widgetTodayMood(
         totalCourses = totalCourses,
         hasMoreToday = false,
         timeSensitive = false,
+        tomorrowHasClasses = tomorrowHasClasses,
     ) ?: return null
     val line = dayMoodLine(today, mood) ?: return null
     return holidayLabel?.let { getString(R.string.widget_empty_holiday_mood, widgetHolidayText(it), line) } ?: line

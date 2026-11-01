@@ -529,7 +529,8 @@ private fun CourseLibraryList(
                     grouped.forEach { (dayOfWeek, dayGroups) ->
                         item(key = "header-$dayOfWeek") {
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, start = 4.dp),
+                                // Headers glide and fade with their cards, so every sort mode moves the list the same way.
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, start = 4.dp).then(appItemMotion()),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {

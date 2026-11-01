@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.rounded.Check
@@ -66,6 +65,9 @@ import androidx.compose.material.icons.rounded.Source
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.SettingsBackupRestore
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -85,6 +87,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -147,6 +151,8 @@ fun CourseDetailDialog(
     /** Use the current-week label only when the viewed week is actually current. */
     currentWeekNumber: Int? = null,
     isManual: (CourseItem) -> Boolean,
+    /** Plugin display name for courses from a plugin timetable; shown in place of the generic label. */
+    sourceName: String? = null,
     examReminderEnabled: Boolean = false,
     mutedExamCourseIds: Set<String> = emptySet(),
     targetDate: LocalDate? = null,
@@ -199,6 +205,7 @@ fun CourseDetailDialog(
     val sourceWeekNumber = sourceWeekOf(course)
     var editing by remember(course.id) { mutableStateOf(false) }
     var confirmRestore by remember(course.id) { mutableStateOf(false) }
+    var showColorPicker by remember(course.id) { mutableStateOf(false) }
     val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
     val legacyColor = scheduleCardStyle.customCourseColors[course.id]
         ?: scheduleCardStyle.customCourseColors[course.title]
@@ -549,6 +556,7 @@ fun CourseDetailDialog(
                                     details = shown.course.details,
                                     manual = shown.manual,
                                     pluginOverride = shown.pluginOverride,
+                                    sourceName = sourceName,
                                     isExam = shown.course.category == CourseCategory.Exam,
                                 )
                             }
@@ -584,16 +592,6 @@ fun CourseDetailDialog(
                                 )
                             }
 
-                            if (!readOnly && course.category != CourseCategory.Exam && course.colorArgb == null) {
-                                CourseCustomColorSection(
-                                    selectedArgb = customColor,
-                                    palette = accents.coursePalette,
-                                    onSelectColor = { argb ->
-                                        onSetCustomCourseColor(course.id, argb)
-                                    },
-                                )
-                            }
-
                             if (!readOnly && course.category == CourseCategory.Exam) {
                                 ExamReminderMuteRow(
                                     enabled = examReminderEnabled,
@@ -604,6 +602,16 @@ fun CourseDetailDialog(
                             }
                         }
                     }
+                    if (showColorPicker) {
+                        CourseColorSheet(
+                            course = course,
+                            palette = accents.coursePalette,
+                            onChange = { appearance ->
+                                onSaveCourse(course.copy(colorArgb = appearance.fill, colorEndArgb = appearance.fillEnd, borderArgb = appearance.border))
+                            },
+                            onDismiss = { showColorPicker = false },
+                        )
+                    }
                     if (!readOnly && !editing) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).testTag("course-detail-actions")) {
@@ -613,6 +621,8 @@ fun CourseDetailDialog(
                                 showDelete = manual && !pluginOverride,
                                 showRestorePlugin = pluginOverride,
                                 onEdit = { editing = true },
+                                showColor = course.category != CourseCategory.Exam,
+                                onColor = { showColorPicker = true },
                                 hasReminder = hasCancellableReminder(course),
                                 onSetReminder = { onSetReminder(course) },
                                 onCancelReminder = { onCancelReminder(course) },
@@ -855,6 +865,7 @@ private fun CourseFactsCard(
     details: List<CourseDetailField>,
     manual: Boolean,
     pluginOverride: Boolean,
+    sourceName: String? = null,
     isExam: Boolean = false,
 ) {
     Surface(
@@ -982,13 +993,17 @@ private fun CourseFactsCard(
                 )
                 Text(
                     text = stringResource(R.string.schedule_course_detail_source) + " · " +
-                        stringResource(
-                            when {
-                                pluginOverride -> R.string.schedule_source_plugin_edited
-                                manual -> R.string.schedule_source_manual
-                                else -> R.string.schedule_source_plugin
-                            },
-                        ),
+                        if (!manual && !pluginOverride && !sourceName.isNullOrBlank()) {
+                            sourceName
+                        } else {
+                            stringResource(
+                                when {
+                                    pluginOverride -> R.string.schedule_source_plugin_edited
+                                    manual -> R.string.schedule_source_manual
+                                    else -> R.string.schedule_source_plugin
+                                },
+                            )
+                        },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1004,8 +1019,10 @@ private fun CourseActionBar(
     showTemporaryCancel: Boolean,
     showDelete: Boolean,
     showRestorePlugin: Boolean,
+    showColor: Boolean,
     hasReminder: Boolean,
     onEdit: () -> Unit,
+    onColor: () -> Unit,
     onSetReminder: () -> Unit,
     onCancelReminder: () -> Unit,
     onTemporaryCancel: () -> Unit,
@@ -1027,6 +1044,13 @@ private fun CourseActionBar(
                 label = stringResource(R.string.schedule_action_edit),
                 onClick = onEdit,
             )
+            if (showColor) {
+                DetailAction(
+                    icon = Icons.Rounded.Palette,
+                    label = stringResource(R.string.schedule_action_color),
+                    onClick = onColor,
+                )
+            }
             // Existing reminders expose removal rather than another creation action.
             DetailAction(
                 icon = if (hasReminder) Icons.Rounded.NotificationsOff else Icons.Rounded.NotificationsActive,
@@ -1480,106 +1504,31 @@ internal fun Context.weeksDetailText(detail: WeeksDetail): String = when (detail
             "\n" + detail.weeksList
 }
 
+/** Course colour, border and gradient, using the same appearance editor as the course form. */
 @Composable
-private fun CourseCustomColorSection(
-    selectedArgb: Long?,
+private fun CourseColorSheet(
+    course: CourseItem,
     palette: List<CoursePaletteEntry>,
-    onSelectColor: (Long?) -> Unit,
+    onChange: (ItemAppearance) -> Unit,
+    onDismiss: () -> Unit,
 ) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    androidx.compose.material3.Icon(
-                        imageVector = Icons.Rounded.Palette,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Text(
-                        text = stringResource(R.string.schedule_custom_course_color_title),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-                if (selectedArgb != null) {
-                    TextButton(
-                        onClick = { onSelectColor(null) },
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.schedule_custom_course_color_reset),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                }
-            }
-
-            val colors = remember(palette) {
-                val paletteArgb = palette.map { it.container.toArgb().toLong() and 0xFFFF_FFFFL }
-                val extraArgb = listOf(
-                    0xFFFCE4ECL, // Pink
-                    0xFFE8F5E9L, // Light Green
-                    0xFFE1F5FEL, // Light Blue
-                    0xFFFFF9C4L, // Light Yellow
-                    0xFFF3E5F5L, // Lavender
-                    0xFFFFE0B2L, // Peach
-                    0xFFE0F2F1L, // Mint
-                    0xFFE8EAF6L, // Indigo light
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.testTag("course-color-sheet"),
+        text = {
+            Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                ItemAppearanceSection(
+                    appearance = course.appearance(),
+                    onChange = onChange,
+                    autoColor = courseColor(course.title, palette).container,
+                    previewTitle = course.title,
                 )
-                (paletteArgb + extraArgb).distinct()
             }
-
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(vertical = 4.dp),
-            ) {
-                items(colors) { argb ->
-                    val isSelected = selectedArgb == argb
-                    val color = androidx.compose.ui.graphics.Color(argb.toInt())
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(color)
-                            .clickable { onSelectColor(if (isSelected) null else argb) }
-                            .then(
-                                if (isSelected) {
-                                    Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                                } else {
-                                    Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), CircleShape)
-                                }
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (isSelected) {
-                            androidx.compose.material3.Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = null,
-                                tint = if (color.luminance() > 0.5f) androidx.compose.ui.graphics.Color(0xFF1F2A24) else androidx.compose.ui.graphics.Color.White,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        }
-                    }
-                }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss, shape = CircleShape) {
+                Text(stringResource(R.string.schedule_action_close))
             }
-        }
-    }
+        },
+    )
 }

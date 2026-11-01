@@ -6,20 +6,27 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +64,8 @@ internal fun CourseAttendanceSection(
     val date = sessionDate?.toString()
     val current = date?.let { attendance.statusOf(key, it) }
     val markable = sessionDate != null && !sessionDate.isAfter(today)
+    // Collapsed by default so the detail page is not crowded; the summary stays visible on the header.
+    var expanded by rememberSaveable(course.id) { mutableStateOf(false) }
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
@@ -64,43 +73,66 @@ internal fun CourseAttendanceSection(
         modifier = Modifier.fillMaxWidth().testTag("course-attendance-section"),
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = stringResource(R.string.attendance_title),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            if (sessionDate != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }.testTag("course-attendance-toggle"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // The title keeps its natural width; the totals take the rest, so the title never wraps per character.
                 Text(
-                    text = stringResource(
-                        if (markable) R.string.attendance_this_session else R.string.attendance_not_yet,
-                        sessionDate.monthValue,
-                        sessionDate.dayOfMonth,
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = stringResource(R.string.attendance_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false,
                 )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf(
-                        AttendanceStatus.Present to R.string.attendance_present,
-                        AttendanceStatus.Absent to R.string.attendance_absent,
-                        AttendanceStatus.Leave to R.string.attendance_leave,
-                    ).forEach { (status, label) ->
-                        AppFilterChip(
-                            selected = current == status,
-                            enabled = markable,
-                            onClick = {
-                                val next = if (current == status) null else status
-                                onMark(key, requireNotNull(date), next)
-                                if (next == AttendanceStatus.Absent && summary.allowance != null && summary.remaining!! <= 1) onLimitReached()
-                            },
-                            label = { Text(stringResource(label)) },
-                            modifier = Modifier.testTag("attendance-mark-${status.name}"),
-                        )
+                Text(
+                    text = stringResource(R.string.attendance_totals, summary.present, summary.absent, summary.leave),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    Icons.Rounded.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp).rotate(if (expanded) 180f else 0f),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (expanded) {
+                if (sessionDate != null) {
+                    Text(
+                        text = stringResource(
+                            if (markable) R.string.attendance_this_session else R.string.attendance_not_yet,
+                            sessionDate.monthValue,
+                            sessionDate.dayOfMonth,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf(
+                            AttendanceStatus.Present to R.string.attendance_present,
+                            AttendanceStatus.Absent to R.string.attendance_absent,
+                            AttendanceStatus.Leave to R.string.attendance_leave,
+                        ).forEach { (status, label) ->
+                            AppFilterChip(
+                                selected = current == status,
+                                enabled = markable,
+                                onClick = {
+                                    val next = if (current == status) null else status
+                                    onMark(key, requireNotNull(date), next)
+                                    if (next == AttendanceStatus.Absent && summary.allowance != null && summary.remaining!! <= 1) onLimitReached()
+                                },
+                                label = { Text(stringResource(label)) },
+                                modifier = Modifier.testTag("attendance-mark-${status.name}"),
+                            )
+                        }
                     }
                 }
+                AttendanceTotals(summary)
+                AllowanceRow(summary, onSetAllowance = { onSetAllowance(key, it) })
             }
-            AttendanceTotals(summary)
-            AllowanceRow(summary, onSetAllowance = { onSetAllowance(key, it) })
         }
     }
 }

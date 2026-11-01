@@ -7,15 +7,15 @@
     <string name="plugin_market_read_component_package_failed">讀取元件包失敗</string>
     <string name="plugin_market_read_file_failed">無法讀取檔案內容</string>
     <string name="plugin_market_loading_title">正在載入...</string>
-    <string name="plugin_market_empty_title">外掛市場為空</string>
+    <string name="plugin_market_empty_title">外掛市集空空的</string>
     <string name="plugin_market_loading_subtitle">稍候。</string>
-    <string name="plugin_market_empty_subtitle">重新整理清單後再試，也可以從本機匯入 ZIP。</string>
-    <string name="plugin_market_installed_empty_title">還沒有任何外掛</string>
-    <string name="plugin_market_installed_empty_subtitle">前往市場安裝外掛，或從本機匯入 ZIP。</string>
+    <string name="plugin_market_empty_subtitle">重新整理一下列表再來看看吧，也可以從本機匯入 ZIP 哦～</string>
+    <string name="plugin_market_installed_empty_title">還沒有安裝外掛呢</string>
+    <string name="plugin_market_installed_empty_subtitle">去市集挑幾個裝上吧，或從本機匯入 ZIP</string>
     <plurals name="plugin_market_browse_all">
         <item quantity="other">瀏覽全部 %1$d 個插件</item>
     </plurals>
-    <string name="plugin_market_search_empty">沒有符合「%1$s」的插件</string>
+    <string name="plugin_market_search_empty">沒找到「%1$s」相關的外掛，換個詞試試～</string>
     <plurals name="plugin_market_search_count">
         <item quantity="other">共 %1$d 個插件</item>
     </plurals>
@@ -102,9 +102,9 @@
     </plurals>
     <string name="plugin_log_copied_one">已複製該條日誌</string>
     <string name="plugin_log_cleared">已清空日誌</string>
-    <string name="plugin_log_empty">暫無日誌，操作外掛後會自動產生</string>
-    <string name="plugin_log_no_match">當前篩選條件下沒有匹配日誌</string>
-    <string name="plugin_log_search_placeholder">搜尋事件名/外掛 ID/欄位值…</string>
+    <string name="plugin_log_empty">還沒有日誌哦，操作一下外掛，它們就會悄悄記下來</string>
+    <string name="plugin_log_no_match">這個篩選下沒有日誌呢</string>
+    <string name="plugin_log_search_placeholder">搜尋看看：事件名、外掛 ID 或欄位值…</string>
     <string name="plugin_log_filter_all_levels">全部</string>
     <string name="plugin_log_filter_all_sources">全部來源</string>
     <string name="plugin_log_filter_trace_chip">trace=%1$s × 取消</string>
@@ -115,6 +115,9 @@
     <string name="plugin_web_stage_writing">寫入課表資料</string>
     <string name="plugin_web_status_uploading">上傳課表 · %1$s（%2$d/3）</string>
     <string name="plugin_web_status_page_error">頁面載入失敗：%1$s</string>
+    <string name="plugin_web_status_import_error">課表匯入失敗：%1$s</string>
+    <string name="plugin_web_yangtze_workbench_hint">閘道已登入，請點擊工作台上的「教务系统」（教務系統），進入教務系統後再繼續匯入課表。</string>
+    <string name="plugin_web_yangtze_timetable_hint">已進入教務系統首頁，請開啟「我的课表」（我的課表），等課表顯示完整後，再點擊「上傳課表」。</string>
     <string name="plugin_web_status_blocked">已攔截非白名單跳轉：%1$s</string>
     <string name="plugin_web_status_popup">已接管新視窗跳轉：%1$s</string>
     <string name="plugin_web_status_pending_completion">資料已就緒，等待頁面停止跳轉…</string>
@@ -154,7 +157,7 @@
     <string name="plugin_market_status_registry_not_configured">請先在設定-外掛中配置登錄檔倉庫</string>
     <string name="plugin_market_status_loading">正在載入外掛市場...</string>
     <string name="plugin_market_status_checking_update">正在檢查「%1$s」有沒有新版…</string>
-    <string name="plugin_market_status_market_empty">外掛市場為空</string>
+    <string name="plugin_market_status_market_empty">外掛市集空空的</string>
     <plurals name="plugin_market_status_market_loaded">
         <item quantity="other">已載入 %1$d 個外掛</item>
     </plurals>
@@ -221,11 +224,11 @@
     <string name="school_import_step_install">裝外掛</string>
     <string name="school_import_step_login">登入匯入</string>
     <string name="school_import_search_label">搜尋學校</string>
-    <string name="school_import_market_empty">還沒抓到外掛清單，檢查一下網路再試一次</string>
+    <string name="school_import_market_empty">還沒拉到外掛清單呢，看看網路再試一次吧</string>
     <string name="school_import_retry">重新載入</string>
     <string name="school_import_refresh">重新整理外掛清單</string>
     <string name="school_import_refresh_list">重新整理外掛清單</string>
-    <string name="school_import_no_match">「%1$s」還沒有對應的外掛</string>
+    <string name="school_import_no_match">「%1$s」還沒有對應的外掛呢</string>
     <plurals name="school_import_catalog_count">
         <item quantity="other">目前收錄 %1$d 個學校外掛</item>
     </plurals>
@@ -235,7 +238,7 @@
     <plurals name="school_import_match_count">
         <item quantity="other">在 %1$d 個外掛裡搜到 %2$d 個</item>
     </plurals>
-    <string name="school_import_no_match_hint">外掛由各校同學自己寫、自己提交，你的學校可能還沒人做。可以先手動加課，或者用「匯入 / 匯出課程」從檔案匯入。</string>
+    <string name="school_import_no_match_hint">外掛都是同學們自己寫的呀，你的學校說不定還沒人做過呢。可以先手動加課，或去「匯入 / 匯出課程」從檔案匯入。</string>
     <string name="school_import_add_manually">手動新增課程</string>
     <string name="school_import_browse_all">瀏覽全部外掛</string>
     <string name="school_import_installed_enabled">已安裝並啟用</string>
@@ -278,15 +281,15 @@
     <string name="extension_account_logged_in">已登入：%1$s</string>
     <string name="extension_account_expired">登入已失效</string>
     <string name="extension_account_expired_desc">%1$s的登入過期了，重新登入後才能繼續同步。</string>
-    <string name="extension_account_none">還沒登入%1$s</string>
-    <string name="extension_account_none_desc">登入後課簡才能替你看作業、考試和公告。</string>
+    <string name="extension_account_none">還沒登入%1$s 呢</string>
+    <string name="extension_account_none_desc">登入之後，課簡就能幫你盯著作業、考試和公告啦～</string>
     <string name="extension_sync_never">還沒同步過</string>
     <string name="extension_interval_minutes">%1$d 分鐘</string>
     <string name="extension_due_off">不提醒</string>
     <string name="extension_feed_open_settings">元件設定</string>
     <string name="extension_feed_banner_expired">登入已失效，這裡顯示的是上次同步的內容。點這裡重新登入。</string>
-    <string name="extension_feed_empty_expired">登入已失效</string>
-    <string name="extension_feed_empty_login">登入後這裡會顯示作業、考試和公告</string>
+    <string name="extension_feed_empty_expired">登入過期啦，重新登一下吧</string>
+    <string name="extension_feed_empty_login">登入後，作業、考試和公告會在這裡冒出來</string>
     <string name="extension_feed_go_login">去登入</string>
     <string name="extension_item_due">截止：%1$s（%2$s）</string>
     <string name="extension_item_start">開始：%1$s</string>
@@ -339,10 +342,10 @@
     <string name="extension_item_read">已讀</string>
     <string name="extension_item_unread">未讀</string>
     <string name="plugin_market_tab_extensions">元件</string>
-    <string name="extension_installed_empty_title">還沒有安裝元件</string>
-    <string name="extension_installed_empty_subtitle">前往市場安裝元件，或匯入 ZIP。安裝後可直接開啟元件，登入並查看內容。</string>
-    <string name="extension_market_empty_title">元件市場暫無元件</string>
-    <string name="extension_market_empty_subtitle">重新整理清單後再試，也可以從本機匯入 ZIP。</string>
+    <string name="extension_installed_empty_title">還沒有安裝元件呢</string>
+    <string name="extension_installed_empty_subtitle">去市集挑幾個元件裝上吧，或匯入 ZIP。裝好後就能直接開啟啦</string>
+    <string name="extension_market_empty_title">元件市集還空空的～</string>
+    <string name="extension_market_empty_subtitle">重新整理一下再來看看，也可以從本機匯入 ZIP</string>
     <string name="extension_schedule_section">在課表中顯示</string>
     <string name="extension_schedule_details">事務詳細設定</string>
     <string name="extension_schedule_independent">只影響課表顯示，通知與元件日曆各自設定</string>
@@ -353,7 +356,7 @@
     <string name="extension_schedule_tasks">只看任務</string>
     <string name="extension_schedule_notices">只看公告</string>
     <string name="extension_schedule_type_hint">下方可分別開關每種內容，展開卡片可設定日期與時段。</string>
-    <string name="extension_schedule_none">尚未選擇類型，課表不會顯示任何內容</string>
+    <string name="extension_schedule_none">還沒挑類型呢，課表上暫時不會顯示任何內容哦</string>
     <string name="extension_schedule_appearance">卡片顯示方式</string>
     <string name="extension_schedule_time">預設顯示時間</string>
     <string name="extension_schedule_time_desc">公告與沒有實際時段的內容使用此時間；僅用於顯示</string>
@@ -373,7 +376,7 @@
     <string name="extension_schedule_days">最近 %d 天</string>
     <string name="extension_schedule_sync_scope">未來日期的內容會持續顯示；元件同步設定中隱藏的內容無法寫入事務。</string>
     <string name="extension_schedule_preview">效果預覽</string>
-    <string name="extension_schedule_preview_empty">目前沒有符合條件的內容。登入同步後可預覽實際日期與時間。</string>
+    <string name="extension_schedule_preview_empty">暫時沒有符合條件的內容，登入並同步之後，這裡會預覽實際的日期和時間。</string>
     <string name="extension_schedule_preview_footer">儲存後自動更新已有事務，不會重複新增；關閉總開關會移除元件產生的事務。</string>
     <string name="extension_schedule_save">儲存並更新課表</string>
     <string name="extension_schedule_other">其他內容</string>
@@ -401,7 +404,7 @@
     <string name="extension_feed_settings_scope">用於側邊欄專屬頁面</string>
     <string name="extension_feed_settings_count">目前顯示 %d 項內容</string>
     <string name="extension_feed_settings_intro">可只保留公告或待辦任務，設定開啟頁面時的檢視，以及週日曆依哪種日期排列。</string>
-    <string name="extension_feed_settings_none">未選擇類型，日曆不會顯示內容</string>
+    <string name="extension_feed_settings_none">還沒選類型，行事曆裡暫時不會出現內容哦～</string>
     <string name="extension_feed_settings_layout">檢視與日期</string>
     <string name="extension_feed_settings_date">週日曆日期依據</string>
     <string name="extension_feed_settings_date_desc">自動：作業按截止日、考試按開考日、公告按發布日。所選日期缺失時依其他可用日期顯示；詳情保留原始時間。</string>
@@ -418,7 +421,7 @@
     <string name="extension_feed_next_month">下個月</string>
     <string name="extension_feed_this_month">回到本月</string>
     <string name="extension_feed_day_accessibility">%1$s，%2$d 項內容</string>
-    <string name="extension_feed_day_empty">這天沒有內容</string>
+    <string name="extension_feed_day_empty">這一天還沒有內容呢</string>
     <string name="extension_feed_day_count">這天共 %1$d 項內容</string>
     <string name="extension_feed_media_title">圖片與附件</string>
     <string name="extension_item_historical">往期公告</string>
@@ -429,7 +432,7 @@
     <string name="extension_search_label">搜尋元件</string>
     <string name="plugin_catalog_search_hint">名稱、學校、作者或來源</string>
     <string name="plugin_catalog_clear_search">清除搜尋</string>
-    <string name="plugin_catalog_search_empty_hint">試試其他關鍵字，或清除搜尋查看全部。</string>
+    <string name="plugin_catalog_search_empty_hint">換個關鍵字試試，或清空搜尋，看看全部吧</string>
     <string name="plugin_catalog_browse_market">前往市場</string>
     <string name="plugin_catalog_public_source">公有倉庫</string>
     <string name="plugin_catalog_source">來源：%1$s</string>
@@ -440,7 +443,7 @@
     <string name="plugin_catalog_not_installed">未安裝</string>
     <string name="plugin_catalog_loading_version">讀取版本中…</string>
     <string name="plugin_catalog_stars">%1$d 個收藏</string>
-    <string name="extension_search_empty">沒有符合「%1$s」的元件</string>
+    <string name="extension_search_empty">沒找到「%1$s」相關的元件，換個詞試試</string>
     <string name="plugin_catalog_source_failed">%1$s 載入失敗</string>
     <string name="plugin_catalog_source_retry">重試</string>
     <plurals name="plugin_catalog_installed_count">
@@ -456,8 +459,8 @@
 
     <string name="extension_detail_title">元件詳情</string>
     <string name="plugin_detail_intro">簡介</string>
-    <string name="plugin_detail_no_description">暫無簡介</string>
-    <string name="plugin_detail_no_repository">未關聯倉庫</string>
+    <string name="plugin_detail_no_description">還沒有簡介呢</string>
+    <string name="plugin_detail_no_repository">還沒關聯倉庫呢～</string>
     <string name="plugin_detail_expand_technical">查看權限與技術資訊</string>
     <string name="plugin_detail_collapse_technical">收合權限與技術資訊</string>
     <string name="extension_install_dialog_title">安裝元件</string>
@@ -540,4 +543,76 @@
     <string name="plugin_timetable_legacy_saving">正在儲存…</string>
     <string name="plugin_web_manual_upload_hint">自動匯入尚未完成，可點擊「上傳課表」手動匯入。</string>
     <string name="plugin_web_manual_upload_not_ready">尚未讀取到課程資料，請等待課表頁面載入完成，或重新整理後再上傳。</string>
+    <string name="school_portal_section_title">學校名單</string>
+    <string name="school_portal_badge_portal">教務系統</string>
+    <string name="school_portal_badge_plugin">外掛匯入</string>
+    <string name="school_portal_tier_985">985</string>
+    <string name="school_portal_tier_211">211</string>
+    <string name="school_portal_action_open">通用匯入</string>
+    <string name="school_portal_hint">登入後打開課表頁面，再點擊「上傳課表」，課簡會讀取頁面上的課程。</string>
+    <string name="school_portal_plugin_unavailable">外掛暫時無法使用，請先重新整理外掛列表。</string>
+    <string name="school_portal_no_match">名單裡還沒有這所學校。可以用通用匯入：輸入教務系統的網址，直接打開後上傳課表。</string>
+    <string name="school_portal_url_label">教務系統網址（https://）</string>
+    <string name="school_portal_url_invalid">請輸入以 https:// 開頭的網址</string>
+    <string name="plugin_web_generic_upload_failed">辨識失敗：沒有讀取到課表。請先進入課表頁面，再點擊「上傳課表」。</string>
+    <string name="school_portal_general_alt">通用匯入</string>
+    <string name="school_portal_general_alt_hint">輸入這所學校的教務系統網址，用通用匯入打開並上傳課表。</string>
+    <plurals name="school_portal_count_total"><item quantity="other">目前收錄 %1$d 所學校</item></plurals>
+    <plurals name="school_portal_count_match"><item quantity="other">搜到 %1$d 所學校</item></plurals>
+    <string name="plugin_web_generic_fail_no_table">沒有找到課表。請先進入課表頁面（有表格的那一頁），再點擊「上傳課表」。</string>
+    <string name="plugin_web_generic_fail_no_courses">找到了課表結構，但沒有辨識出課程。請等課表頁面載入完成後，再點擊「上傳課表」。</string>
+    <string name="plugin_web_generic_fail_incomplete">有 %1$d 門課無法辨識（缺少週次、節次或課名），為了不匯入殘缺的課表，這次沒有匯入。</string>
+    <string name="school_portal_plugin_open">打開外掛裡的教務系統</string>
+    <string name="school_portal_plugin_need_install">先安裝外掛，就能直接用外掛裡的教務系統位址通用匯入。</string>
+    <string name="plugin_home_title">外掛主頁</string>
+    <string name="plugin_home_back">返回外掛列表</string>
+    <string name="plugin_home_refresh">重新整理目前資料</string>
+    <string name="plugin_home_load_failed">主頁或快取讀取失敗。可以重試；原有資料不會被自動刪除。</string>
+    <string name="plugin_home_query_failed">查詢失敗，請查看原因後重試。</string>
+    <string name="plugin_home_login_required">請先登入教務系統，再檢查登入狀態。</string>
+    <string name="plugin_home_invalid_result">傳回的資料不完整，本次沒有取代快取。</string>
+    <string name="plugin_home_no_account">尚未確認教務身分</string>
+    <string name="plugin_home_logged_in">已確認登入</string>
+    <string name="plugin_home_login_expired">需要重新登入，歷史快取仍可檢視</string>
+    <string name="plugin_home_login_not_checked">帳號已儲存，本次尚未檢查線上狀態</string>
+    <string name="plugin_home_credentials_saved">帳號密碼：已加密儲存</string>
+    <string name="plugin_home_credentials_not_saved">帳號密碼：未儲存</string>
+    <string name="plugin_home_credentials_shared">與匯入課表共用，帳號密碼僅加密儲存在此裝置。</string>
+    <string name="plugin_home_clear_credentials">清除已儲存登入資訊</string>
+    <string name="plugin_home_clear_credentials_confirm">清除匯入課表和外掛主頁共用的已儲存帳號密碼？課表與查詢快取會保留，目前網頁登入不會登出。</string>
+    <string name="plugin_home_credentials_cleared">已清除儲存的帳號密碼，下次登入可重新儲存。</string>
+    <string name="plugin_home_verified_at">上次確認登入：%1$s</string>
+    <string name="plugin_home_login">登入教務系統</string>
+    <string name="plugin_home_check_login">檢查登入</string>
+    <string name="plugin_home_cached_accounts">檢視快取帳號</string>
+    <string name="plugin_home_no_cache">這一項還沒有查詢記錄</string>
+    <string name="plugin_home_saved_at">本機結果 · 更新於 %1$s</string>
+    <string name="plugin_home_cache_policy">查詢結果持續儲存在本機，不會自動更新。查詢、重新整理或檢查登入由你手動發起；失敗時保留上次結果。</string>
+    <string name="plugin_home_query">查詢並儲存</string>
+    <string name="plugin_home_empty_result">教務系統傳回空清單</string>
+    <string name="plugin_home_clear_cache">清除主頁快取</string>
+    <string name="plugin_home_clear_confirm">清除此外掛來源下所有帳號的主頁快取？不會刪除課表和已儲存的登入資訊。</string>
+    <string name="plugin_home_close">關閉</string>
+    <string name="plugin_home_cancel">取消</string>
+    <string name="plugin_home_save_login_title">儲存登入資訊？</string>
+    <string name="plugin_home_save_login_message">帳號密碼將加密儲存在本機，用於下次登入此教務系統。</string>
+    <string name="plugin_home_save_login">加密儲存</string>
+    <string name="plugin_home_open_portal">開啟教務頁面</string>
+    <string name="plugin_home_save_page">儲存目前查詢</string>
+    <string name="plugin_home_search_hint">在結果中搜尋</string>
+    <string name="plugin_home_search_clear">清除搜尋</string>
+    <string name="plugin_home_filter_all">全部</string>
+    <string name="plugin_home_filter_field">篩選欄位</string>
+    <string name="plugin_home_result_count">共 %1$d 筆</string>
+    <string name="plugin_home_result_count_filtered">顯示 %1$d / %2$d 筆</string>
+    <string name="plugin_home_no_match">沒有符合條件的記錄</string>
+    <string name="plugin_home_reset_filters">清除搜尋和篩選</string>
+    <string name="plugin_home_expand">展開全部欄位</string>
+    <string name="plugin_home_collapse">收起</string>
+    <string name="plugin_home_menu_title">查詢項目</string>
+    <string name="plugin_home_menu_not_queried">尚未查詢，點開後取得</string>
+    <string name="plugin_home_menu_cached">%1$d 筆 · 更新於 %2$s</string>
+    <string name="plugin_home_login_expired_saved">登入已過期，需要重新登入。帳號密碼已儲存，點「登入教務系統」會自動填好，只需依提示輸入簡訊驗證碼；登入後重新整理會自動同步。</string>
+    <string name="plugin_home_school_unreachable">連不上學校的教務系統。這是學校官方系統的問題（可能在維護、網路故障或閘道暫時不可用），不是軟體的問題。已儲存的結果和帳號都還在，等教務系統恢復後點重新整理即可。</string>
+    <string name="plugin_home_device_offline">手機目前沒有網路，請連線後再重新整理。已儲存的結果仍可檢視。</string>
 </resources>

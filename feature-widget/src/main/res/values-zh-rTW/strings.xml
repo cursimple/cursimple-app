@@ -27,17 +27,17 @@
 
     <string name="widget_holiday_default">放假</string>
     <string name="widget_empty_holiday">%1$s · 全天無課</string>
-    <string name="widget_empty_term_start_missing">未設開學日期 · 點按設定</string>
-    <string name="widget_empty_before_term_start">未開學</string>
-    <string name="widget_empty_before_term_start_date">未開學 · %1$d月%2$d日開學</string>
-    <string name="widget_empty_yesterday">昨日沒有課程</string>
-    <string name="widget_empty_today">今日沒有課程，享受一天</string>
-    <string name="widget_empty_tomorrow">明日沒有課程</string>
-    <string name="widget_empty_other_day">當日沒有課程</string>
-    <string name="widget_agenda_empty_yesterday">昨日沒有安排</string>
-    <string name="widget_agenda_empty_today">今日沒有安排，享受一天</string>
-    <string name="widget_agenda_empty_tomorrow">明日沒有安排</string>
-    <string name="widget_agenda_empty_other_day">當日沒有安排</string>
+    <string name="widget_empty_term_start_missing">還沒定開學日期 · 點這裡去設定</string>
+    <string name="widget_empty_before_term_start">還沒開學呀</string>
+    <string name="widget_empty_before_term_start_date">還沒開學呢 · %1$d月%2$d日見～</string>
+    <string name="widget_empty_yesterday">昨天沒有課哦</string>
+    <string name="widget_empty_today">今天沒有課呀，好好享受一天</string>
+    <string name="widget_empty_tomorrow">明天沒課，好好歇歇～</string>
+    <string name="widget_empty_other_day">這天沒有課呀</string>
+    <string name="widget_agenda_empty_yesterday">昨天沒有安排呀</string>
+    <string name="widget_agenda_empty_today">今天沒有安排，輕鬆過一天吧～</string>
+    <string name="widget_agenda_empty_tomorrow">明天沒有安排哦</string>
+    <string name="widget_agenda_empty_other_day">這天沒有安排呀</string>
 
     <string name="widget_subtitle_holiday">%1$s · %2$s</string>
     <string name="widget_subtitle_term_start_missing">%1$s · 未設開學日期</string>
@@ -49,10 +49,10 @@
     <string name="widget_next_header_holiday">%1$s · %2$s</string>
     <string name="widget_next_header_source">%1$s · 按%2$s</string>
     <string name="widget_next_header_status">%1$s · %2$s</string>
-    <string name="widget_next_empty_no_more_today">今天沒有更多課程</string>
-    <string name="widget_next_empty_today">今天沒有課程</string>
-    <string name="widget_next_empty_tomorrow">明天沒有課程</string>
-    <string name="widget_next_empty_other_day">當天沒有課程</string>
+    <string name="widget_next_empty_no_more_today">今天的課已經上完啦～</string>
+    <string name="widget_next_empty_today">今天沒有課囉，開心一下</string>
+    <string name="widget_next_empty_tomorrow">明天沒有課，好好睡一覺吧</string>
+    <string name="widget_next_empty_other_day">這一天沒有課，輕鬆一下</string>
 
     <string name="widget_status_live">上課中</string>
     <string name="widget_status_exam_live">考試中</string>
@@ -66,16 +66,16 @@
     <string name="widget_countdown_hours_minutes">%1$d小時%2$d分後</string>
 
     <string name="widget_node_range">%1$d-%2$d節</string>
-    <string name="widget_course_subtitle_placeholder">待定</string>
+    <string name="widget_course_subtitle_placeholder">待定呀</string>
     <string name="widget_exam_title">考試 · %1$s</string>
     <string name="widget_course_reminder_badge">鬧鐘</string>
     <string name="widget_row_event_tag">事務</string>
 
     <string name="widget_reminder_badge_count">%1$d 條</string>
-    <string name="widget_reminder_empty_no_rules">尚未設定鬧鐘規則</string>
-    <string name="widget_reminder_empty_no_rules_sub">在應用內為課程新增鬧鐘</string>
-    <string name="widget_reminder_empty_none_upcoming">暫無即將到來的鬧鐘</string>
-    <string name="widget_reminder_empty_none_upcoming_sub">未來一段時間沒有規劃</string>
+    <string name="widget_reminder_empty_no_rules">還沒設定鬧鐘規則呢～</string>
+    <string name="widget_reminder_empty_no_rules_sub">在應用裡幫課程加個鬧鐘吧</string>
+    <string name="widget_reminder_empty_none_upcoming">近期沒有要響的鬧鐘，安心休息</string>
+    <string name="widget_reminder_empty_none_upcoming_sub">接下來一段時間都清清靜靜的</string>
     <string name="widget_reminder_date_today">今天</string>
     <string name="widget_reminder_date_tomorrow">明天</string>
     <string name="widget_reminder_date_day_after">後天</string>
@@ -146,14 +146,14 @@
     <string name="widget_calendar_range">%1$s – %2$s</string>
     <string name="widget_calendar_month_title">%1$d年%2$s</string>
     <string name="widget_calendar_today_subtitle">今天 %1$s</string>
-    <string name="widget_calendar_no_term_start">未設定開學日期</string>
+    <string name="widget_calendar_no_term_start">還沒定開學日期呢</string>
     <string name="widget_calendar_tag_holiday">休</string>
     <string name="widget_calendar_tag_makeup">班</string>
     <string name="widget_calendar_legend_class">有課</string>
     <string name="widget_calendar_legend_exam">考試</string>
     <string name="widget_calendar_legend_event">事務</string>
-    <string name="widget_calendar_empty_week">這週沒有課</string>
-    <string name="widget_calendar_empty_no_term">設定開學日期後顯示課程</string>
+    <string name="widget_calendar_empty_week">這週沒有課哦，輕鬆～</string>
+    <string name="widget_calendar_empty_no_term">設定開學日期後，課程就會出現啦</string>
     <string name="widget_memo_overdue">已截止</string>
     <string-array name="widget_calendar_weekdays">
         <item>一</item>
@@ -170,8 +170,7 @@
     <string name="widget_page_next">往後翻</string>
     <string name="widget_label_memo">筆記待辦</string>
     <string name="widget_catalog_memo_description">筆記待辦放到桌面，點勾選框完成，點內容直接編輯</string>
-    <string name="widget_memo_empty">待辦都完成了
-在備忘錄裡記下下一件事</string>
+    <string name="widget_memo_empty">待辦全都搞定啦，真棒！</string>
     <string name="widget_memo_notebook_other">其他筆記</string>
     <string name="widget_memo_pending">待辦</string>
     <string name="widget_memo_subtitle">點勾選框完成 · 點內容編輯</string>
@@ -192,6 +191,6 @@
     <string name="widget_memo_changed">待辦內容已變更，已重新整理，請重試</string>
     <string name="widget_memo_save_failed">儲存失敗，請稍後重試</string>
     <string name="widget_memo_add_action">新增待辦</string>
-    <string name="widget_memo_empty_compact">點＋新增待辦</string>
+    <string name="widget_memo_empty_compact">點＋新增個待辦吧</string>
     <string name="widget_loading_text">正在讀取…</string>
 </resources>

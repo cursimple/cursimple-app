@@ -31,6 +31,7 @@ import com.x500x.cursimple.core.kernel.model.renaming
 import com.x500x.cursimple.core.kernel.model.resolveWith
 import com.x500x.cursimple.core.kernel.model.updatingActive
 import com.x500x.cursimple.core.kernel.model.upserting
+import com.x500x.cursimple.core.kernel.model.withImportedProfile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -192,6 +193,19 @@ class DataStoreWidgetPreferencesRepository(
     override suspend fun saveManualTimingProfile(profile: TermTimingProfile) {
         store.edit { preferences ->
             preferences.writeActiveSlotTimes(profile, manuallyEdited = true)
+        }
+    }
+
+    suspend fun selectImportedTimingProfile(name: String, profile: TermTimingProfile) {
+        val id = newTimingProfileId()
+        store.edit { preferences ->
+            val entry = TimingProfileEntry(
+                id = id,
+                name = name.trim(),
+                slotTimes = profile.slotTimes,
+                timezone = profile.timezone,
+            )
+            preferences.writeTimingProfileLibrary(preferences.timingProfileLibrary().withImportedProfile(entry))
         }
     }
 

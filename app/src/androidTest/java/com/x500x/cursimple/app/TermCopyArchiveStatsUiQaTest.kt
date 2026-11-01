@@ -72,10 +72,12 @@ class TermCopyArchiveStatsUiQaTest {
         runBlocking {
             DataStoreUserPreferencesRepository(context).setDebugForcedDateTime(null)
             termRepo.termsFlow.first()
-                .filter { it.name == sourceName || it.name == "QA副本学期" || it.name == "QA归档学期" }
+                .filter { it.name == sourceName || it.name == "QA副本学期" || it.name == "QA归档学期" || it.name in demoTermNames }
                 .forEach { termRepo.deleteTerm(it.id) }
         }
     }
+
+    private val demoTermNames = setOf("示例学期", "示例學期", "Sample term")
 
     private fun shot(name: String) {
         Thread.sleep(300)
@@ -92,6 +94,33 @@ class TermCopyArchiveStatsUiQaTest {
         compose.onNodeWithContentDescription(activity.getString(R.string.main_add_to_schedule)).performClick()
         compose.onNodeWithText(activity.getString(R.string.main_manage_terms)).performClick()
         compose.waitForIdle()
+    }
+
+    /** Release-note shot: a fuller demo term so the weekly bars and course shares have something to show. */
+    @Test fun announcementStats() {
+        assumeTrue(enabled())
+        val tag = compose.activity.resources.configuration.locales[0].toLanguageTag()
+        fun tr(zh: String, tw: String, en: String) = when { tag.startsWith("en") -> en; tag.contains("TW") || tag.contains("Hant") -> tw; else -> zh }
+        val termName = tr("示例学期", "示例學期", "Sample term")
+        runBlocking {
+            val term = termRepo.createTerm(termName, LocalDate.of(2026, 9, 14).toString())
+            termRepo.setActiveTerm(term.id)
+            listOf(
+                Triple(tr("高等数学", "高等數學", "Calculus"), (1..16).toList(), CourseTimeSlot(1, 1, 2)),
+                Triple(tr("线性代数", "線性代數", "Linear Algebra"), (1..12).toList(), CourseTimeSlot(2, 1, 2)),
+                Triple(tr("程序设计", "程式設計", "Programming"), (3..16).toList(), CourseTimeSlot(3, 3, 4)),
+                Triple(tr("大学英语", "大學英語", "College English"), (1..16).toList(), CourseTimeSlot(4, 3, 4)),
+                Triple(tr("物理实验", "物理實驗", "Physics Lab"), (5..14).toList(), CourseTimeSlot(5, 5, 6)),
+                Triple(tr("体育", "體育", "PE"), (1..8).toList(), CourseTimeSlot(5, 1, 2)),
+            ).forEachIndexed { i, (name, weeks, slot) -> manualRepo.addCourse(CourseItem("demo-$i", name, weeks = weeks, time = slot)) }
+        }
+        openTermManagement()
+        compose.onAllNodesWithText(compose.activity.getString(R.string.term_action_stats))[liveRowIndex(termName)].performClick()
+        compose.onNodeWithTag("term-stats-dialog").assertIsDisplayed()
+        compose.waitUntil(8_000) {
+            compose.onAllNodesWithText(compose.activity.getString(ScheduleR.string.stats_total_sessions)).fetchSemanticsNodes().isNotEmpty()
+        }
+        shot("announce")
     }
 
     @Test fun theStatisticsOfATermShowItsTotalsAndCourseShares() {

@@ -79,6 +79,7 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CenterFocusStrong
 import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
@@ -283,6 +284,7 @@ private enum class SettingsDestination {
     DevNoticeAod,
     DevNoticeIsland,
     DevNoticeCenter,
+    DevAlarm,
     DevLogs,
     DevData,
 }
@@ -291,6 +293,8 @@ enum class SettingsDestinationKey {
     WebDav,
     AiImport,
     ScheduleBackground,
+    ScheduleStyle,
+    WidgetBackground,
 
     TemporaryOverrides,
 
@@ -306,6 +310,8 @@ private fun SettingsDestinationKey.toDestination(): SettingsDestination = when (
     SettingsDestinationKey.WebDav -> SettingsDestination.WebDav
     SettingsDestinationKey.AiImport -> SettingsDestination.AiImport
     SettingsDestinationKey.ScheduleBackground -> SettingsDestination.ScheduleBackground
+    SettingsDestinationKey.ScheduleStyle -> SettingsDestination.ScheduleAppearance
+    SettingsDestinationKey.WidgetBackground -> SettingsDestination.WidgetBackground
     SettingsDestinationKey.TemporaryOverrides -> SettingsDestination.TemporaryOverrides
     SettingsDestinationKey.Permissions -> SettingsDestination.Permissions
 }
@@ -632,6 +638,7 @@ private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.DevNoticeAod -> stringResource(R.string.notice_test_aod)
     SettingsDestination.DevNoticeIsland -> stringResource(R.string.notice_test_island)
     SettingsDestination.DevNoticeCenter -> stringResource(R.string.notice_test_center)
+    SettingsDestination.DevAlarm -> stringResource(R.string.settings_dest_dev_alarm)
     SettingsDestination.DevLogs -> stringResource(R.string.settings_dest_dev_logs)
     SettingsDestination.DevData -> stringResource(R.string.settings_dest_dev_data)
 }
@@ -1611,6 +1618,10 @@ fun AppSettingsRoute(
                                 SettingsDestination.DevNoticeIsland -> com.x500x.cursimple.app.notice.NoticeDisplayTarget.Island
                                 else -> com.x500x.cursimple.app.notice.NoticeDisplayTarget.Center
                             }, classNotice)
+                        }
+
+                        SettingsDestination.DevAlarm -> {
+                            if (advancedToolsEnabled) AlarmTestSection()
                         }
 
                         SettingsDestination.DevLogs -> {
@@ -3602,6 +3613,12 @@ private fun AdvancedToolsSection(
             title = stringResource(R.string.settings_dest_dev_notice),
             subtitle = stringResource(R.string.settings_dev_hub_notice_subtitle),
             onClick = { onNavigate(SettingsDestination.DevNotice) },
+        )
+        SettingsActionRow(
+            icon = Icons.Rounded.Alarm,
+            title = stringResource(R.string.settings_dest_dev_alarm),
+            subtitle = stringResource(R.string.settings_dev_hub_alarm_subtitle),
+            onClick = { onNavigate(SettingsDestination.DevAlarm) },
         )
         SettingsActionRow(
             icon = Icons.Rounded.Code,

@@ -185,6 +185,7 @@ internal object NextCourseDataSource {
                     userPrefs.temporaryScheduleOverrides,
                     userPrefs.holidayCalendar,
                 ).isHoliday,
+                tomorrowHasClasses = coursesForDate(today.plusDays(1)).courses.isNotEmpty(),
                 totalCourses = displayCourses.size,
             )
         } else if (targetDate == today.plusDays(1) && weekKnown && displayCourses.isEmpty() && displayDay.holidayLabel == null) {

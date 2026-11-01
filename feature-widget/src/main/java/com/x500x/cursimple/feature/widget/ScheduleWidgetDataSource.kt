@@ -222,6 +222,12 @@ internal object ScheduleWidgetDataSource {
                     sources.temporaryScheduleOverrides,
                     sources.holidayCalendar,
                 ).isHoliday,
+                tomorrowHasClasses = resolveWidgetScheduleDay(
+                    targetDate = today.plusDays(1),
+                    termStart = termStart,
+                    temporaryScheduleOverrides = sources.temporaryScheduleOverrides,
+                    holidayCalendar = sources.holidayCalendar,
+                ) { dayOfWeek -> sources.allCourses.filter { it.time.dayOfWeek == dayOfWeek } }.courses.isNotEmpty(),
                 totalCourses = 0,
             )
         } else {

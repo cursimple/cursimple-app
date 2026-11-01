@@ -324,19 +324,21 @@ internal fun <K> assignLanesCollapsing(
 /**
  * Pick how many lanes each day may use. Every day starts with [maxLanes]; while the weights need more than
  * [budgetUnits] columns, the day with the fewest items that still uses more than one lane loses one lane
- * (its overlaps fold into the chip), later days first on ties.
+ * (its overlaps fold into the chip), later days first on ties. Only [foldable] days may lose a lane: a day
+ * whose overlaps are all crowds of three or more, since a pair of courses must never fold into a chip.
  */
 internal fun chooseLaneLimits(
     weights: List<Float>,
     itemCounts: List<Int>,
     budgetUnits: Float,
     maxLanes: Int = MAX_DAY_LANES,
+    foldable: List<Boolean> = List(weights.size) { true },
 ): List<Int> {
     val limits = MutableList(weights.size) { maxLanes }
     val current = weights.toMutableList()
     while (current.sum() > budgetUnits) {
         val day = current.indices
-            .filter { current[it] > 1f }
+            .filter { current[it] > 1f && foldable[it] }
             .minWithOrNull(compareBy({ itemCounts[it] }, { -it }))
             ?: break
         limits[day] = (limits[day] - 1).coerceAtLeast(1)

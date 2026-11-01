@@ -20,7 +20,8 @@ class DayMoodTest {
         totalCourses: Int = 0,
         hasMoreToday: Boolean = false,
         timeSensitive: Boolean = true,
-    ) = dayMood(now, isHoliday, holidayNameRes, tomorrowHoliday, totalCourses, hasMoreToday, timeSensitive)
+        tomorrowHasClasses: Boolean? = null,
+    ) = dayMood(now, isHoliday, holidayNameRes, tomorrowHoliday, totalCourses, hasMoreToday, timeSensitive, tomorrowHasClasses)
 
     @Test
     fun staysQuietWhileClassesRemain() {
@@ -40,7 +41,12 @@ class DayMoodTest {
     fun lastHolidayDayWarnsAboutTomorrow() {
         assertEquals(
             DayMood.HolidayLastDay,
-            mood(at(7, 10), isHoliday = true, holidayNameRes = R.string.kernel_holiday_national_day, tomorrowHoliday = false),
+            mood(at(7, 10), isHoliday = true, holidayNameRes = R.string.kernel_holiday_national_day, tomorrowHoliday = false, tomorrowHasClasses = true),
+        )
+        // A sports day followed by a Sunday: not a holiday, but no classes either, so no "classes tomorrow" line.
+        assertEquals(
+            DayMood.HolidayOther,
+            mood(at(31, 10), isHoliday = true, tomorrowHoliday = false, tomorrowHasClasses = false),
         )
         assertEquals(
             DayMood.HolidayNational,
@@ -52,7 +58,9 @@ class DayMoodTest {
     fun freeDaysSplitByWeekend() {
         assertEquals(DayMood.WeekendFree, mood(at(3, 10)))
         assertEquals(DayMood.WeekdayFree, mood(at(1, 10)))
-        assertEquals(DayMood.SundayNight, mood(at(4, 20)))
+        assertEquals(DayMood.SundayNight, mood(at(4, 20), tomorrowHasClasses = true))
+        // Sunday evening with nothing scheduled tomorrow must not claim there are classes.
+        assertEquals(DayMood.WeekendFree, mood(at(4, 20), tomorrowHasClasses = false))
         assertEquals(DayMood.WeekendFree, mood(at(4, 20), timeSensitive = false))
     }
 

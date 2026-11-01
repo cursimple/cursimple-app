@@ -64,4 +64,30 @@ class SharedFreeTimeTest {
         assertEquals(DEFAULT_PERIOD_COUNT, periodCountOf(0))
         assertEquals(10, periodCountOf(10))
     }
+
+    @Test
+    fun titlesLandOnTheirPeriodsAndFreePeriodsStayNull() {
+        val mine = listOf(course("linear", 1, 2, 3))
+        val titles = busyTitlesOn(monday, mine, termStart, periodCount = 5)
+        // Periods 1..5 -> index 0..4: only 2 and 3 carry the course title.
+        assertEquals(listOf(null, "linear", "linear", null, null), titles)
+    }
+
+    @Test
+    fun hiddenCoursesDoNotCountAsBusyInTheGrid() {
+        val hidden = course("hidden", 1, 1, 2).copy(hidden = true)
+        val titles = busyTitlesOn(monday, listOf(hidden), termStart, periodCount = 3)
+        assertEquals(listOf<String?>(null, null, null), titles)
+    }
+
+    @Test
+    fun theLastPeriodIsReadableAndFreeOnlyWhenBothAreFree() {
+        val mine = listOf(course("m", 1, 12, 12))
+        val theirs = emptyList<CourseItem>()
+        val day = weekBusy(monday, mine, termStart, theirs, termStart, periodCount = 12)[0]
+        // Period 12 is busy for me, so it must not count as shared free; period 11 is free for both.
+        assertEquals(false, day.bothFree(12))
+        assertEquals(true, day.bothFree(11))
+        assertEquals(mine.single().title, day.mineAt(12))
+    }
 }

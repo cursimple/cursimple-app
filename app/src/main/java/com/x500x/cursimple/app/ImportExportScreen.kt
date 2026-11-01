@@ -47,6 +47,7 @@ import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.ImageSearch
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.automirrored.rounded.TextSnippet
@@ -93,6 +94,8 @@ import com.x500x.cursimple.R
 import com.x500x.cursimple.feature.schedule.sharing.QrCodeCodec
 import com.x500x.cursimple.app.util.launchScheduleShare
 import com.x500x.cursimple.app.util.ScheduleShareCodec
+import com.x500x.cursimple.feature.schedule.SharedFreeTimeDialog
+import com.x500x.cursimple.feature.schedule.SharedTimetable
 import com.x500x.cursimple.app.util.ScheduleSharePayload
 import com.x500x.cursimple.app.ai.AiImportConfig
 import com.x500x.cursimple.app.ai.aiImportErrorText
@@ -112,7 +115,9 @@ import com.x500x.cursimple.app.util.ScheduleImageOptionsStore
 import com.x500x.cursimple.core.kernel.model.ScheduleEvent
 import com.x500x.cursimple.app.util.ScheduleImageLayout
 import com.x500x.cursimple.core.data.AppBackupPayload
+import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.allCoursesWith
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
@@ -180,6 +185,7 @@ fun ImportExportScreen(
     var qrBusy by remember { mutableStateOf(false) }
     var showTextShare by rememberSaveable { mutableStateOf(false) }
     var showTextImport by rememberSaveable { mutableStateOf(false) }
+    var showSharedFreeTime by rememberSaveable { mutableStateOf(false) }
     var showThirdPartySheet by rememberSaveable { mutableStateOf(false) }
     var showAiScheduleDialog by rememberSaveable { mutableStateOf(false) }
     val maxImageWeek = remember(schedule, manualCourses) {
@@ -556,9 +562,10 @@ fun ImportExportScreen(
         }
     }
 
-    val sharePayload = remember(termName, termStartDate, schedule, manualCourses) {
+    val sharePayload = remember(termName, termStartDate, schedule, manualCourses, timingProfile) {
         ScheduleSharePayload(termName = termName, termStartDate = termStartDate?.toString(),
-            schedule = schedule, manualCourses = manualCourses)
+            schedule = schedule, manualCourses = manualCourses,
+            timingSlots = timingProfile?.slotTimes.orEmpty())
     }
     fun generateQr() {
         if (qrBusy) return
@@ -716,6 +723,12 @@ fun ImportExportScreen(
                         onClick = { showTextShare = true },
                     )
                     ImportExportRow(
+                        icon = Icons.Rounded.Schedule,
+                        title = stringResource(com.x500x.cursimple.feature.schedule.R.string.free_time_entry),
+                        subtitle = stringResource(R.string.ie_free_time_body),
+                        onClick = { showSharedFreeTime = true },
+                    )
+                    ImportExportRow(
                         icon = Icons.Rounded.Image,
                         title = stringResource(R.string.ie_image_panel_title),
                         subtitle = stringResource(R.string.ie_image_row_body),
@@ -837,6 +850,15 @@ fun ImportExportScreen(
         showTextImport = false
         pendingImport = it
     }, onDismiss = { showTextImport = false })
+    if (showSharedFreeTime) {
+        SharedFreeTimeDialog(
+            myCourses = schedule.allCoursesWith(manualCourses),
+            myTermStart = termStartDate,
+            timingSlots = timingProfile?.slotTimes.orEmpty(),
+            decode = { text -> decodeSharedTimetable(text) },
+            onDismiss = { showSharedFreeTime = false },
+        )
+    }
 
     if (showThirdPartySheet) {
         ThirdPartyImportSheet(
@@ -1045,6 +1067,7 @@ fun ImportExportScreen(
         val defaultTermName = payload.termName?.takeIf(String::isNotBlank)
             ?: stringResource(com.x500x.cursimple.feature.schedule.R.string.schedule_import_new_term_default)
         var asNewTerm by remember(payload) { mutableStateOf(true) }
+        var useSharedTiming by remember(payload) { mutableStateOf(true) }
         var termNameInput by remember(payload) { mutableStateOf(defaultTermName) }
         val newTermName = termNameInput.trim().takeIf { asNewTerm && it.isNotBlank() }
         val importedTermStart = remember(payload.termStartDate) {
@@ -1114,6 +1137,20 @@ fun ImportExportScreen(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
+                    if (payload.timingSlots.isNotEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Switch(
+                                checked = useSharedTiming,
+                                onCheckedChange = { useSharedTiming = it },
+                                enabled = !importing,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.ie_import_use_shared_timing),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
                     if (asNewTerm) {
                         OutlinedTextField(
                             value = termNameInput,
@@ -1131,6 +1168,17 @@ fun ImportExportScreen(
                     enabled = !importing,
                     onClick = {
                         importing = true
+                        if (useSharedTiming && payload.timingSlots.isNotEmpty()) {
+                            scope.launch {
+                                DataStoreWidgetPreferencesRepository(context.applicationContext).saveManualTimingProfile(
+                                    TermTimingProfile(
+                                        termStartDate = payload.termStartDate.orEmpty(),
+                                        slotTimes = payload.timingSlots,
+                                        timezone = timingProfile?.timezone.orEmpty(),
+                                    ),
+                                )
+                            }
+                        }
                         onApplyImport(payload.schedule, payload.manualCourses, newTermName) { result ->
                             importing = false
                             pendingImport = null
@@ -1418,6 +1466,16 @@ private fun ThirdPartySheetRow(
         )
     }
 }
+
+/** A classmate's share code as the courses and term start that free-time comparison needs. */
+private fun decodeSharedTimetable(text: String): Result<SharedTimetable> =
+    ScheduleShareCodec.decode(text).map { payload ->
+        SharedTimetable(
+            courses = payload.schedule.allCoursesWith(payload.manualCourses),
+            termStart = payload.termStartDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
+            termName = payload.termName,
+        )
+    }
 
 internal fun parseImportedTermStartDate(iso: String?): LocalDate? {
     val trimmed = iso?.trim().orEmpty()

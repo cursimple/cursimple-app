@@ -45,12 +45,24 @@ fun sharedFreeRuns(
 }
 
 private fun markBusy(busy: BooleanArray, date: LocalDate, courses: List<CourseItem>, termStart: LocalDate?) {
+    busyTitlesOn(date, courses, termStart, busy.size - 2).forEachIndexed { index, title ->
+        if (title != null) busy[index + 1] = true
+    }
+}
+
+/**
+ * The course title on each period of [date] (index 0 = period 1), or null where the period is free. Hidden and
+ * reminder-only items are skipped, so this and [sharedFreeRuns] always agree on what counts as busy.
+ */
+fun busyTitlesOn(date: LocalDate, courses: List<CourseItem>, termStart: LocalDate?, periodCount: Int): List<String?> {
+    val titles = arrayOfNulls<String>(periodCount + 2)
     coursesScheduledOn(date, courses.filter { !it.hidden && !it.reminderOnly }, emptyList(), HolidayCalendarSettings.NONE, termStart)
         .forEach { course ->
             for (node in course.time.startNode..course.time.endNode) {
-                if (node in busy.indices) busy[node] = true
+                if (node in titles.indices && titles[node] == null) titles[node] = course.title
             }
         }
+    return List(periodCount) { titles[it + 1] }
 }
 
 /** Number of periods to compare: the timing profile's highest period, or [DEFAULT_PERIOD_COUNT] when none is set. */

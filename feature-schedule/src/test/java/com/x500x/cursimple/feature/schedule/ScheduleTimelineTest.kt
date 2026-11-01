@@ -333,6 +333,13 @@ class ScheduleTimelineTest {
     }
 
     @Test
+    fun laneLimits_onlyFoldableDaysLoseALane() {
+        // Day 1 is a pair of courses: it keeps both lanes even though it is the least busy day with a lane to give.
+        assertEquals(listOf(1, 2, 1), chooseLaneLimits(listOf(2f, 2f, 2f), listOf(3, 2, 0), budgetUnits = 4f, foldable = listOf(true, false, true)))
+        assertEquals(listOf(2, 2, 2), chooseLaneLimits(listOf(2f, 2f, 2f), listOf(3, 2, 0), budgetUnits = 4f, foldable = listOf(false, false, false)))
+    }
+
+    @Test
     fun collapsing_wideGridKeepsThreeLanesAndFoldsTheFourth() {
         val result = assignLanesCollapsing(
             listOf(

@@ -347,11 +347,12 @@ private sealed interface PluginCatalogViewTarget {
     data class RepoDetail(val repo: GitHubRepoSummary) : PluginCatalogViewTarget
     data class PluginScheduleSettings(val plugin: InstalledPluginRecord) : PluginCatalogViewTarget
     data class ExtensionSettings(val plugin: InstalledPluginRecord) : PluginCatalogViewTarget
+    data class PluginHome(val plugin: InstalledPluginRecord) : PluginCatalogViewTarget
 
     val rank: Int
         get() = when (this) {
             List -> 0
-            is InstalledDetail, is RepoDetail -> 1
+            is InstalledDetail, is RepoDetail, is PluginHome -> 1
             is PluginScheduleSettings, is ExtensionSettings -> 2
         }
 }
@@ -383,6 +384,7 @@ internal fun PluginListContent(
     var detailPluginKey by rememberSaveable { mutableStateOf<String?>(null) }
     // Keep host-owned installation details separate from component-owned settings.
     var settingsPluginKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var homePluginKey by rememberSaveable { mutableStateOf<String?>(null) }
     // Share the list while filtering by plugin kind.
     val shownInstalled = uiState.installedPlugins.filter { it.isExtension == extensionMode }
     val catalogRepos = (uiState.allMarketRepos + uiState.marketRepos + uiState.componentRepos)
@@ -412,14 +414,19 @@ internal fun PluginListContent(
     val settingsPlugin = settingsPluginKey?.let { key ->
         uiState.installedPlugins.firstOrNull { installedPluginKey(it) == key }
     }
+    val homePlugin = homePluginKey?.let { key ->
+        uiState.installedPlugins.firstOrNull { installedPluginKey(it) == key }
+    }
     val detailRepo = detailRepoSlug?.let { slug -> catalogRepos.firstOrNull { it.fullName == slug } }
-    SideEffect { onDetailVisibilityChange(detailPlugin != null || detailRepo != null || settingsPlugin != null) }
+    SideEffect { onDetailVisibilityChange(detailPlugin != null || detailRepo != null || settingsPlugin != null || homePlugin != null) }
 
     // Back from settings returns one level; Back from details returns to the list.
     androidx.activity.compose.BackHandler(
-        enabled = settingsPluginKey != null || detailPluginKey != null || detailRepoSlug != null,
+        enabled = settingsPluginKey != null || detailPluginKey != null || detailRepoSlug != null || homePluginKey != null,
     ) {
-        if (settingsPluginKey != null) {
+        if (homePluginKey != null) {
+            homePluginKey = null
+        } else if (settingsPluginKey != null) {
             settingsPluginKey = null
         } else {
             detailPluginKey = null
@@ -428,6 +435,7 @@ internal fun PluginListContent(
     }
 
     val currentTarget = when {
+        homePlugin != null -> PluginCatalogViewTarget.PluginHome(homePlugin)
         settingsPlugin != null && !settingsPlugin.isExtension -> PluginCatalogViewTarget.PluginScheduleSettings(settingsPlugin)
         settingsPlugin != null && extensionActions != null -> PluginCatalogViewTarget.ExtensionSettings(settingsPlugin)
         detailPlugin != null -> PluginCatalogViewTarget.InstalledDetail(detailPlugin)
@@ -445,6 +453,9 @@ internal fun PluginListContent(
         label = "PluginCatalogTransition",
     ) { target ->
         when (target) {
+            is PluginCatalogViewTarget.PluginHome -> PluginHomeScreen(
+                target.plugin, onBack = { homePluginKey = null }, modifier = Modifier.fillMaxSize(),
+            )
             is PluginCatalogViewTarget.PluginScheduleSettings -> {
                 SchedulePluginSettingsScreen(target.plugin, onBack = { settingsPluginKey = null }, modifier = Modifier.fillMaxSize())
             }
@@ -483,6 +494,7 @@ internal fun PluginListContent(
                         extensionActions?.let { actions -> { actions.openFeed(target.plugin) } }
                     } else null,
                     onOpenScheduleSettings = if (!target.plugin.isExtension) ({ settingsPluginKey = installedPluginKey(target.plugin) }) else null,
+                    onOpenHome = { homePluginKey = installedPluginKey(target.plugin) },
                     onRemove = {
                         onRemovePlugin(target.plugin.installKey)
                         detailPluginKey = null
@@ -662,6 +674,7 @@ internal fun PluginListContent(
                                     onOpenDetail = { detailPluginKey = installedPluginKey(plugin) },
                                     onOpenComponent = extensionActions?.let { actions -> { actions.openFeed(plugin) } },
                                     onOpenScheduleSettings = if (!plugin.isExtension) ({ settingsPluginKey = installedPluginKey(plugin) }) else null,
+                                    onOpenHome = { homePluginKey = installedPluginKey(plugin) },
                                     onRemove = { onRemovePlugin(plugin.installKey) },
                                 )
                             }
@@ -1092,9 +1105,16 @@ private fun PluginCard(
     onOpenDetail: () -> Unit,
     onOpenComponent: (() -> Unit)?,
     onOpenScheduleSettings: (() -> Unit)? = null,
+    onOpenHome: (() -> Unit)? = null,
     onRemove: () -> Unit,
 ) {
     val context = LocalContext.current
+    val hasHome by produceState(false, plugin.packageRevision) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { com.x500x.cursimple.core.plugin.storage.PluginFileStore(context).loadManifest(plugin).home != null }
+                .getOrDefault(false)
+        }
+    }
     val declaredRows by produceState<List<com.x500x.cursimple.core.plugin.ui.PluginTimetableRowSetting>>(emptyList(), plugin.packageRevision) {
         if (!plugin.isExtension) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             runCatching { com.x500x.cursimple.core.data.validPluginTimetableRows(
@@ -1188,6 +1208,11 @@ private fun PluginCard(
             }
         }
         val hasPrimary = plugin.isExtension || isEnabled
+        if (hasHome && onOpenHome != null) {
+            AppOutlinedButton(onClick = onOpenHome, modifier = Modifier.fillMaxWidth().testTag("plugin-home:${plugin.installKey}")) {
+                Text(stringResource(R.string.plugin_home_title), maxLines = 1, softWrap = false)
+            }
+        }
         if (declaredRows.isNotEmpty() && onOpenScheduleSettings != null) {
             AppOutlinedButton(onClick = onOpenScheduleSettings,
                 modifier = Modifier.fillMaxWidth().testTag("plugin-settings:${plugin.installKey}")) {
@@ -1303,6 +1328,7 @@ private fun PluginDetailScreen(
     onOpenRepo: (String) -> Unit,
     onOpenComponent: (() -> Unit)? = null,
     onOpenScheduleSettings: (() -> Unit)? = null,
+    onOpenHome: (() -> Unit)? = null,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1310,6 +1336,12 @@ private fun PluginDetailScreen(
     var technicalExpanded by rememberSaveable(plugin.installKey) { mutableStateOf(false) }
     val context = LocalContext.current
     val credentialStore = remember { WebLoginCredentialStore(context) }
+    val hasHome by produceState(false, plugin.packageRevision) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { com.x500x.cursimple.core.plugin.storage.PluginFileStore(context).loadManifest(plugin).home != null }
+                .getOrDefault(false)
+        }
+    }
     val declaredRows by produceState<List<com.x500x.cursimple.core.plugin.ui.PluginTimetableRowSetting>>(emptyList(), plugin.packageRevision) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             runCatching { com.x500x.cursimple.core.data.validPluginTimetableRows(
@@ -1368,6 +1400,11 @@ private fun PluginDetailScreen(
                             onOpenComponent?.let { open ->
                                 Button(onClick = open, modifier = Modifier.testTag("detail-open-component")) {
                                     Text(stringResource(R.string.plugin_card_action_extension_open))
+                                }
+                            }
+                            if (hasHome) onOpenHome?.let { open ->
+                                AppOutlinedButton(onClick = open, modifier = Modifier.testTag("detail-plugin-home")) {
+                                    Text(stringResource(R.string.plugin_home_title))
                                 }
                             }
                             if (declaredRows.isNotEmpty()) onOpenScheduleSettings?.let { open ->
