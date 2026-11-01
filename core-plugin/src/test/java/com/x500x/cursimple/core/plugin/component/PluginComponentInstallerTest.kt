@@ -176,6 +176,39 @@ class PluginComponentInstallerTest {
         )
     }
 
+    @Test fun `directory payload and directory count cannot bypass component limits`() = runBlocking {
+        val payload = "model".toByteArray()
+        val manifest = componentManifest(sha256(payload), files = listOf("model.onnx"))
+        val installer = PluginComponentInstaller(
+            temporaryFolder.newFolder("directory-limits"), FakeComponentRepository(), "0.7.5",
+            supportedAbis = listOf("arm64-v8a"), maxUncompressedBytes = 4096L,
+        )
+        val bomb = installer.installLocalPackage(componentZip(manifest, mapOf("padding/" to ByteArray(4097), "model.onnx" to payload)))
+        assertTrue(bomb is PluginComponentInstallResult.Failure)
+        assertPluginError(R.string.plugin_error_component_package_size_exceeded, (bomb as PluginComponentInstallResult.Failure).reason.error, 4096L)
+        val countLimited = PluginComponentInstaller(
+            temporaryFolder.newFolder("directory-count"), FakeComponentRepository(), "0.7.5",
+            supportedAbis = listOf("arm64-v8a"), maxFileCount = 2,
+        )
+        val tooMany = countLimited.installLocalPackage(componentZip(manifest, mapOf("padding/" to byteArrayOf(), "model.onnx" to payload)))
+        assertTrue(tooMany is PluginComponentInstallResult.Failure)
+        assertPluginError(R.string.plugin_error_component_package_file_count_exceeded, (tooMany as PluginComponentInstallResult.Failure).reason.error, 2)
+    }
+
+    @Test fun `registry failure preserves installed component and removes staging`() = runBlocking {
+        val repository = FakeComponentRepository()
+        val root = temporaryFolder.newFolder("registry-failure")
+        val installer = PluginComponentInstaller(root, repository, "0.7.5", supportedAbis = listOf("arm64-v8a"))
+        val payload = "model".toByteArray()
+        val zip = componentZip(componentManifest(sha256(payload), files = listOf("model.onnx")), mapOf("model.onnx" to payload))
+        val first = installer.installLocalPackage(zip) as PluginComponentInstallResult.Success
+        repository.failSave = true
+        assertTrue(installer.installLocalPackage(zip) is PluginComponentInstallResult.Failure)
+        assertEquals(first.record, repository.find(first.record.id))
+        assertEquals(listOf(java.io.File(first.record.storagePath)), root.listFiles()!!.map { it.canonicalFile })
+        assertEquals("model", java.io.File(first.record.storagePath, "model.onnx").readText())
+    }
+
     private fun componentManifest(
         sha256: String,
         abi: String = "arm64-v8a",
@@ -216,6 +249,7 @@ class PluginComponentInstallerTest {
     }
 
     private class FakeComponentRepository : PluginComponentRepository {
+        var failSave = false
         private val records = MutableStateFlow<List<InstalledPluginComponentRecord>>(emptyList())
 
         override val installedComponentsFlow: Flow<List<InstalledPluginComponentRecord>> = records
@@ -227,6 +261,7 @@ class PluginComponentInstallerTest {
         }
 
         override suspend fun save(record: InstalledPluginComponentRecord) {
+            check(!failSave) { "Registry unavailable" }
             records.value = records.value.filterNot { it.id == record.id && it.source == record.source } + record
         }
 

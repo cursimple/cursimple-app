@@ -34,6 +34,8 @@ internal data class TodayOverviewState(
     val holiday: Boolean,
     val holidayNameRes: Int? = null,
     val tomorrowHoliday: Boolean = false,
+    /** Whether tomorrow has any class; null when not computed. */
+    val tomorrowHasClasses: Boolean? = null,
     val currentProgress: Float = 0f,
     val courses: List<TodayOverviewItem> = emptyList(),
     val conflicts: List<TodayCourseConflict> = emptyList(),
@@ -143,6 +145,9 @@ internal fun buildTodayOverview(
         holiday = day.isHoliday,
         holidayNameRes = day.holidayNameRes ?: day.holidayName?.let(::holidayNameResOfName),
         tomorrowHoliday = resolveScheduleDay(date.plusDays(1), overrides, holidayCalendar).isHoliday,
+        tomorrowHasClasses = scheduledCourseOccurrencesOn(
+            date.plusDays(1), courses, timingProfile, termStartDate, overrides, holidayCalendar,
+        ).isNotEmpty(),
         currentProgress = progress,
         courses = coursesToday,
         conflicts = conflicts,
@@ -185,6 +190,7 @@ internal fun todayMoodLine(state: TodayOverviewState): String? {
         isHoliday = state.holiday,
         holidayNameRes = state.holidayNameRes,
         tomorrowHoliday = state.tomorrowHoliday,
+        tomorrowHasClasses = state.tomorrowHasClasses,
         totalCourses = state.total,
         hasMoreToday = state.current != null || state.next != null || state.unknownTimeCount > 0,
         timeSensitive = true,

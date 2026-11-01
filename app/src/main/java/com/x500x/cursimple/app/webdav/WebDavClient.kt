@@ -57,9 +57,20 @@ class WebDavClient(
         )
         return runWebDav {
             webDav(config).get(url).use { stream ->
-                stream.readBytes()
+                com.x500x.cursimple.app.util.ScheduleImportLimits.read(stream, 50 * 1024 * 1024)
             }
         }
+    }
+
+    /** Remove one backup file; [href] must be inside the user's WebDAV directory. */
+    fun delete(config: WebDavConfig, href: String) {
+        webDavRequire(config.isComplete, R.string.webdav_config_incomplete)
+        val baseUrl = config.url.directoryUrl()
+        val url = requireSameWebDavOrigin(
+            baseUrl = baseUrl,
+            url = requireHttpsWebDavUrl(href.toAbsoluteAgainst(baseUrl)),
+        )
+        runWebDav { webDav(config).delete(url) }
     }
 
     private fun webDav(config: WebDavConfig): OkHttpSardine {

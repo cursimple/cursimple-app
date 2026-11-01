@@ -1,5 +1,17 @@
 package com.x500x.cursimple.feature.schedule
 
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.rounded.Close
+import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -31,6 +43,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.LocationOn
@@ -88,7 +101,8 @@ internal fun eventColors(event: ScheduleEvent): CoursePaletteEntry {
     val argb = event.colorArgb
     if (argb != null) {
         val container = Color(argb.toInt())
-        val on = if (container.luminance() > 0.5f) Color(0xFF1F2A24) else Color.White
+        // A blend reads against the mix of both ends, so the text stays legible across the whole block.
+        val on = readableOn(blendedFill(container, event.colorEndArgb?.let { Color(it.toInt()) }))
         return CoursePaletteEntry(container, on)
     }
     return courseColor("event:${event.title}", LocalScheduleAccents.current.coursePalette)
@@ -122,8 +136,18 @@ internal fun EventBlock(
             .height(height)
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface)
-            .background(colors.container.copy(alpha = 0.94f))
-            .border(BorderStroke(1.dp, colors.onContainer.copy(alpha = 0.28f)), shape)
+            .then(
+                if (event.colorArgb != null && event.colorEndArgb != null) {
+                    Modifier.background(fillBrush(colors.container, Color(event.colorEndArgb!!.toInt()), 0.94f))
+                } else {
+                    Modifier.background(colors.container.copy(alpha = 0.94f))
+                },
+            )
+            .border(
+                event.borderArgb?.let { BorderStroke(1.5.dp, Color(it.toInt())) }
+                    ?: BorderStroke(1.dp, colors.onContainer.copy(alpha = 0.28f)),
+                shape,
+            )
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         val slim = width < 44.dp
@@ -155,7 +179,13 @@ internal fun EventBlock(
                 }
                 val timeText = if (narrow) event.startTime else event.timeRangeText()
                 // Measure and render with the same merged styles.
-                val baseStyle = LocalTextStyle.current
+                val baseStyle = LocalTextStyle.current.let { style ->
+                    if (event.colorEndArgb != null && event.colorArgb != null) {
+                        style.merge(TextStyle(shadow = blendTextShadow(colors.onContainer)))
+                    } else {
+                        style
+                    }
+                }
                 val timeStyle = baseStyle.merge(TextStyle(fontSize = 9.sp, lineHeight = 10.sp))
                 val titleStyle = baseStyle.merge(
                     TextStyle(
@@ -460,7 +490,7 @@ internal fun ScheduleEventEditorDialog(
     // Fixed for the whole edit so changing the date never shifts the picked week numbers.
     val weekAnchor = remember { eventWeekAnchor(termStartDate, initial?.localDate ?: defaultDate) }
     var pickedWeeks by rememberSaveable { mutableStateOf(initial?.termWeeks(weekAnchor).orEmpty()) }
-    var colorArgb by rememberSaveable { mutableStateOf(initial?.colorArgb) }
+    var appearance by rememberSaveable(stateSaver = ItemAppearanceSaver) { mutableStateOf(initial?.appearance() ?: ItemAppearance()) }
 
     var picking by remember { mutableStateOf<EventPick?>(null) }
     var submitted by remember { mutableStateOf(false) }
@@ -472,66 +502,96 @@ internal fun ScheduleEventEditorDialog(
     val weeksMissing = repeat == EventRepeat.Weeks && pickedWeeks.isEmpty()
     val weekLimit = maxOf(maxWeekCount, pickedWeeks.maxOrNull() ?: 0)
 
-    AlertDialog(
+    fun submit() {
+        submitted = true
+        if (titleMissing || timeInvalid || weeksMissing) return
+        onSave(
+            ScheduleEvent(
+                id = initial?.id ?: "event-${UUID.randomUUID()}",
+                title = title.trim(),
+                date = date.toString(),
+                startTime = start,
+                endTime = end,
+                location = location.trim(),
+                note = note.trim(),
+                colorArgb = appearance.fill,
+                colorEndArgb = appearance.fillEnd,
+                borderArgb = appearance.border,
+            ).withRepeat(repeat, repeatUntil, pickedWeeks, weekAnchor),
+        )
+    }
+
+    // A full page like the course editor: the save button stays in the top bar while the form scrolls,
+    // and the page lifts above the keyboard.
+    Dialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                stringResource(
-                    if (initial == null) R.string.schedule_event_add_title else R.string.schedule_event_edit_title,
-                ),
-            )
-        },
-        text = {
-            ScheduleEventEditForm(
-                title = title,
-                onTitleChange = { title = it },
-                date = date,
-                onDateChange = { date = it },
-                start = start,
-                onStartChange = { start = it },
-                end = end,
-                onEndChange = { end = it },
-                location = location,
-                onLocationChange = { location = it },
-                note = note,
-                onNoteChange = { note = it },
-                repeat = repeat,
-                onRepeatChange = { repeat = it },
-                repeatUntil = repeatUntil,
-                onRepeatUntilChange = { repeatUntil = it },
-                pickedWeeks = pickedWeeks,
-                onPickedWeeksChange = { pickedWeeks = it },
-                colorArgb = colorArgb,
-                onColorArgbChange = { colorArgb = it },
-                submitted = submitted,
-                weekAnchor = weekAnchor,
-                weekLimit = weekLimit,
-                locationOptions = locationOptions,
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-            )
-        },
-        confirmButton = {
-            AppOutlinedButton(onClick = {
-                submitted = true
-                if (titleMissing || timeInvalid || weeksMissing) return@AppOutlinedButton
-                onSave(
-                    ScheduleEvent(
-                        id = initial?.id ?: "event-${UUID.randomUUID()}",
-                        title = title.trim(),
-                        date = date.toString(),
-                        startTime = start,
-                        endTime = end,
-                        location = location.trim(),
-                        note = note.trim(),
-                        colorArgb = colorArgb,
-                    ).withRepeat(repeat, repeatUntil, pickedWeeks, weekAnchor),
-                )
-            }) { Text(stringResource(R.string.schedule_action_save)) }
-        },
-        dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
-        },
-    )
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        Surface(modifier = Modifier.fillMaxSize().testTag("event-editor-page"), color = MaterialTheme.colorScheme.background) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    AppCircleIconButton(onClick = onDismiss, modifier = Modifier.testTag("event-editor-close")) {
+                        Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.schedule_action_cancel))
+                    }
+                    Text(
+                        text = stringResource(
+                            if (initial == null) R.string.schedule_event_add_title else R.string.schedule_event_edit_title,
+                        ),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Button(onClick = ::submit, modifier = Modifier.testTag("event-editor-save")) {
+                        Text(stringResource(R.string.schedule_action_save), maxLines = 1)
+                    }
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp),
+                ) {
+        ScheduleEventEditForm(
+            title = title,
+            onTitleChange = { title = it },
+            date = date,
+            onDateChange = { date = it },
+            start = start,
+            onStartChange = { start = it },
+            end = end,
+            onEndChange = { end = it },
+            location = location,
+            onLocationChange = { location = it },
+            note = note,
+            onNoteChange = { note = it },
+            repeat = repeat,
+            onRepeatChange = { repeat = it },
+            repeatUntil = repeatUntil,
+            onRepeatUntilChange = { repeatUntil = it },
+            pickedWeeks = pickedWeeks,
+            onPickedWeeksChange = { pickedWeeks = it },
+            appearance = appearance,
+            onAppearanceChange = { appearance = it },
+            submitted = submitted,
+            weekAnchor = weekAnchor,
+            weekLimit = weekLimit,
+            locationOptions = locationOptions,
+            modifier = Modifier.fillMaxWidth(),
+                        )
+                }
+            }
+        }
+    }
 }
 
 internal enum class EventPick { Date, Start, End, RepeatUntil, Weeks }
@@ -557,8 +617,8 @@ internal fun ScheduleEventEditForm(
     onRepeatUntilChange: (String?) -> Unit,
     pickedWeeks: List<Int>,
     onPickedWeeksChange: (List<Int>) -> Unit,
-    colorArgb: Long?,
-    onColorArgbChange: (Long?) -> Unit,
+    appearance: ItemAppearance,
+    onAppearanceChange: (ItemAppearance) -> Unit,
     submitted: Boolean,
     weekAnchor: LocalDate,
     weekLimit: Int,
@@ -719,13 +779,12 @@ internal fun ScheduleEventEditForm(
             maxLines = 4,
             label = { Text(stringResource(R.string.schedule_event_field_note)) },
         )
-        AlarmEditorSection(stringResource(R.string.schedule_event_section_color)) {
-            EventColorRow(
-                selected = colorArgb,
-                previewTitle = title,
-                onSelect = onColorArgbChange,
-            )
-        }
+        ItemAppearanceSection(
+            appearance = appearance,
+            onChange = onAppearanceChange,
+            autoColor = courseColor("event:$title", LocalScheduleAccents.current.coursePalette).container,
+            previewTitle = title,
+        )
     }
 }
 
@@ -772,57 +831,6 @@ internal fun EventTimePickerDialog(
             AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
         },
     )
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun EventColorRow(selected: Long?, previewTitle: String, onSelect: (Long?) -> Unit) {
-    val palette = LocalScheduleAccents.current.coursePalette.map { it.container }
-    val vivid = listOf(Color(0xFFFFB74D), Color(0xFFE57373), Color(0xFF64B5F6), Color(0xFF81C784), Color(0xFFBA68C8))
-    val autoColor = courseColor("event:$previewTitle", LocalScheduleAccents.current.coursePalette).container
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        ColorDot(
-            color = autoColor,
-            selected = selected == null,
-            label = stringResource(R.string.schedule_event_color_auto),
-            onClick = { onSelect(null) },
-        )
-        (palette + vivid).distinct().forEach { color ->
-            val argb = color.toArgb().toLong() and 0xFFFFFFFFL
-            ColorDot(color = color, selected = selected == argb, label = null, onClick = { onSelect(argb) })
-        }
-    }
-}
-
-@Composable
-private fun ColorDot(color: Color, selected: Boolean, label: String?, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier
-            .size(32.dp)
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
-        shape = CircleShape,
-        color = color,
-        border = BorderStroke(
-            if (selected) 2.dp else 1.dp,
-            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-        ),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            when {
-                selected -> Icon(
-                    imageVector = Icons.Rounded.Check,
-                    contentDescription = label,
-                    tint = if (color.luminance() > 0.5f) Color(0xFF1F2A24) else Color.White,
-                    modifier = Modifier.size(18.dp),
-                )
-                label != null -> Text("A", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F2A24))
-            }
-        }
-    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -962,6 +970,63 @@ internal fun EventGroupBlock(
 }
 
 /** Expander under the top course of a crowded cell; neutral colors keep it apart from event groups. */
+/**
+ * Badge for courses overlapping the one shown in a period: a stack icon for two courses, dots for three or more.
+ */
+@Composable
+internal fun CourseOtherWeekBadge(
+    count: Int,
+    dots: Boolean,
+    offsetX: Dp,
+    offsetY: Dp,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(9.dp)
+    val description = androidx.compose.ui.res.pluralStringResource(
+        R.plurals.schedule_course_more_description,
+        count,
+        count,
+    )
+    Row(
+        modifier = Modifier
+            .testTag("schedule-other-week-badge")
+            .offset(offsetX, offsetY)
+            .height(18.dp)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 5.dp)
+            .semantics { contentDescription = description },
+        horizontalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (dots) {
+            Text(
+                text = "⋯",
+                fontSize = 14.sp,
+                lineHeight = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Rounded.Layers,
+                contentDescription = null,
+                modifier = Modifier.size(11.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            text = count.toString(),
+            fontSize = 10.sp,
+            lineHeight = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 @Composable
 internal fun CourseMoreBlock(
     count: Int,
@@ -981,6 +1046,7 @@ internal fun CourseMoreBlock(
     )
     Row(
         modifier = Modifier
+            .testTag("schedule-course-more")
             .offset(offsetX, offsetY)
             .width(width)
             .height(height)
@@ -992,12 +1058,12 @@ internal fun CourseMoreBlock(
         horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = "⋯",
-            fontSize = 14.sp,
-            lineHeight = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = onContainer,
+        // A stack icon: several courses share this time, not extra lessons on top of the timetable.
+        Icon(
+            imageVector = Icons.Rounded.Layers,
+            contentDescription = null,
+            modifier = Modifier.size(12.dp),
+            tint = onContainer,
         )
         if (width >= 36.dp) {
             Text(
@@ -1052,7 +1118,7 @@ internal fun ScheduleEventGroupDialog(
 }
 
 @Composable
-private fun EventGroupRow(event: ScheduleEvent, onClick: () -> Unit) {
+internal fun EventGroupRow(event: ScheduleEvent, onClick: () -> Unit) {
     val colors = eventColors(event)
     val shape = RoundedCornerShape(12.dp)
     Row(

@@ -161,4 +161,32 @@ class TimingProfileLibraryTest {
         assertEquals(library, library.duplicating("a", newId = "b", name = "副本"))
         assertEquals(library, library.duplicating("missing", newId = "c", name = "副本"))
     }
+
+    @Test
+    fun `import selects school hours and preserves the previous manual profile`() {
+        val old = entry("manual").copy(manuallyEdited = true)
+        val imported = entry("school", node = 4).copy(name = "School hours")
+        val library = TimingProfileLibrary(listOf(old), activeId = old.id).withImportedProfile(imported)
+
+        assertEquals(old, library.entryOf(old.id))
+        assertEquals(imported.id, library.activeId)
+        assertTrue(library.active!!.manuallyEdited)
+        assertEquals(2, library.profiles.size)
+    }
+
+    @Test
+    fun `repeated imports reuse the matching profile without adding duplicates`() {
+        val library = TimingProfileLibrary(listOf(entry("manual"), entry("school", node = 4)), activeId = "manual")
+        val updated = library.withImportedProfile(entry("new-id", node = 4))
+
+        assertEquals(library.profiles, updated.profiles)
+        assertEquals("school", updated.activeId)
+    }
+
+    @Test
+    fun `empty or colliding imported profiles cannot replace saved hours`() {
+        val library = TimingProfileLibrary(listOf(entry("manual")), activeId = "manual")
+        assertEquals(library, library.withImportedProfile(TimingProfileEntry("empty")))
+        assertEquals(library, library.withImportedProfile(entry("manual", node = 8)))
+    }
 }

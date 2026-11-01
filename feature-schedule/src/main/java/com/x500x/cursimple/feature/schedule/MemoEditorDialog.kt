@@ -1,5 +1,10 @@
 package com.x500x.cursimple.feature.schedule
 
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -304,6 +309,31 @@ internal fun MemoEditorDialog(
                                 AppAtomicText(stringResource(R.string.schedule_action_save))
                             }
                         } else {
+                            var copyMenu by remember { mutableStateOf(false) }
+                            val context = LocalContext.current
+                            fun copyNote(markdown: Boolean) {
+                                val doc = buildMemoShareDocument(
+                                    context, listOf(base), notebooks.associateBy { it.key }, null, BeijingTime.nowDateTimeIn(zone),
+                                )
+                                copyMemoText(context, if (markdown) memoShareMarkdown(doc) else memoSharePlainText(doc))
+                            }
+                            Box {
+                                AppCircleIconButton(onClick = { copyMenu = true }, modifier = Modifier.testTag("memo-copy-note")) {
+                                    Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.memo_note_copy))
+                                }
+                                DropdownMenu(expanded = copyMenu, onDismissRequest = { copyMenu = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.memo_note_copy_plain)) },
+                                        onClick = { copyMenu = false; copyNote(markdown = false) },
+                                        modifier = Modifier.testTag("memo-copy-plain"),
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.memo_note_copy_markdown)) },
+                                        onClick = { copyMenu = false; copyNote(markdown = true) },
+                                        modifier = Modifier.testTag("memo-copy-markdown"),
+                                    )
+                                }
+                            }
                             AppCircleIconButton(onClick = ::startEditing) {
                                 Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.schedule_action_edit))
                             }
@@ -466,6 +496,8 @@ internal fun MemoReadContent(
 ) {
     val zone = LocalAppZone.current
     val now = BeijingTime.nowDateTimeIn(zone)
+    // Long-press selects text with the system copy handles.
+    androidx.compose.foundation.text.selection.SelectionContainer {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -532,6 +564,16 @@ internal fun MemoReadContent(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+    }
+    }
+}
+
+/** Put [text] on the clipboard; Android 13+ confirms by itself, older versions get a toast. */
+internal fun copyMemoText(context: android.content.Context, text: String) {
+    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("note", text))
+    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) {
+        android.widget.Toast.makeText(context, R.string.memo_note_copied, android.widget.Toast.LENGTH_SHORT).show()
     }
 }
 

@@ -107,7 +107,7 @@ internal fun SystemCalendarExportDialog(
     var busy by remember { mutableStateOf(false) }
     var lastRecordEventCount by remember { mutableIntStateOf(0) }
     var lastRecordAt by remember { mutableLongStateOf(0L) }
-    var pendingOverwrite by remember { mutableStateOf(false) }
+    var pendingClear by remember { mutableStateOf(false) }
 
     val resources = LocalContext.current.resources
     val permissionDeniedText = stringResource(R.string.calendar_toast_permission_denied)
@@ -142,14 +142,11 @@ internal fun SystemCalendarExportDialog(
         reloadRecord()
     }
 
-    fun runWrite(calendarId: Long) {
+    fun runSync(calendarId: Long) {
         if (busy) return
         busy = true
         scope.launch {
             val result = withContext(Dispatchers.IO) {
-                if (SystemCalendarExportStore.read(context) != null) {
-                    SystemCalendarExporter.undo(context)
-                }
                 val plan = planScheduleOccurrences(
                     termStartDate = termStartDate,
                     schedule = schedule,
@@ -158,7 +155,7 @@ internal fun SystemCalendarExportDialog(
                     overrides = overrides,
                     holidayCalendar = holidayCalendar,
                 )
-                SystemCalendarExporter.write(context, calendarId, plan, zone)
+                SystemCalendarExporter.sync(context, calendarId, plan, zone)
             }
             busy = false
             reloadRecord()
@@ -173,7 +170,16 @@ internal fun SystemCalendarExportDialog(
                     } else {
                         ""
                     }
-                    exportedFormat.format(result.eventCount, result.occurrenceCount) + skippedNote
+                    if (result.inserted == 0 && result.updated == 0 && result.deleted == 0) {
+                        resources.getString(R.string.calendar_toast_synced_up_to_date) + skippedNote
+                    } else {
+                        resources.getString(
+                            R.string.calendar_toast_synced,
+                            result.inserted,
+                            result.updated,
+                            result.deleted,
+                        ) + skippedNote
+                    }
                 }
                 SystemCalendarWriteResult.PermissionDenied -> permissionDeniedText
                 is SystemCalendarWriteResult.MissingConfig -> resources.getString(result.reason)
@@ -185,11 +191,13 @@ internal fun SystemCalendarExportDialog(
         }
     }
 
-    fun runUndo() {
+    fun runClear() {
         if (busy) return
         busy = true
         scope.launch {
-            val result = withContext(Dispatchers.IO) { SystemCalendarExporter.undo(context) }
+            val result = withContext(Dispatchers.IO) {
+                SystemCalendarExporter.clearAll(context, selectedId)
+            }
             busy = false
             reloadRecord()
             val message = when (result) {
@@ -208,29 +216,29 @@ internal fun SystemCalendarExportDialog(
         }
     }
 
-    if (pendingOverwrite) {
+    if (pendingClear) {
         AlertDialog(
-            onDismissRequest = { pendingOverwrite = false },
+            onDismissRequest = { pendingClear = false },
             shape = RoundedCornerShape(24.dp),
-            title = { Text(stringResource(R.string.calendar_export_overwrite_title)) },
+            title = { Text(stringResource(R.string.calendar_clear_confirm_title)) },
             text = {
-                Text(pluralStringResource(R.plurals.calendar_export_overwrite_body, lastRecordEventCount, lastRecordEventCount))
+                Text(stringResource(R.string.calendar_clear_confirm_body))
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        pendingOverwrite = false
-                        selectedId?.let(::runWrite)
+                        pendingClear = false
+                        runClear()
                     },
                     modifier = Modifier.heightIn(min = 48.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error,
                         contentColor = MaterialTheme.colorScheme.onError,
                     ),
-                ) { Text(stringResource(R.string.calendar_export_overwrite_confirm)) }
+                ) { Text(stringResource(R.string.calendar_clear_confirm_btn)) }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = { pendingOverwrite = false }) {
+                AppOutlinedButton(onClick = { pendingClear = false }) {
                     Text(stringResource(R.string.settings_cancel))
                 }
             },
@@ -487,7 +495,7 @@ internal fun SystemCalendarExportDialog(
                                     Button(
                                         onClick = {
                                             val id = selectedId ?: return@Button
-                                            if (lastRecordEventCount > 0) pendingOverwrite = true else runWrite(id)
+                                            runSync(id)
                                         },
                                         enabled = canExport && !busy && selectedId != null,
                                         modifier = Modifier
@@ -507,12 +515,12 @@ internal fun SystemCalendarExportDialog(
                                                 modifier = Modifier.size(18.dp),
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
-                                            Text(stringResource(R.string.calendar_export_action), maxLines = 1)
+                                            Text(stringResource(R.string.calendar_sync_action), maxLines = 1)
                                         }
                                     }
                                     if (lastRecordEventCount > 0) {
                                         AppOutlinedButton(
-                                            onClick = { runUndo() },
+                                            onClick = { pendingClear = true },
                                             enabled = !busy,
                                             modifier = Modifier.heightIn(min = 48.dp),
                                         ) {
@@ -522,7 +530,7 @@ internal fun SystemCalendarExportDialog(
                                                 modifier = Modifier.size(18.dp),
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
-                                            Text(stringResource(R.string.calendar_export_undo), maxLines = 1)
+                                            Text(stringResource(R.string.calendar_clear_action), maxLines = 1)
                                         }
                                     }
                                 }

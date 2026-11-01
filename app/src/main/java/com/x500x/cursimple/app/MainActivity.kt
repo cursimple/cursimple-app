@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -124,6 +125,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -266,6 +268,7 @@ class MainActivity : ComponentActivity() {
                 themeMode = prefs.themeMode,
                 themeAccent = prefs.themeAccent,
                 customAccentArgb = prefs.themeCustomColorArgb,
+                paletteStyle = prefs.scheduleCardStyle.coursePaletteStyle,
             ) {
                 val lightSystemBars = MaterialTheme.colorScheme.background.luminance() > 0.5f
                 SideEffect {
@@ -512,10 +515,14 @@ class MainActivity : ComponentActivity() {
                             courseNoteRepository = container.courseNoteRepository,
                             scheduleEventRepository = container.scheduleEventRepository,
                             memoRepository = container.memoRepository,
+                            attendanceRepository = container.attendanceRepository,
                             normalizeTimingProfile = { profile ->
                                 container.normalizeTimingProfileForActiveTerm(profile)
                             },
                             onSyncCompleted = { profile -> container.refreshWidgets(profile) },
+                            onSchoolTimingImported = { name, profile ->
+                                container.widgetPreferencesRepository.selectImportedTimingProfile(name, profile)
+                            },
                             onAlarmSyncChecked = {
                                 container.userPreferencesRepository.markAlarmPollAt(System.currentTimeMillis())
                             },
@@ -538,6 +545,9 @@ class MainActivity : ComponentActivity() {
                                 container.refreshWidgets()
                             },
                             merger = { ids, name, alignment, anchorTermId -> container.termMerger.merge(ids, name, alignment, anchorTermId) },
+                            readTerm = { id -> container.readTermSnapshot(id) },
+                            writeTerm = { id, manual, schedule -> container.writeTermCopy(id, manual, schedule) },
+                            attendance = { container.attendanceRepository.attendanceFlow.first() },
                         ),
                     )
                     val termProfileState by termProfileViewModel.state.collectAsStateWithLifecycle()
@@ -689,6 +699,7 @@ class MainActivity : ComponentActivity() {
                     )
                     var showThemeSheet by rememberSaveable { mutableStateOf(false) }
                     var showThemeAccentDialog by rememberSaveable { mutableStateOf(false) }
+                    var drawerAppearance by rememberSaveable { mutableStateOf<DrawerAppearance?>(null) }
                     var showAppLanguageDialog by rememberSaveable { mutableStateOf(false) }
                     var showWidgetThemeAccentDialog by rememberSaveable { mutableStateOf(false) }
                     var showAddCourseDialog by rememberSaveable { mutableStateOf(false) }
@@ -912,7 +923,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onPickThemeAccent = {
                                     scope.launch { drawerState.close() }
-                                    showThemeAccentDialog = true
+                                    drawerAppearance = DrawerAppearance.Theme
                                 },
                                 onOpenTemporaryOverrides = {
                                 scope.launch { drawerState.close() }
@@ -927,8 +938,7 @@ class MainActivity : ComponentActivity() {
                             },
                             onPickScheduleBackground = {
                                     scope.launch { drawerState.close() }
-                                    openSettingsDestination = SettingsDestinationKey.ScheduleBackground
-                                    currentScreen = AppScreen.Settings
+                                    drawerAppearance = DrawerAppearance.Background
                                 },
                             )
                         },
@@ -1260,6 +1270,7 @@ class MainActivity : ComponentActivity() {
                                                         },
                                                     )
                                                 }
+
                                             }
                                         }
                                     },
@@ -1400,6 +1411,7 @@ class MainActivity : ComponentActivity() {
                                         onRemoveHolidayEntry = { date ->
                                             prefsViewModel.removeHolidayCalendarEntry(date.toString())
                                         },
+                                        onSetCustomCourseColor = prefsViewModel::setCustomCourseColor,
                                         modifier = Modifier.fillMaxSize(),
                                     )
 
@@ -1472,6 +1484,12 @@ class MainActivity : ComponentActivity() {
                                             prefsViewModel::setClassNoticeBlurStrength,
                                         onClassNoticeBannerDurationChange =
                                             prefsViewModel::setClassNoticeBannerDurationSeconds,
+                                        onClassNoticeEveningBriefingChange =
+                                            prefsViewModel::setEveningBriefingEnabled,
+                                        onClassNoticeTransitReminderChange =
+                                            prefsViewModel::setTransitReminderEnabled,
+                                        onClassNoticeExamAlertChange =
+                                            prefsViewModel::setExamAlertEnabled,
                                         alarmsContent = { alarmsModifier ->
                                             SettingsRoute(
                                                 viewModel = scheduleViewModel,
@@ -1565,6 +1583,13 @@ class MainActivity : ComponentActivity() {
                                             prefsViewModel::setClassNoticeBlurStrength,
                                         onClassNoticeBannerDurationChange =
                                             prefsViewModel::setClassNoticeBannerDurationSeconds,
+                                        onClassNoticeEveningBriefingChange =
+                                            prefsViewModel::setEveningBriefingEnabled,
+                                        onClassNoticeTransitReminderChange =
+                                            prefsViewModel::setTransitReminderEnabled,
+                                        onClassNoticeExamAlertChange =
+                                            prefsViewModel::setExamAlertEnabled,
+                                        onCoursePaletteStyleChange = prefsViewModel::setCoursePaletteStyle,
                                         onScheduleCourseCornerRadiusDpChange = prefsViewModel::setScheduleCourseCornerRadiusDp,
                                         onScheduleCourseCardHeightDpChange = prefsViewModel::setScheduleCourseCardHeightDp,
                                         onScheduleOpacityPercentChange = prefsViewModel::setScheduleOpacityPercent,
@@ -1599,6 +1624,9 @@ class MainActivity : ComponentActivity() {
                                         onScheduleLocationAtPrefixChange = prefsViewModel::setScheduleLocationAtPrefix,
                                         onScheduleTeacherVisibleChange = prefsViewModel::setScheduleTeacherVisible,
                                         onTotalScheduleDisplayChange = prefsViewModel::setTotalScheduleDisplayEnabled,
+                                        onScheduleTimelineIndicatorEnabledChange = prefsViewModel::setTimelineIndicatorEnabled,
+                                        onScheduleGridDashedLinesEnabledChange = prefsViewModel::setGridDashedLinesEnabled,
+                                        onScheduleTimeColumnWidthDpChange = prefsViewModel::setTimeColumnWidthDp,
                                         onAlarmRingDurationSecondsChange = prefsViewModel::setAlarmRingDurationSeconds,
                                         onAlarmRepeatIntervalSecondsChange = prefsViewModel::setAlarmRepeatIntervalSeconds,
                                         onAlarmRepeatCountChange = prefsViewModel::setAlarmRepeatCount,
@@ -1623,6 +1651,12 @@ class MainActivity : ComponentActivity() {
                                         onClearWidgetBackgroundImage = widgetPrefsViewModel::clearWidgetBackgroundImage,
                                         onWidgetBackgroundImageTransparencyPercentChange =
                                             widgetPrefsViewModel::setWidgetBackgroundImageTransparencyPercent,
+                                        onWidgetBackgroundOpacityPercentChange =
+                                            widgetPrefsViewModel::setWidgetBackgroundOpacityPercent,
+                                        onWidgetFrostedGlassEnabledChange =
+                                            widgetPrefsViewModel::setWidgetFrostedGlassEnabled,
+                                        onWidgetThemeModeChange =
+                                            widgetPrefsViewModel::setWidgetThemeMode,
                                         vendorPermissionAcks = prefs.vendorPermissionAcks,
                                         onVendorPermissionAckChange = prefsViewModel::setVendorPermissionAck,
                                         onWidgetOpenAppOnDoubleClickChange =
@@ -1775,6 +1809,17 @@ class MainActivity : ComponentActivity() {
                                     dayOffset = 0
                                 },
                                 onDelete = termProfileViewModel::delete,
+                                onCopy = { sourceId, name, date, keepReminders ->
+                                    termProfileViewModel.copyTerm(sourceId, name, date, keepReminders) { copiedName ->
+                                        Toast.makeText(
+                                            this@MainActivity,
+                                            getString(R.string.term_copy_done, copiedName),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
+                                },
+                                loadStats = { id, onResult -> termProfileViewModel.loadStats(id, onResult) },
+                                onArchive = { id, archived -> termProfileViewModel.setArchived(id, archived) },
                                 onMerge = { ids, name ->
                                     termProfileViewModel.merge(ids, name) { mergedName ->
                                         Toast.makeText(
@@ -1924,6 +1969,7 @@ class MainActivity : ComponentActivity() {
                                 onSyncPlugin = scheduleViewModel::syncSchedule,
                                 onCompleteWebSession = scheduleViewModel::completeWebSession,
                                 onCancelWebSession = scheduleViewModel::cancelWebSession,
+                                onOpenSchoolPortal = scheduleViewModel::startSchoolPortal,
                                 onBack = { subScreen = null },
                                 onBrowseAllPlugins = {
                                     subScreen = null
@@ -2024,6 +2070,34 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    drawerAppearance?.let { kind ->
+                        DrawerAppearanceChooser(
+                            kind = kind,
+                            onDismiss = { drawerAppearance = null },
+                            onThemeColor = {
+                                drawerAppearance = null
+                                showThemeAccentDialog = true
+                            },
+                            onScheduleStyle = {
+                                drawerAppearance = null
+                                openSettingsDestination = SettingsDestinationKey.ScheduleStyle
+                                currentScreen = AppScreen.Settings
+                                subScreen = null
+                            },
+                            onScheduleBackground = {
+                                drawerAppearance = null
+                                openSettingsDestination = SettingsDestinationKey.ScheduleBackground
+                                currentScreen = AppScreen.Settings
+                                subScreen = null
+                            },
+                            onWidgetBackground = {
+                                drawerAppearance = null
+                                openSettingsDestination = SettingsDestinationKey.WidgetBackground
+                                currentScreen = AppScreen.Settings
+                                subScreen = null
+                            },
+                        )
+                    }
                     if (showThemeAccentDialog) {
                         ThemeAccentDialog(
                             current = prefs.themeAccent,
@@ -2324,7 +2398,8 @@ private fun AppDrawer(
     onOpenUpdateCheck: () -> Unit,
 ) {
     ModalDrawerSheet(
-        modifier = Modifier.fillMaxWidth(0.72f),
+        // Cap at the Material drawer width so landscape does not stretch rows across the screen.
+        modifier = Modifier.width(minOf(LocalConfiguration.current.screenWidthDp * 0.72f, 360f).dp),
         drawerContainerColor = MaterialTheme.colorScheme.surface,
     ) {
         val scrollState = rememberScrollState()
@@ -3009,3 +3084,94 @@ internal fun resolveDayOffsetForSelectedWeek(
 }
 
 private const val PLUGIN_PREFETCH_DELAY_MILLIS = 3_000L
+
+/** Which appearance shortcut opened the chooser: theme (colour or schedule style) or background. */
+internal enum class DrawerAppearance { Theme, Background }
+
+/**
+ * First step of the drawer's appearance shortcuts: pick what to change before opening its editor.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DrawerAppearanceChooser(
+    kind: DrawerAppearance,
+    onDismiss: () -> Unit,
+    onThemeColor: () -> Unit,
+    onScheduleStyle: () -> Unit,
+    onScheduleBackground: () -> Unit,
+    onWidgetBackground: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(
+                    if (kind == DrawerAppearance.Theme) R.string.drawer_chooser_theme_title else R.string.drawer_chooser_background_title,
+                ),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            if (kind == DrawerAppearance.Theme) {
+                DrawerChooserRow(
+                    icon = Icons.Rounded.Palette,
+                    title = stringResource(R.string.drawer_chooser_theme_color),
+                    subtitle = stringResource(R.string.drawer_chooser_theme_color_hint),
+                    onClick = onThemeColor,
+                )
+                DrawerChooserRow(
+                    icon = Icons.Rounded.Style,
+                    title = stringResource(R.string.settings_dest_schedule_style),
+                    subtitle = stringResource(R.string.drawer_chooser_schedule_style_hint),
+                    onClick = onScheduleStyle,
+                )
+            } else {
+                DrawerChooserRow(
+                    icon = Icons.Rounded.Wallpaper,
+                    title = stringResource(R.string.settings_schedule_background),
+                    subtitle = stringResource(R.string.drawer_chooser_schedule_background_hint),
+                    onClick = onScheduleBackground,
+                )
+                DrawerChooserRow(
+                    icon = Icons.Rounded.Widgets,
+                    title = stringResource(R.string.settings_dest_widget_background),
+                    subtitle = stringResource(R.string.drawer_chooser_widget_background_hint),
+                    onClick = onWidgetBackground,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DrawerChooserRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}

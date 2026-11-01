@@ -18,7 +18,15 @@ data class PluginPackageLayout(
         )
     }
 
-    fun readText(path: String): String = requireFile(path).toString(Charsets.UTF_8)
+    fun readText(path: String): String {
+        val bytes = requireFile(path)
+        if (path in setOf(MANIFEST_FILE, CHECKSUMS_FILE, SIGNATURE_FILE)) {
+            require(bytes.size <= 1024 * 1024) { "Plugin metadata exceeds 1 MiB" }
+        }
+        return bytes.toString(Charsets.UTF_8).also {
+            if (path in setOf(MANIFEST_FILE, CHECKSUMS_FILE, SIGNATURE_FILE)) requireBoundedPluginJson(it)
+        }
+    }
 
     fun decodeManifest(json: Json): PluginManifest {
         return json.decodeFromString(readText(MANIFEST_FILE))
@@ -44,6 +52,20 @@ data class PluginPackageLayout(
         manifest.extension?.widgets.orEmpty().forEach { widget ->
             val path = normalizePluginPackagePath(widget.entry)
             pluginRequire(path in files, R.string.plugin_error_package_missing_ui_file, widget.entry)
+        }
+        manifest.home?.let { home ->
+            val path = normalizePluginPackagePath(home.entry)
+            pluginRequire(path in files, R.string.plugin_error_package_missing_ui_file, home.entry)
+            require(home.sections.isNotEmpty() && home.sections.size <= 12) { "Invalid plugin home sections" }
+            require(home.sections.map { it.id }.toSet().size == home.sections.size) { "Duplicate plugin home sections" }
+            require(home.sections.all { it.id.matches(Regex("[a-zA-Z0-9_-]{1,64}")) }) { "Invalid plugin home section ID" }
+            (listOf(home.runUrl, home.loginUrl) + home.sections.mapNotNull { it.url }).forEach { url ->
+                val uri = java.net.URI(url)
+                require(uri.scheme == "https" && uri.rawUserInfo == null && uri.host != null) { "Invalid plugin home URL" }
+                require(manifest.allowedHosts.any { allowed ->
+                    uri.host.equals(allowed, true) || uri.host.endsWith(".$allowed", true)
+                }) { "Plugin home URL is outside declared hosts" }
+            }
         }
         return manifest.copy(entry = normalizedEntry)
     }

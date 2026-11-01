@@ -1,0 +1,93 @@
+name: Site Preview (pre)
+
+on:
+  push:
+    branches: [pre]
+  workflow_dispatch:
+
+concurrency:
+  group: site-preview-pre
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  preview:
+    if: github.ref == 'refs/heads/pre'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      - name: Verify static site and preview cleanup
+        run: |
+          node --check site/i18n.js
+          node --check site/releases.js
+          node --check site/main.js
+          node --test site/tests/*.test.cjs
+          node site/check-links.cjs
+          python3 -B -m unittest discover -s scripts/tests -v
+
+      - name: Deploy to Netlify
+        id: netlify
+        uses: nwtgck/actions-netlify@4cbaf4c08f1a7bfa537d6113472ef4424e4eb654 # v3.0
+        with:
+          publish-dir: './site'
+          production-branch: main
+          production-deploy: false
+          alias: pre
+          deploy-message: "CurSimple pre preview ${{ github.sha }}"
+          fails-without-credentials: true
+          enable-github-deployment: false
+          enable-commit-status: false
+          enable-commit-comment: false
+          enable-pull-request-comment: false
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+      - name: Validate immutable preview URL
+        shell: bash
+        env:
+          PREVIEW_URL: ${{ steps.netlify.outputs.deploy-url }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re
+          url = os.environ['PREVIEW_URL']
+          if not re.fullmatch(r'https://[0-9a-f]{24}--[a-z0-9-]+\.netlify\.app/?', url):
+              raise ValueError('Invalid immutable Netlify URL')
+          PY
+
+      - name: Physically delete older pre previews
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          CURRENT_DEPLOY_URL: ${{ steps.netlify.outputs.deploy-url }}
+        run: python3 -B scripts/cleanup_netlify_previews.py
+
+      - name: Report ready preview URL
+        shell: bash
+        env:
+          PREVIEW_URL: ${{ steps.netlify.outputs.deploy-url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          url = os.environ['PREVIEW_URL']
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write(f'官网 pre 预览：[打开预览]({url})\n')
+          PY
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -f state=success -f target_url="$PREVIEW_URL" \
+            -f description="pre 预览已就绪" -f context="site/preview"

@@ -1,5 +1,7 @@
 package com.x500x.cursimple.feature.plugin.extension
 
+import com.x500x.cursimple.feature.plugin.hardenLocalAccess
+
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.webkit.CookieManager
@@ -169,6 +171,7 @@ fun ExtensionLoginScreen(
                             android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                             android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                         )
+                        hardenLocalAccess()
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
                         settings.loadWithOverviewMode = true

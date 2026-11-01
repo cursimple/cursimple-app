@@ -74,6 +74,17 @@ fun TimingProfileLibrary.updatingActive(transform: (TimingProfileEntry) -> Timin
 fun TimingProfileLibrary.activating(id: String): TimingProfileLibrary =
     if (profiles.any { it.id == id }) copy(activeId = id) else this
 
+/** Select imported school hours without replacing the user's existing profiles. */
+fun TimingProfileLibrary.withImportedProfile(entry: TimingProfileEntry): TimingProfileLibrary {
+    if (entry.slotTimes.isEmpty()) return this
+    val existing = profiles.firstOrNull {
+        it.slotTimes == entry.slotTimes && it.timezone == entry.timezone
+    }
+    if (existing != null) return activating(existing.id)
+    if (profiles.any { it.id == entry.id }) return this
+    return upserting(entry.copy(manuallyEdited = true)).activating(entry.id)
+}
+
 fun TimingProfileLibrary.renaming(id: String, name: String): TimingProfileLibrary {
     val trimmed = name.trim()
     if (trimmed.isBlank()) return this

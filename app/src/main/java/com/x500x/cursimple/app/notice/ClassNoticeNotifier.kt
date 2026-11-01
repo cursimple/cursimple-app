@@ -737,6 +737,93 @@ object ClassNoticeNotifier {
         manager.createNotificationChannel(channel)
     }
 
+    internal fun canPostNotifications(context: Context): Boolean =
+        NotificationManagerCompat.from(context).areNotificationsEnabled() &&
+            (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED)
+
+    fun notifyEveningBriefing(context: Context, bodyText: String) {
+        val manager = NotificationManagerCompat.from(context)
+        if (!canPostNotifications(context)) return
+        ensureChannel(context)
+        val openApp = PendingIntent.getActivity(
+            context,
+            0,
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID_QUIET)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("明日课表预告")
+            .setContentText(bodyText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bodyText))
+            .setContentIntent(openApp)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+        try {
+            manager.notify(ClassNoticeScheduler.NOTIFICATION_ID_EVENING_BRIEFING, notification)
+        } catch (error: SecurityException) {
+            ReminderLogger.warn("class_notice.evening.permission_revoked", emptyMap(), error)
+        }
+    }
+
+    fun notifyTransitReminder(context: Context, nextTitle: String, nextLocation: String) {
+        val manager = NotificationManagerCompat.from(context)
+        if (!canPostNotifications(context)) return
+        ensureChannel(context)
+        val openApp = PendingIntent.getActivity(
+            context,
+            0,
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val body = "下节课《$nextTitle》需前往【$nextLocation】，距离较远请提前出发"
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("赶课提醒")
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setContentIntent(openApp)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+        try {
+            manager.notify(ClassNoticeScheduler.NOTIFICATION_ID_TRANSIT, notification)
+        } catch (error: SecurityException) {
+            ReminderLogger.warn("class_notice.transit.permission_revoked", emptyMap(), error)
+        }
+    }
+
+    fun notifyExamAlert(context: Context, examTitle: String, location: String, seat: String, minutesUntil: Int) {
+        val manager = NotificationManagerCompat.from(context)
+        if (!canPostNotifications(context)) return
+        ensureChannel(context)
+        val openApp = PendingIntent.getActivity(
+            context,
+            0,
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val seatText = if (seat.isNotBlank()) " · 座位号：$seat" else ""
+        val body = "考场：$location$seatText · 距离考试还有 $minutesUntil 分钟，请带齐准考证与证件！"
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("【考试提醒】$examTitle")
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setContentIntent(openApp)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .build()
+        try {
+            manager.notify(ClassNoticeScheduler.NOTIFICATION_ID_EXAM, notification)
+        } catch (error: SecurityException) {
+            ReminderLogger.warn("class_notice.exam.permission_revoked", emptyMap(), error)
+        }
+    }
+
     fun systemBlocked(context: Context, preferences: ClassNoticePreferences): Boolean =
         masterNotificationsBlocked(context) || channelBlocked(context, preferences)
 

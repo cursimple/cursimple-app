@@ -1,28 +1,22 @@
 package com.x500x.cursimple.feature.widget
 
-import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
+import androidx.core.content.ContextCompat
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
 class NextCourseRemoteViewsService : RemoteViewsService() {
-    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
-        val appWidgetId = intent.getIntExtra(
-            AppWidgetManager.EXTRA_APPWIDGET_ID,
-            AppWidgetManager.INVALID_APPWIDGET_ID,
-        )
-        return NextCourseListFactory(applicationContext, appWidgetId)
-    }
+    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory =
+        NextCourseListFactory(applicationContext)
 }
 
 private class NextCourseListFactory(
     appContext: Context,
-    private val appWidgetId: Int,
 ) : RemoteViewsService.RemoteViewsFactory {
     private var context: Context = appContext.widgetLocaleContext()
     private var rows: List<NextCourseRow> = emptyList()
@@ -38,8 +32,7 @@ private class NextCourseListFactory(
                 NextCourseDataSource.load(context, reuseRecent = true)
             }
         }.onSuccess { data ->
-            val sizeClass = widgetSizeClass(AppWidgetManager.getInstance(context), appWidgetId)
-            rows = visibleNextCourseRows(data.rows, sizeClass)
+            rows = visibleNextCourseRows(data.rows)
             themeAccent = data.themeAccent
             widgetTheme = data.widgetTheme
         }
@@ -53,7 +46,7 @@ private class NextCourseListFactory(
 
     override fun getViewAt(position: Int): RemoteViews {
         val data = rows.getOrNull(position)
-            ?: return RemoteViews(context.packageName, R.layout.widget_next_course_row)
+            ?: return RemoteViews(context.packageName, R.layout.widget_next_course_row_surface)
         return buildNextCourseRow(context, data, themeAccent, widgetTheme)
     }
 
@@ -73,21 +66,33 @@ internal fun buildNextCourseRow(
     themeAccent: ThemeAccent,
     widgetTheme: WidgetThemePreferences,
 ): RemoteViews {
-    val row = RemoteViews(context.packageName, R.layout.widget_next_course_row)
+    val row = RemoteViews(context.packageName, R.layout.widget_next_course_row_surface)
+    // The live or next course stands out like the timetable widget's live row. Launchers reuse rows, so set both states.
     row.applyAccentBackground(
-        R.id.next_course_row_root,
         widgetTheme,
-        if (data.isPast) WidgetSurfaceTone.RowVariant else WidgetSurfaceTone.Row,
+        if (data.isFocus) WidgetSurfaceTone.RowVariant else WidgetSurfaceTone.Row,
+        isDark = resolveWidgetIsDark(context, widgetTheme.widgetThemeMode),
     )
     row.applyOpenAppFillInIntent(R.id.next_course_row_root, widgetTheme)
     row.setTextViewText(R.id.next_course_label, data.label)
+    val density = context.resources.displayMetrics.density
+    if (data.isFocus) {
+        row.setInt(R.id.next_course_label, "setBackgroundResource", R.drawable.widget_bg_badge_live)
+        row.setTextColor(R.id.next_course_label, ContextCompat.getColor(context, R.color.widget_badge_live_text))
+        row.setViewPadding(R.id.next_course_label, (6 * density).toInt(), (1 * density).toInt(), (6 * density).toInt(), (1 * density).toInt())
+    } else {
+        row.setInt(R.id.next_course_label, "setBackgroundResource", 0)
+        row.setTextColor(R.id.next_course_label, ContextCompat.getColor(context, R.color.widget_row_nodes))
+        row.setViewPadding(R.id.next_course_label, 0, 0, 0, 0)
+    }
     row.setTextViewText(
         R.id.next_course_period,
         widgetSlotCellText(data.slotLabel, data.nodeNumbers, fallback = data.period),
     )
-    row.setTextColor(R.id.next_course_period, widgetAccentTextColor(widgetTheme))
+    row.setTextColor(R.id.next_course_period, widgetAccentTextColor(widgetTheme, resolveWidgetIsDark(context, widgetTheme.widgetThemeMode)))
     row.setTextViewText(R.id.next_course_name, data.title)
     row.setTextViewText(R.id.next_course_time, data.time)
     row.setTextViewText(R.id.next_course_sub, data.sub)
+    row.applyWidgetTextColors(context, widgetTheme)
     return row
 }

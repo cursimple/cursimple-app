@@ -6,6 +6,7 @@ import com.x500x.cursimple.core.plugin.R
 import com.x500x.cursimple.core.plugin.install.requirePluginCompatibility
 import com.x500x.cursimple.core.plugin.install.resolveHostVersionCompatibility
 import com.x500x.cursimple.core.plugin.packageformat.readAtMostBytes
+import com.x500x.cursimple.core.plugin.packageformat.requireBoundedPluginJson
 import com.x500x.cursimple.core.plugin.pluginReasonOr
 import com.x500x.cursimple.core.plugin.pluginRequire
 import com.x500x.cursimple.core.plugin.pluginRequireNotNull
@@ -43,6 +44,7 @@ class PluginComponentInstaller(
         runCatching {
             val layout = readComponentPackage(bytes)
             val manifestText = layout.requireFile(MANIFEST_FILE).toString(Charsets.UTF_8)
+            requireBoundedPluginJson(manifestText)
             // Recognize plugin bundles imported through the component-asset entry point and explain the correct route.
             val looksLikePlugin = runCatching {
                 val obj = json.parseToJsonElement(manifestText) as? kotlinx.serialization.json.JsonObject
@@ -63,7 +65,19 @@ class PluginComponentInstaller(
                 source = source,
                 installedAt = OffsetDateTime.now().toString(),
             )
-            repository.save(record)
+            val previous = try {
+                val old = repository.getInstalledComponents().firstOrNull { it.id == record.id && it.source == record.source }
+                repository.save(record)
+                old
+            } catch (error: Exception) {
+                target.deleteRecursively()
+                throw error
+            }
+            runCatching {
+                previous?.storagePath?.let(::File)?.canonicalFile?.takeIf {
+                    it != target && it.parentFile == target.parentFile
+                }?.deleteRecursively()
+            }
             PluginComponentInstallResult.Success(record)
         }.getOrElse { error ->
             PluginComponentInstallResult.Failure(
@@ -132,25 +146,22 @@ class PluginComponentInstaller(
         val componentRoot = componentRoot.canonicalFile
         componentRoot.mkdirs()
         val safeId = manifest.id.replace(Regex("[^A-Za-z0-9._-]"), "_")
-        val safeVersion = manifest.version.replace(Regex("[^A-Za-z0-9._-]"), "_")
-        val safeAbi = manifest.abi?.replace(Regex("[^A-Za-z0-9._-]"), "_") ?: "any"
         val sourceTag = source.name.lowercase()
-        val targetDir = File(componentRoot, "$safeId-$safeVersion-$safeAbi-$sourceTag").canonicalFile
+        val targetDir = File(componentRoot, "${safeId.take(128)}-$sourceTag-${java.util.UUID.randomUUID()}").canonicalFile
         requireContained(componentRoot, targetDir, R.string.plugin_error_component_install_dir_escape)
-        if (targetDir.exists()) {
-            requireContained(componentRoot, targetDir, R.string.plugin_error_component_install_dir_escape)
-            targetDir.deleteRecursively()
-        }
-        targetDir.mkdirs()
-        layout.files
-            .filterKeys { it != MANIFEST_FILE }
-            .forEach { (path, bytes) ->
+        check(targetDir.mkdir())
+        try {
+            layout.files.filterKeys { it != MANIFEST_FILE }.forEach { (path, bytes) ->
                 val target = File(targetDir, path).canonicalFile
                 requireContained(targetDir, target, R.string.plugin_error_component_package_path_escape, path)
-                target.parentFile?.mkdirs()
+                check(target.parentFile?.let { it.isDirectory || it.mkdirs() } == true)
                 target.writeBytes(bytes)
             }
-        return targetDir
+            return targetDir
+        } catch (error: Exception) {
+            targetDir.deleteRecursively()
+            throw error
+        }
     }
 
     private fun requireContained(root: File, target: File, messageRes: Int, vararg formatArgs: Any) {
@@ -164,32 +175,34 @@ class PluginComponentInstaller(
     }
 
     private fun readComponentPackage(bytes: ByteArray): ComponentPackageLayout {
+        pluginRequire(bytes.size <= maxUncompressedBytes, R.string.plugin_error_component_package_size_exceeded, maxUncompressedBytes)
         val files = linkedMapOf<String, ByteArray>()
+        val paths = mutableSetOf<String>()
+        var entryCount = 0
         var totalBytes = 0L
         ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
+                pluginRequire(++entryCount <= maxFileCount, R.string.plugin_error_component_package_file_count_exceeded, maxFileCount)
+                val normalized = normalizePackagePath(if (entry.isDirectory) entry.name.removeSuffix("/") else entry.name)
+                pluginRequire(paths.add(normalized), R.string.plugin_error_component_package_duplicate_file, normalized)
+                val content = pluginRequireNotNull(
+                    zip.readAtMostBytes(maxUncompressedBytes - totalBytes),
+                    R.string.plugin_error_component_package_size_exceeded, maxUncompressedBytes,
+                )
+                totalBytes += content.size.toLong()
                 if (!entry.isDirectory) {
-                    val normalized = normalizePackagePath(entry.name)
-                    pluginRequire(
-                        normalized !in files,
-                        R.string.plugin_error_component_package_duplicate_file,
-                        normalized,
-                    )
-                    pluginRequire(
-                        files.size < maxFileCount,
-                        R.string.plugin_error_component_package_file_count_exceeded,
-                        maxFileCount,
-                    )
-                    val content = pluginRequireNotNull(
-                        zip.readAtMostBytes(maxUncompressedBytes - totalBytes),
-                        R.string.plugin_error_component_package_size_exceeded,
-                        maxUncompressedBytes,
-                    )
-                    totalBytes += content.size.toLong()
+                    if (normalized == MANIFEST_FILE) require(content.size <= 1024 * 1024) { "Component metadata exceeds 1 MiB" }
                     files[normalized] = content
                 }
                 zip.closeEntry()
+            }
+        }
+        files.keys.forEach { path ->
+            var parent = path.substringBeforeLast('/', "")
+            while (parent.isNotEmpty()) {
+                pluginRequire(parent !in files, R.string.plugin_error_component_package_illegal_path, path)
+                parent = parent.substringBeforeLast('/', "")
             }
         }
         pluginRequire(MANIFEST_FILE in files, R.string.plugin_error_component_package_missing_manifest)
@@ -197,6 +210,7 @@ class PluginComponentInstaller(
     }
 
     private fun normalizePackagePath(rawPath: String): String {
+        pluginRequire(rawPath.length <= 1024 && '\u0000' !in rawPath, R.string.plugin_error_component_package_illegal_path, "path")
         val path = rawPath.replace('\\', '/').trim()
         pluginRequire(path.isNotBlank(), R.string.plugin_error_component_package_blank_path)
         pluginRequire(

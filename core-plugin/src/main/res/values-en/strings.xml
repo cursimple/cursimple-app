@@ -114,4 +114,5 @@
     <string name="plugin_error_compatibility_host_invalid">This package declares an invalid minimum app version and cannot be installed.</string>
     <string name="plugin_error_compatibility_host_unknown">The app version could not be verified. Installation was blocked.</string>
     <string name="plugin_error_compatibility_host_too_old">This package requires CurSimple %1$s or newer. This app is %2$s; update it before installing.</string>
+    <string name="school_portal_missing_url">This school has no usable portal address.</string>
 </resources>

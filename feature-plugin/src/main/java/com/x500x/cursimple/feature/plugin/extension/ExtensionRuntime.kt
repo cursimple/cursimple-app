@@ -1,5 +1,7 @@
 package com.x500x.cursimple.feature.plugin.extension
 
+import com.x500x.cursimple.feature.plugin.hardenLocalAccess
+
 import android.annotation.SuppressLint
 import android.content.Context
 import android.webkit.CookieManager
@@ -8,6 +10,7 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebSettings
 import com.x500x.cursimple.core.plugin.logging.PluginLogger
 import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.manifest.PluginPermission
@@ -59,6 +62,8 @@ data class ExtensionRunRequest(
     val notifications: JsonArray = JsonArray(emptyList()),
     val onReceipt: (suspend (JsonObject) -> Boolean)? = null,
     val onSession: (suspend (JsonObject) -> Boolean)? = null,
+    /** A portal may cross SSO intermediates before reaching the script's same-origin entry. */
+    val waitForRunUrl: Boolean = false,
 ) {
     companion object {
         fun from(
@@ -120,12 +125,14 @@ class ExtensionRuntime(
         val nativeScope = CoroutineScope(coroutineContext + nativeJob)
         var injected = false
         try {
+            webView.hardenLocalAccess()
             webView.settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
                 loadsImagesAutomatically = false
                 blockNetworkImage = true
                 blockNetworkLoads = request.isolated
+                if (request.waitForRunUrl) cacheMode = WebSettings.LOAD_NO_CACHE
                 request.userAgent?.let { userAgentString = it }
             }
             CookieManager.getInstance().setAcceptCookie(true)
@@ -139,6 +146,7 @@ class ExtensionRuntime(
                 override fun onPageFinished(view: WebView?, url: String?) {
                     if (injected || view == null) return
                     if (!request.isolated && !ExtensionUrls.isAllowed(url.orEmpty(), request.allowedHosts)) return
+                    if (!extensionEntryPageReached(request, url.orEmpty())) return
                     injected = true
                     view.evaluateJavascript(buildExtensionScript(request, token, useBridge = true), null)
                 }
@@ -230,6 +238,16 @@ class ExtensionRuntime(
     }
 }
 
+internal fun extensionEntryPageReached(request: ExtensionRunRequest, url: String): Boolean {
+    if (request.isolated || !request.waitForRunUrl) return true
+    val expected = runCatching { URI(request.url) }.getOrNull() ?: return false
+    val actual = runCatching { URI(url) }.getOrNull() ?: return false
+    fun URI.httpsPort() = if (port == -1) 443 else port
+    return actual.scheme.equals("https", true) && expected.scheme.equals("https", true) &&
+        actual.rawUserInfo == null && actual.host.equals(expected.host, true) &&
+        actual.httpsPort() == expected.httpsPort() && actual.path == expected.path
+}
+
 /** Parse items independently so one malformed row cannot discard the snapshot. */
 internal fun parseExtensionPayload(payload: String?, maxOutputBytes: Int): ExtensionRunResult {
     if (payload.isNullOrBlank()) return ExtensionRunResult.Failed("组件没有返回结果")
@@ -297,11 +315,12 @@ object ExtensionUrls {
 
     fun isAllowed(url: String, allowedHosts: List<String>): Boolean {
         val uri = runCatching { URI(url) }.getOrNull() ?: return false
-        if (uri.scheme != "https") return false
+        if (uri.scheme != "https" || uri.rawUserInfo != null) return false
         val host = uri.host?.lowercase() ?: return false
         return allowedHosts.any { allowed ->
             val normalized = allowed.trim().lowercase()
-            host == normalized || host.endsWith(".$normalized")
+            normalized.isNotEmpty() && normalized.matches(Regex("[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?")) &&
+                (host == normalized || host.endsWith(".$normalized"))
         }
     }
 
@@ -358,9 +377,9 @@ internal fun buildExtensionScript(request: ExtensionRunRequest, token: String, u
   }
   function hostAllowed(url) {
     var host;
-    try { var u = new URL(url, location.href); if (u.protocol !== "https:") return false; host = u.hostname.toLowerCase(); }
+    try { var u = new URL(url, location.href); if (u.protocol !== "https:" || u.username || u.password) return false; host = u.hostname.toLowerCase(); }
     catch (_) { return false; }
-    return CONFIG.allowedHosts.some(function (h) { h = String(h).toLowerCase(); return host === h || host.endsWith("." + h); });
+    return CONFIG.allowedHosts.some(function (h) { h = String(h).trim().toLowerCase(); return /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(h) && (host === h || host.endsWith("." + h)); });
   }
   function log(level, args) {
     var text;

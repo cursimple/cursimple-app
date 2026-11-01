@@ -111,13 +111,16 @@ internal data class CourseLibraryGroup(
 /**
  * Group [entries] (already sorted) by name and category, keeping their order. Per-week
  * titles, locations and teachers split a course into variants, as do differing periods.
+ * The key depends only on what the group holds, not on sort order, so a card keeps its
+ * identity when the list is re-sorted and animates to its new slot instead of being replaced.
  */
 internal fun groupCourseLibrary(entries: List<CourseLibraryEntry>, keyPrefix: String = ""): List<CourseLibraryGroup> =
     entries.groupBy { it.course.title.trim() to it.course.category }
         .map { (key, members) ->
             val base = members.first().course
             val variants = members.flatMap { entry -> courseVariants(entry, base) }
-            CourseLibraryGroup("$keyPrefix${key.second.name}|${key.first}|${base.id}", members, variants)
+            val identity = members.minOf { it.course.id }
+            CourseLibraryGroup("$keyPrefix${key.second.name}|${key.first}|$identity", members, variants)
         }
 
 private fun courseVariants(entry: CourseLibraryEntry, base: CourseItem): List<CourseVariant> {

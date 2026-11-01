@@ -170,6 +170,7 @@ internal class FastTransfer(
         val bytes = execute(request(candidate.url).build()) { response ->
             check(response.code in 200..299) { "HTTP ${response.code}" }
             val total = response.body.contentLength()
+            if (total > MAX_IN_MEMORY) throw IOException("Response exceeds in-memory download limit")
             onProgress(0L, total)
             val out = java.io.ByteArrayOutputStream(if (total in 1..MAX_IN_MEMORY) total.toInt() else 32 * 1024)
             val buffer = ByteArray(BUFFER_BYTES)
@@ -178,6 +179,7 @@ internal class FastTransfer(
             while (true) {
                 val read = input.read(buffer)
                 if (read < 0) break
+                if (downloaded + read > MAX_IN_MEMORY) throw IOException("Response exceeds in-memory download limit")
                 out.write(buffer, 0, read)
                 downloaded += read
                 onProgress(downloaded, total)

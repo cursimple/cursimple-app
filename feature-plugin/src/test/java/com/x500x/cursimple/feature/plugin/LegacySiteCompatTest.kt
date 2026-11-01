@@ -9,6 +9,21 @@ import org.junit.Test
 /** Pure legacy-compatibility rules for allowlisted document.domain opt-out headers. */
 class LegacySiteCompatTest {
 
+    @Test
+    fun `chunked document responses stop at the byte limit`() {
+        val source = object : java.io.InputStream() {
+            var consumed = 0
+            override fun read(): Int { consumed++; return 65 }
+        }
+        try {
+            readLegacyDocument(source, limit = 32)
+            throw AssertionError("Unlimited response was accepted")
+        } catch (_: java.io.IOException) {
+            assertTrue(source.consumed <= DEFAULT_BUFFER_SIZE)
+        }
+        assertEquals("document", readLegacyDocument("document".byteInputStream(), limit = 8).toString(Charsets.UTF_8))
+    }
+
     private val navigationAccept =
         "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
 

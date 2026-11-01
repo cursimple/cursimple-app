@@ -81,6 +81,13 @@ class DataStoreTermProfileRepository(
         }
     }
 
+    override suspend fun setTermArchived(id: String, archived: Boolean) {
+        store.edit { prefs ->
+            val list = readTerms(prefs).map { if (it.id == id) it.copy(archived = archived) else it }
+            prefs[KEY_TERMS_JSON] = json.encodeToString(listSerializer, list)
+        }
+    }
+
     override suspend fun adjustActiveTermExtraWeekCount(delta: Int): Int {
         var result = 0
         store.edit { prefs ->

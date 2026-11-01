@@ -13,6 +13,8 @@ import com.x500x.cursimple.core.plugin.pluginRequire
 import com.x500x.cursimple.core.plugin.ui.PluginUiSchema
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.util.UUID
+import com.x500x.cursimple.core.plugin.packageformat.requireBoundedPluginJson
 
 class PluginFileStore(
     private val rootDir: File,
@@ -32,21 +34,24 @@ class PluginFileStore(
         root.mkdirs()
         val pluginId = requireSafePluginId(manifest.id)
         val sourceTag = source.name.lowercase()
-        val targetDir = File(root, "$pluginId-${manifest.versionCode}-$sourceTag").canonicalFile
+        // Every installation gets a fresh directory. The registry is switched only after all
+        // files are written; failed reinstallation cannot destroy the previously active version.
+        val targetDir = File(root, "$pluginId-${manifest.versionCode}-$sourceTag-${UUID.randomUUID()}").canonicalFile
         requireContained(root, targetDir)
-        if (targetDir.exists()) {
-            requireContained(root, targetDir)
+        check(targetDir.mkdir()) { "Cannot create plugin staging directory" }
+        try {
+            layout.files.forEach { (path, bytes) ->
+                val normalizedPath = normalizePluginPackagePath(path)
+                val target = File(targetDir, normalizedPath).canonicalFile
+                requireContained(targetDir, target)
+                check(target.parentFile?.let { it.isDirectory || it.mkdirs() } == true)
+                target.writeBytes(bytes)
+            }
+            return targetDir
+        } catch (error: Exception) {
             targetDir.deleteRecursively()
+            throw error
         }
-        targetDir.mkdirs()
-        layout.files.forEach { (path, bytes) ->
-            val normalizedPath = normalizePluginPackagePath(path)
-            val target = File(targetDir, normalizedPath).canonicalFile
-            requireContained(targetDir, target)
-            target.parentFile?.mkdirs()
-            target.writeBytes(bytes)
-        }
-        return targetDir
     }
 
     fun loadManifest(record: InstalledPluginRecord): PluginManifest {
@@ -62,27 +67,31 @@ class PluginFileStore(
         readText(record, normalizePluginPackagePath(path))
 
     fun loadUiSchema(record: InstalledPluginRecord, path: String = "ui/schedule.json"): PluginUiSchema {
-        val file = File(record.storagePath, path)
+        val file = readFile(record, path)
         if (!file.exists()) {
             return PluginUiSchema()
         }
-        return json.decodeFromString(file.readText())
+        return json.decodeFromString(readText(record, path))
     }
 
     fun loadTimingProfile(record: InstalledPluginRecord, path: String = "datapack/timing.json"): TermTimingProfile? {
-        val file = File(record.storagePath, path)
+        val file = readFile(record, path)
         if (!file.exists()) {
             return null
         }
-        return json.decodeFromString(file.readText())
+        return json.decodeFromString(readText(record, path))
     }
 
     fun readText(record: InstalledPluginRecord, relativePath: String): String {
-        return readFile(record, relativePath).readText()
+        val file = readFile(record, relativePath)
+        require(file.length() <= 50L * 1024 * 1024) { "Plugin file exceeds limit" }
+        return file.readText().also { if (relativePath.endsWith(".json")) requireBoundedPluginJson(it) }
     }
 
     fun readFile(record: InstalledPluginRecord, relativePath: String): File {
         val root = File(record.storagePath).canonicalFile
+        requireContained(rootDir.canonicalFile, root)
+        pluginRequire(root != rootDir.canonicalFile, R.string.plugin_error_file_path_escape, root.path)
         val file = File(root, normalizePluginPackagePath(relativePath)).canonicalFile
         requireContained(root, file)
         return file

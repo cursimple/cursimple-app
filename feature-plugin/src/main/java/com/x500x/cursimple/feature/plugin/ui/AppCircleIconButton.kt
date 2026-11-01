@@ -20,13 +20,15 @@ fun AppCircleIconButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     size: Dp = 48.dp,
+    contentColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary,
+    borderColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.outlineVariant,
     content: @Composable () -> Unit,
 ) {
     OutlinedIconButton(
         onClick = onClick, enabled = enabled,
         modifier = modifier.minimumInteractiveComponentSize().size(size).clip(CircleShape), shape = CircleShape,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+        border = BorderStroke(1.dp, borderColor),
+        colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = contentColor),
         content = content,
     )
 }

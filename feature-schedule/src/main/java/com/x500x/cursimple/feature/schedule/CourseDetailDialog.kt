@@ -1,11 +1,13 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.core.data.ScheduleCardStylePreferences
 import com.x500x.cursimple.core.kernel.model.DEFAULT_TERM_WEEK_COUNT
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -14,6 +16,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.luminance
+import com.x500x.cursimple.feature.schedule.theme.CoursePaletteEntry
 import androidx.compose.ui.input.pointer.pointerInput
 import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import androidx.compose.foundation.border
@@ -54,6 +65,9 @@ import androidx.compose.material.icons.rounded.Source
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.SettingsBackupRestore
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -73,6 +87,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -135,6 +151,8 @@ fun CourseDetailDialog(
     /** Use the current-week label only when the viewed week is actually current. */
     currentWeekNumber: Int? = null,
     isManual: (CourseItem) -> Boolean,
+    /** Plugin display name for courses from a plugin timetable; shown in place of the generic label. */
+    sourceName: String? = null,
     examReminderEnabled: Boolean = false,
     mutedExamCourseIds: Set<String> = emptySet(),
     targetDate: LocalDate? = null,
@@ -165,6 +183,14 @@ fun CourseDetailDialog(
     onRestoreExamReminder: (CourseItem) -> Unit = {},
     onDelete: (CourseItem) -> Unit,
     readOnly: Boolean = false,
+    scheduleCardStyle: ScheduleCardStylePreferences = ScheduleCardStylePreferences(),
+    onSetCustomCourseColor: (String, Long?) -> Unit = { _, _ -> },
+    /** All notes; the ones in this course's notebook are shown as its homework and to-dos. */
+    memos: List<com.x500x.cursimple.core.kernel.model.MemoNote> = emptyList(),
+    onSaveMemo: (com.x500x.cursimple.core.kernel.model.MemoNote) -> Unit = {},
+    attendance: com.x500x.cursimple.core.data.attendance.AttendanceData = com.x500x.cursimple.core.data.attendance.AttendanceData(),
+    onMarkAttendance: (String, String, com.x500x.cursimple.core.data.attendance.AttendanceStatus?) -> Unit = { _, _, _ -> },
+    onSetAbsenceAllowance: (String, Int?) -> Unit = { _, _ -> },
 ) {
     if (courses.isEmpty()) return
     // Reset selection when course IDs change so an old index cannot select another cell's course.
@@ -179,8 +205,14 @@ fun CourseDetailDialog(
     val sourceWeekNumber = sourceWeekOf(course)
     var editing by remember(course.id) { mutableStateOf(false) }
     var confirmRestore by remember(course.id) { mutableStateOf(false) }
+    var showColorPicker by remember(course.id) { mutableStateOf(false) }
     val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
-    val palette = remember(course.title, course.category, accents) { courseColor(course.title, accents.coursePalette) }
+    val legacyColor = scheduleCardStyle.customCourseColors[course.id]
+        ?: scheduleCardStyle.customCourseColors[course.title]
+    val customColor = course.colorArgb ?: legacyColor
+    val palette = remember(course.title, course.category, accents, customColor, course.colorEndArgb) {
+        courseColor(course.title, accents.coursePalette, customColor, course.colorEndArgb)
+    }
     val headerContainer = if (course.category == CourseCategory.Exam) {
         MaterialTheme.colorScheme.errorContainer
     } else {
@@ -492,9 +524,15 @@ fun CourseDetailDialog(
                                 convertsToManual = !manual,
                                 sourceWeekNumber = sourceWeekNumber,
                                 viewingCurrentWeek = visibleWeekNumber != null && visibleWeekNumber == currentWeekNumber,
+                                legacyColorArgb = legacyColor,
                                 onCancel = { editing = false },
                                 onSave = {
                                     onSaveCourse(it)
+                                    // The editor now owns the colors; drop the older per-title pick so it cannot resurface.
+                                    if (legacyColor != null) {
+                                        onSetCustomCourseColor(course.id, null)
+                                        onSetCustomCourseColor(course.title, null)
+                                    }
                                     editing = false
                                 },
                             )
@@ -518,6 +556,8 @@ fun CourseDetailDialog(
                                     details = shown.course.details,
                                     manual = shown.manual,
                                     pluginOverride = shown.pluginOverride,
+                                    sourceName = sourceName,
+                                    isExam = shown.course.category == CourseCategory.Exam,
                                 )
                             }
 
@@ -529,6 +569,29 @@ fun CourseDetailDialog(
                                 readOnly = readOnly,
                             )
 
+                            CourseTodosSection(
+                                course = course,
+                                todos = remember(memos, course.title) { courseTodosFor(memos, course) },
+                                onSave = onSaveMemo,
+                                classDate = targetDate,
+                                readOnly = readOnly,
+                                today = LocalAppZone.current.today(),
+                            )
+
+                            if (!readOnly && course.category == CourseCategory.Course && !course.reminderOnly) {
+                                val limitToast = stringResource(R.string.attendance_limit_toast)
+                                val toastContext = LocalContext.current
+                                CourseAttendanceSection(
+                                    course = course,
+                                    sessionDate = targetDate,
+                                    today = LocalAppZone.current.today(),
+                                    attendance = attendance,
+                                    onMark = onMarkAttendance,
+                                    onSetAllowance = onSetAbsenceAllowance,
+                                    onLimitReached = { Toast.makeText(toastContext, limitToast, Toast.LENGTH_SHORT).show() },
+                                )
+                            }
+
                             if (!readOnly && course.category == CourseCategory.Exam) {
                                 ExamReminderMuteRow(
                                     enabled = examReminderEnabled,
@@ -539,6 +602,16 @@ fun CourseDetailDialog(
                             }
                         }
                     }
+                    if (showColorPicker) {
+                        CourseColorSheet(
+                            course = course,
+                            palette = accents.coursePalette,
+                            onChange = { appearance ->
+                                onSaveCourse(course.copy(colorArgb = appearance.fill, colorEndArgb = appearance.fillEnd, borderArgb = appearance.border))
+                            },
+                            onDismiss = { showColorPicker = false },
+                        )
+                    }
                     if (!readOnly && !editing) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).testTag("course-detail-actions")) {
@@ -548,6 +621,8 @@ fun CourseDetailDialog(
                                 showDelete = manual && !pluginOverride,
                                 showRestorePlugin = pluginOverride,
                                 onEdit = { editing = true },
+                                showColor = course.category != CourseCategory.Exam,
+                                onColor = { showColorPicker = true },
                                 hasReminder = hasCancellableReminder(course),
                                 onSetReminder = { onSetReminder(course) },
                                 onCancelReminder = { onCancelReminder(course) },
@@ -645,6 +720,7 @@ private fun CourseEditSection(
     convertsToManual: Boolean,
     sourceWeekNumber: Int? = null,
     viewingCurrentWeek: Boolean = false,
+    legacyColorArgb: Long? = null,
     onCancel: () -> Unit,
     onSave: (CourseItem) -> Unit,
 ) {
@@ -696,6 +772,7 @@ private fun CourseEditSection(
             modifier = Modifier.fillMaxWidth(),
             slotTimes = slotTimes,
             sourceWeekNumber = sourceWeekNumber,
+            legacyColorArgb = legacyColorArgb,
         )
 
         if (hasFieldEdits && sourceWeekNumber != null) {
@@ -788,6 +865,8 @@ private fun CourseFactsCard(
     details: List<CourseDetailField>,
     manual: Boolean,
     pluginOverride: Boolean,
+    sourceName: String? = null,
+    isExam: Boolean = false,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -798,6 +877,56 @@ private fun CourseFactsCard(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            if (isExam) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Rounded.School,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.schedule_course_detail_exam_prefix),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                            examCountdown?.let { cd ->
+                                Spacer(Modifier.weight(1f))
+                                Text(
+                                    text = examCountdownText(cd),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                        }
+                        val seat = details.firstOrNull {
+                            it.label.contains("座") || it.label.contains("Seat", ignoreCase = true)
+                        }?.value
+                        if (!seat.isNullOrBlank()) {
+                            Text(
+                                text = stringResource(R.string.schedule_exam_seat_line, seat),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                        }
+                        Text(
+                            text = stringResource(R.string.schedule_exam_bring_items),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f),
+                        )
+                    }
+                }
+            }
             DetailRow(
                 icon = Icons.Rounded.AccessTime,
                 title = stringResource(R.string.schedule_course_detail_class_time),
@@ -864,13 +993,17 @@ private fun CourseFactsCard(
                 )
                 Text(
                     text = stringResource(R.string.schedule_course_detail_source) + " · " +
-                        stringResource(
-                            when {
-                                pluginOverride -> R.string.schedule_source_plugin_edited
-                                manual -> R.string.schedule_source_manual
-                                else -> R.string.schedule_source_plugin
-                            },
-                        ),
+                        if (!manual && !pluginOverride && !sourceName.isNullOrBlank()) {
+                            sourceName
+                        } else {
+                            stringResource(
+                                when {
+                                    pluginOverride -> R.string.schedule_source_plugin_edited
+                                    manual -> R.string.schedule_source_manual
+                                    else -> R.string.schedule_source_plugin
+                                },
+                            )
+                        },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -886,8 +1019,10 @@ private fun CourseActionBar(
     showTemporaryCancel: Boolean,
     showDelete: Boolean,
     showRestorePlugin: Boolean,
+    showColor: Boolean,
     hasReminder: Boolean,
     onEdit: () -> Unit,
+    onColor: () -> Unit,
     onSetReminder: () -> Unit,
     onCancelReminder: () -> Unit,
     onTemporaryCancel: () -> Unit,
@@ -909,6 +1044,13 @@ private fun CourseActionBar(
                 label = stringResource(R.string.schedule_action_edit),
                 onClick = onEdit,
             )
+            if (showColor) {
+                DetailAction(
+                    icon = Icons.Rounded.Palette,
+                    label = stringResource(R.string.schedule_action_color),
+                    onClick = onColor,
+                )
+            }
             // Existing reminders expose removal rather than another creation action.
             DetailAction(
                 icon = if (hasReminder) Icons.Rounded.NotificationsOff else Icons.Rounded.NotificationsActive,
@@ -1360,4 +1502,33 @@ internal fun Context.weeksDetailText(detail: WeeksDetail): String = when (detail
     is WeeksDetail.Count ->
         resources.getQuantityString(R.plurals.schedule_weeks_detail_count, detail.count, detail.count) +
             "\n" + detail.weeksList
+}
+
+/** Course colour, border and gradient, using the same appearance editor as the course form. */
+@Composable
+private fun CourseColorSheet(
+    course: CourseItem,
+    palette: List<CoursePaletteEntry>,
+    onChange: (ItemAppearance) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.testTag("course-color-sheet"),
+        text = {
+            Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                ItemAppearanceSection(
+                    appearance = course.appearance(),
+                    onChange = onChange,
+                    autoColor = courseColor(course.title, palette).container,
+                    previewTitle = course.title,
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss, shape = CircleShape) {
+                Text(stringResource(R.string.schedule_action_close))
+            }
+        },
+    )
 }

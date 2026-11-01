@@ -257,21 +257,31 @@
   let notesBase = document.baseURI;
   // Rewrite repository raw image URLs through jsDelivr.
   function assetUrl(url) {
-    const raw = /^https:\/\/raw\.githubusercontent\.com\/([^/]+\/[^/]+)\/([^/]+)\/(.+)$/.exec(url);
-    if (raw) return `https://cdn.jsdelivr.net/gh/${raw[1]}@${raw[2]}/${raw[3]}`;
-    if (!/^[a-z]+:/i.test(url)) return new URL(url, notesBase).href;
-    return url;
+    try {
+      const resolved = new URL(url, notesBase);
+      if (!['https:', 'http:'].includes(resolved.protocol)) return null;
+      if (resolved.username || resolved.password) return null;
+      const raw = /^https:\/\/raw\.githubusercontent\.com\/([^/]+\/[^/]+)\/([^/]+)\/(.+)$/.exec(resolved.href);
+      return raw ? `https://cdn.jsdelivr.net/gh/${raw[1]}@${raw[2]}/${raw[3]}` : resolved.href;
+    } catch { return null; }
   }
 
   function inline(t) {
-    const codes = [];
-    t = t.replace(/`([^`]+)`/g, (_, c) => `\u0000${codes.push(c) - 1}\u0000`);
+    const tokens = [];
+    const token = (html) => `\u0000${tokens.push(html) - 1}\u0000`;
+    // Parse raw URLs before escaping, then keep generated attributes out of Markdown rules.
+    t = t.replace(/\u0000/g, '').replace(/`([^`]+)`|(!?)\[([^\]]*)\]\(([^)\s]+)\)/g, (_, code, image, label, url) => {
+      if (code !== undefined) return token(`<code>${esc(code)}</code>`);
+      const safe = assetUrl(url);
+      if (!safe) return token(esc(label));
+      return token(image
+        ? `<img src="${esc(safe)}" alt="${esc(label)}" loading="lazy">`
+        : `<a href="${esc(safe)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`);
+    });
     t = esc(t)
-      .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_, alt, u) => `<img src="${esc(assetUrl(u))}" alt="${alt}" loading="lazy">`)
-      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>');
-    return t.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${esc(codes[i])}</code>`);
+    return t.replace(/\u0000(\d+)\u0000/g, (_, i) => tokens[i]);
   }
 
   const CJK = /[　-鿿＀-￯]/;
@@ -303,7 +313,8 @@
       if ((m = /^#{3,6}\s+(.+)/.exec(line))) { flush(); out().push(`<h5>${inline(m[1])}</h5>`); continue; }
       if ((m = /^\s*!\[([^\]]*)\]\(([^)\s]+)\)\s*$/.exec(line))) {
         flush();
-        out().push(`<figure><img src="${esc(assetUrl(m[2]))}" alt="${esc(m[1])}" loading="lazy" data-zoom></figure>`);
+        const url = assetUrl(m[2]);
+        out().push(url ? `<figure><img src="${esc(url)}" alt="${esc(m[1])}" loading="lazy" data-zoom></figure>` : `<p>${esc(m[1])}</p>`);
         continue;
       }
       if ((m = /^\s*([-*+]|\d+\.)\s+(.+)/.exec(line))) {

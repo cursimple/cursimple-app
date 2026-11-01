@@ -37,6 +37,8 @@ import com.x500x.cursimple.core.plugin.runtime.PluginSyncInput
 import com.x500x.cursimple.core.plugin.runtime.WorkflowExecutionResult
 import com.x500x.cursimple.core.plugin.ui.PluginUiSchema
 import com.x500x.cursimple.core.plugin.web.WebSessionPacket
+import com.x500x.cursimple.core.plugin.school.SchoolPortalCatalog
+import com.x500x.cursimple.core.plugin.school.SchoolPortalEntry
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
 import com.x500x.cursimple.core.reminder.ReminderCoordinator
 import com.x500x.cursimple.core.reminder.ReminderSyncWindows
@@ -105,6 +107,7 @@ data class ScheduleUiState(
     val courseNotes: CourseNoteIndex = CourseNoteIndex(),
     val events: List<ScheduleEvent> = emptyList(),
     val memos: List<MemoNote> = emptyList(),
+    val attendance: com.x500x.cursimple.core.data.attendance.AttendanceData = com.x500x.cursimple.core.data.attendance.AttendanceData(),
     val syncCompletedCount: Int = 0,
     val pendingImport: PendingScheduleImport? = null,
 )
@@ -119,6 +122,7 @@ data class PendingScheduleImport(
     val timingProfile: TermTimingProfile? = null,
     val diff: ScheduleImportDiff,
     val suggestedTermName: String = "",
+    val importedTimingProfileName: String? = null,
 )
 
 internal fun ScheduleUiState.noteMatchCourses(): List<CourseItem> =
@@ -133,12 +137,14 @@ class ScheduleViewModel(
     private val courseNoteRepository: CourseNoteRepository? = null,
     private val normalizeTimingProfile: suspend (TermTimingProfile?) -> TermTimingProfile? = { it },
     private val onSyncCompleted: suspend (TermTimingProfile?) -> Unit = {},
+    private val onSchoolTimingImported: suspend (String, TermTimingProfile) -> Unit = { _, _ -> },
     private val onAlarmSyncChecked: suspend () -> Unit = {},
     private val resolveTimingProfile: suspend () -> TermTimingProfile? = { null },
     private val timingProfileFlow: Flow<TermTimingProfile?> = flowOf(null),
     private val createTermAndActivate: suspend (String) -> Unit = {},
     private val scheduleEventRepository: ScheduleEventRepository? = null,
     private val memoRepository: MemoRepository? = null,
+    private val attendanceRepository: com.x500x.cursimple.core.data.attendance.AttendanceRepository? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val application: Context = appContext.applicationContext
@@ -186,6 +192,11 @@ class ScheduleViewModel(
         memoRepository?.let { repository ->
             viewModelScope.launch {
                 repository.notesFlow.collect { notes -> _uiState.update { it.copy(memos = notes) } }
+            }
+        }
+        attendanceRepository?.let { repository ->
+            viewModelScope.launch {
+                repository.attendanceFlow.collect { data -> _uiState.update { it.copy(attendance = data) } }
             }
         }
         scheduleEventRepository?.let { repository ->
@@ -309,6 +320,21 @@ class ScheduleViewModel(
                     mapOf("pluginId" to pluginId, "elapsedMs" to (System.currentTimeMillis() - startedAt)),
                     error,
                 )
+                WorkflowExecutionResult.Failure(error.message ?: text(R.string.schedule_status_sync_start_failed))
+            }
+            handleExecutionResult(result, startedAt)
+        }
+    }
+
+    /** Open a catalog school's portal in the in-app session; the page is imported when the user taps upload. */
+    fun startSchoolPortal(school: SchoolPortalEntry) {
+        val startedAt = System.currentTimeMillis()
+        val termId = _uiState.value.termId
+        _uiState.update { it.copy(isSyncing = true, statusMessage = text(R.string.schedule_status_sync_opening), missingComponents = emptyList()) }
+        viewModelScope.launch {
+            val result = runCatching {
+                withContext(ioDispatcher) { pluginManager.startSchoolPortal(school, termId) }
+            }.getOrElse { error ->
                 WorkflowExecutionResult.Failure(error.message ?: text(R.string.schedule_status_sync_start_failed))
             }
             handleExecutionResult(result, startedAt)
@@ -460,6 +486,17 @@ class ScheduleViewModel(
     fun saveEvent(event: ScheduleEvent) {
         val repository = scheduleEventRepository ?: return
         viewModelScope.launch(ioDispatcher) { repository.upsert(event) }
+    }
+
+    /** Mark one session of a course as attended, missed or on leave; a null [status] clears the mark. */
+    fun markAttendance(courseKey: String, date: String, status: com.x500x.cursimple.core.data.attendance.AttendanceStatus?) {
+        val repository = attendanceRepository ?: return
+        viewModelScope.launch(ioDispatcher) { repository.mark(courseKey, date, status) }
+    }
+
+    fun setAbsenceAllowance(courseKey: String, allowance: Int?) {
+        val repository = attendanceRepository ?: return
+        viewModelScope.launch(ioDispatcher) { repository.setAllowance(courseKey, allowance) }
     }
 
     fun saveMemo(note: MemoNote) {
@@ -776,6 +813,7 @@ class ScheduleViewModel(
         manualCourses: List<CourseItem>?,
         timingProfile: TermTimingProfile? = null,
         suggestedTermName: String = "",
+        importedTimingProfileName: String? = null,
     ): Boolean {
         val current = _uiState.value.schedule
         val diff = diffSchedules(current, schedule)
@@ -783,6 +821,9 @@ class ScheduleViewModel(
             current.dailySchedules.all { day -> day.courses.none { !it.hidden } }
         if (currentIsEmpty || !diff.hasChanges) {
             writeImportedSchedule(schedule, manualCourses)
+            if (importedTimingProfileName != null && timingProfile != null) {
+                onSchoolTimingImported(importedTimingProfileName, timingProfile)
+            }
             return false
         }
         _uiState.update {
@@ -793,6 +834,7 @@ class ScheduleViewModel(
                     timingProfile = timingProfile,
                     diff = diff,
                     suggestedTermName = suggestedTermName,
+                    importedTimingProfileName = importedTimingProfileName,
                 ),
             )
         }
@@ -803,7 +845,10 @@ class ScheduleViewModel(
         val pending = _uiState.value.pendingImport ?: return
         viewModelScope.launch {
             _uiState.update { it.copy(pendingImport = null) }
-            runCatching { writeImportedSchedule(pending.schedule, pending.manualCourses) }
+            runCatching {
+                writeImportedSchedule(pending.schedule, pending.manualCourses)
+                completePendingImportTiming(pending)
+            }
                 .onSuccess {
                     _uiState.update { state ->
                         state.copy(
@@ -827,6 +872,7 @@ class ScheduleViewModel(
             runCatching {
                 createTermAndActivate(termName)
                 writeImportedSchedule(pending.schedule, pending.manualCourses)
+                completePendingImportTiming(pending)
             }
                 .onSuccess {
                     _uiState.update { state ->
@@ -846,6 +892,21 @@ class ScheduleViewModel(
 
     fun dismissPendingImport() {
         _uiState.update { it.copy(pendingImport = null) }
+    }
+
+    private suspend fun completePendingImportTiming(pending: PendingScheduleImport) {
+        val profile = pending.timingProfile ?: return
+        pending.importedTimingProfileName?.let { onSchoolTimingImported(it, profile) }
+        val schedule = mergeManualCoursesForReminders(pending.schedule, _uiState.value.manualCourses)
+        if (schedule != null) {
+            syncTodaySystemClockAlarms(
+                pluginId = _uiState.value.pluginId,
+                schedule = schedule,
+                timingProfile = profile,
+                reason = ReminderSyncReason.ScheduleChanged,
+            )
+        }
+        onSyncCompleted(profile)
     }
 
     private suspend fun writeImportedSchedule(
@@ -1410,6 +1471,8 @@ class ScheduleViewModel(
                 }
                 var syncedTimingProfile: TermTimingProfile? = null
                 var awaitingImportDecision = false
+                val schoolName = _uiState.value.pendingWebSession
+                    ?.takeIf { it.pluginId == SchoolPortalCatalog.PLUGIN_ID }?.title
                 try {
                     syncedTimingProfile = normalizeTimingProfile(result.timingProfile)
                     // Review changed imports before replacement; identical and initial imports save directly.
@@ -1419,15 +1482,18 @@ class ScheduleViewModel(
                             manualCourses = null,
                             timingProfile = syncedTimingProfile,
                             suggestedTermName = text(R.string.schedule_import_new_term_default),
+                            importedTimingProfileName = schoolName,
                         )
                     }
-                    syncTodaySystemClockAlarms(
-                        pluginId = _uiState.value.pluginId,
-                        schedule = mergeManualCoursesForReminders(schedule, _uiState.value.manualCourses) ?: schedule,
-                        timingProfile = syncedTimingProfile,
-                        reason = ReminderSyncReason.ScheduleChanged,
-                    )
-                    onSyncCompleted(syncedTimingProfile)
+                    if (!awaitingImportDecision) {
+                        syncTodaySystemClockAlarms(
+                            pluginId = _uiState.value.pluginId,
+                            schedule = mergeManualCoursesForReminders(schedule, _uiState.value.manualCourses) ?: schedule,
+                            timingProfile = syncedTimingProfile,
+                            reason = ReminderSyncReason.ScheduleChanged,
+                        )
+                        onSyncCompleted(syncedTimingProfile)
+                    }
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Throwable) {
@@ -1463,6 +1529,7 @@ class ScheduleViewModel(
                     ),
                 )
                 _uiState.update {
+                    val generalImport = it.pendingWebSession?.pluginId == SchoolPortalCatalog.PLUGIN_ID
                     it.copy(
                         isSyncing = false,
                         pendingWebSession = null,
@@ -1472,12 +1539,13 @@ class ScheduleViewModel(
                         alarmRecommendations = result.recommendations,
                         messages = result.messages,
                         missingComponents = emptyList(),
-                        statusMessage = if (awaitingImportDecision) {
-                            null
-                        } else {
-                            text(R.string.schedule_status_sync_completed)
+                        statusMessage = when {
+                            awaitingImportDecision -> null
+                            generalImport -> text(R.string.school_portal_import_done)
+                            else -> text(R.string.schedule_status_sync_completed)
                         },
-                        syncCompletedCount = if (awaitingImportDecision) {
+                        // Staying on the import page keeps the result visible where the user started.
+                        syncCompletedCount = if (awaitingImportDecision || generalImport) {
                             it.syncCompletedCount
                         } else {
                             it.syncCompletedCount + 1
@@ -2014,12 +2082,14 @@ class ScheduleViewModelFactory(
     private val courseNoteRepository: CourseNoteRepository? = null,
     private val normalizeTimingProfile: suspend (TermTimingProfile?) -> TermTimingProfile? = { it },
     private val onSyncCompleted: suspend (TermTimingProfile?) -> Unit = {},
+    private val onSchoolTimingImported: suspend (String, TermTimingProfile) -> Unit = { _, _ -> },
     private val onAlarmSyncChecked: suspend () -> Unit = {},
     private val resolveTimingProfile: suspend () -> TermTimingProfile? = { null },
     private val timingProfileFlow: Flow<TermTimingProfile?> = flowOf(null),
     private val createTermAndActivate: suspend (String) -> Unit = {},
     private val scheduleEventRepository: ScheduleEventRepository? = null,
     private val memoRepository: MemoRepository? = null,
+    private val attendanceRepository: com.x500x.cursimple.core.data.attendance.AttendanceRepository? = null,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ScheduleViewModel::class.java)) {
@@ -2033,12 +2103,14 @@ class ScheduleViewModelFactory(
                 courseNoteRepository = courseNoteRepository,
                 normalizeTimingProfile = normalizeTimingProfile,
                 onSyncCompleted = onSyncCompleted,
+                onSchoolTimingImported = onSchoolTimingImported,
                 onAlarmSyncChecked = onAlarmSyncChecked,
                 resolveTimingProfile = resolveTimingProfile,
                 timingProfileFlow = timingProfileFlow,
                 createTermAndActivate = createTermAndActivate,
                 scheduleEventRepository = scheduleEventRepository,
                 memoRepository = memoRepository,
+                attendanceRepository = attendanceRepository,
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

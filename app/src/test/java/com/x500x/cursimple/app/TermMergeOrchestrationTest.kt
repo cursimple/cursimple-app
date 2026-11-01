@@ -40,6 +40,8 @@ class TermMergeOrchestrationTest {
             list.value = list.value.map { if (it.id == id) it.copy(termStartDate = dateIso) else it }
         }
         override suspend fun setTermTimingProfile(id: String, timingProfileId: String?) = Unit
+        override suspend fun setTermArchived(id: String, archived: Boolean) = Unit
+
         override suspend fun setTermExtraWeekCount(id: String, extraWeekCount: Int) = Unit
         override suspend fun adjustActiveTermExtraWeekCount(delta: Int) = 0
         override suspend fun deleteTerm(id: String) = Unit

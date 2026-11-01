@@ -31,6 +31,7 @@ import com.x500x.cursimple.core.kernel.model.renaming
 import com.x500x.cursimple.core.kernel.model.resolveWith
 import com.x500x.cursimple.core.kernel.model.updatingActive
 import com.x500x.cursimple.core.kernel.model.upserting
+import com.x500x.cursimple.core.kernel.model.withImportedProfile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -82,6 +83,14 @@ class DataStoreWidgetPreferencesRepository(
                         ?: WidgetThemePreferences.DEFAULT_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT,
                 ),
             showEvents = preferences[KEY_WIDGET_SHOW_EVENTS] ?: true,
+            backgroundOpacityPercent = WidgetThemePreferences
+                .coerceBackgroundOpacityPercent(
+                    preferences[KEY_WIDGET_BACKGROUND_OPACITY_PERCENT] ?: 100,
+                ),
+            frostedGlassEnabled = preferences[KEY_WIDGET_FROSTED_GLASS_ENABLED] ?: false,
+            widgetThemeMode = preferences[KEY_WIDGET_THEME_MODE]
+                ?.let { runCatching { WidgetThemeMode.valueOf(it) }.getOrNull() }
+                ?: WidgetThemeMode.System,
         )
     }
 
@@ -184,6 +193,19 @@ class DataStoreWidgetPreferencesRepository(
     override suspend fun saveManualTimingProfile(profile: TermTimingProfile) {
         store.edit { preferences ->
             preferences.writeActiveSlotTimes(profile, manuallyEdited = true)
+        }
+    }
+
+    suspend fun selectImportedTimingProfile(name: String, profile: TermTimingProfile) {
+        val id = newTimingProfileId()
+        store.edit { preferences ->
+            val entry = TimingProfileEntry(
+                id = id,
+                name = name.trim(),
+                slotTimes = profile.slotTimes,
+                timezone = profile.timezone,
+            )
+            preferences.writeTimingProfileLibrary(preferences.timingProfileLibrary().withImportedProfile(entry))
         }
     }
 
@@ -351,15 +373,30 @@ class DataStoreWidgetPreferencesRepository(
         }
     }
 
+    override suspend fun setWidgetBackgroundOpacityPercent(percent: Int) {
+        val coerced = WidgetThemePreferences.coerceBackgroundOpacityPercent(percent)
+        store.edit { preferences ->
+            preferences[KEY_WIDGET_BACKGROUND_OPACITY_PERCENT] = coerced
+        }
+    }
+
+    override suspend fun setWidgetFrostedGlassEnabled(enabled: Boolean) {
+        store.edit { preferences ->
+            preferences[KEY_WIDGET_FROSTED_GLASS_ENABLED] = enabled
+        }
+    }
+
+    override suspend fun setWidgetThemeMode(mode: WidgetThemeMode) {
+        store.edit { preferences ->
+            preferences[KEY_WIDGET_THEME_MODE] = mode.name
+        }
+    }
+
     override suspend fun resetWidgetThemePreferences() {
         var previousImageUri: String? = null
         store.edit { preferences ->
             previousImageUri = preferences[KEY_WIDGET_BACKGROUND_IMAGE_URI]
-            preferences.remove(KEY_WIDGET_THEME_ACCENT)
-            preferences.remove(KEY_WIDGET_BACKGROUND_MODE)
-            preferences.remove(KEY_WIDGET_BACKGROUND_IMAGE_URI)
-            preferences.remove(KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK)
-            preferences.remove(KEY_WIDGET_SHOW_EVENTS)
+            preferences.removeWidgetThemePreferences()
         }
         releasePersistedReadPermission(previousImageUri)
     }
@@ -386,7 +423,7 @@ class DataStoreWidgetPreferencesRepository(
         }
     }
 
-    private companion object {
+    internal companion object {
         val KEY_WIDGET_DAY_OFFSET = intPreferencesKey("widget_day_offset")
         val KEY_WIDGET_DAY_OFFSET_ANCHOR = stringPreferencesKey("widget_day_offset_anchor")
         val KEY_TIMING_PROFILE_JSON = stringPreferencesKey("widget_timing_profile_json")
@@ -401,11 +438,25 @@ class DataStoreWidgetPreferencesRepository(
         val KEY_WIDGET_SHOW_EVENTS = booleanPreferencesKey("widget_show_events")
         val KEY_WIDGET_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT =
             intPreferencesKey("widget_background_image_transparency_percent")
+        val KEY_WIDGET_BACKGROUND_OPACITY_PERCENT = intPreferencesKey("widget_background_opacity_percent")
+        val KEY_WIDGET_FROSTED_GLASS_ENABLED = booleanPreferencesKey("widget_frosted_glass_enabled")
+        val KEY_WIDGET_THEME_MODE = stringPreferencesKey("widget_theme_mode")
         const val MIN_OFFSET = -3650
         const val MAX_OFFSET = 3650
 
         /** Shared-offset instance ID, matching INVALID_APPWIDGET_ID. */
         const val SHARED_WIDGET_ID = 0
+
+        internal fun MutablePreferences.removeWidgetThemePreferences() {
+            remove(KEY_WIDGET_THEME_ACCENT)
+            remove(KEY_WIDGET_BACKGROUND_MODE)
+            remove(KEY_WIDGET_BACKGROUND_IMAGE_URI)
+            remove(KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK)
+            remove(KEY_WIDGET_SHOW_EVENTS)
+            remove(KEY_WIDGET_BACKGROUND_OPACITY_PERCENT)
+            remove(KEY_WIDGET_FROSTED_GLASS_ENABLED)
+            remove(KEY_WIDGET_THEME_MODE)
+        }
 
         fun widgetDayOffsetKey(appWidgetId: Int) = intPreferencesKey("widget_day_offset__$appWidgetId")
 

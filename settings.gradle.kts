@@ -11,7 +11,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven("https://jitpack.io")
+        exclusiveContent {
+            forRepository { maven("https://jitpack.io") }
+            filter { includeGroup("com.github.XayahSuSuSu") }
+        }
         exclusiveContent {
             forRepository { maven("https://repos.vivo.com.cn/maven/repository/external-lib/") }
             filter { includeModule("vivo", "intentionkit-donate-external") }

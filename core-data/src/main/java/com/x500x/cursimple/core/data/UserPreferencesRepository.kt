@@ -102,6 +102,12 @@ data class ClassNoticePreferences(
     val blurEnabled: Boolean = true,
     val blurStrength: Int = DEFAULT_BLUR_STRENGTH,
     val bannerDurationSeconds: Int = DEFAULT_BANNER_DURATION_SECONDS,
+    val eveningBriefingEnabled: Boolean = false,
+    val eveningBriefingHour: Int = 21,
+    val eveningBriefingMinute: Int = 30,
+    val transitReminderEnabled: Boolean = false,
+    val examAlertEnabled: Boolean = false,
+    val examAlertAdvanceMinutes: Int = 45,
 ) {
     companion object {
         const val DEFAULT_ADVANCE_MINUTES = 20
@@ -232,6 +238,14 @@ data class ScheduleTextStylePreferences(
     }
 }
 
+enum class CoursePaletteStyle {
+    Default,
+    Morandi,
+    Macaron,
+    Vibrant,
+    Vintage,
+}
+
 data class ScheduleCardStylePreferences(
     val courseCornerRadiusDp: Int = DEFAULT_COURSE_CORNER_RADIUS_DP,
     val courseCardHeightDp: Int = DEFAULT_COURSE_CARD_HEIGHT_DP,
@@ -241,6 +255,8 @@ data class ScheduleCardStylePreferences(
     val gridBorderOpacityPercent: Int = DEFAULT_GRID_BORDER_OPACITY_PERCENT,
     val gridBorderWidthDp: Float = DEFAULT_GRID_BORDER_WIDTH_DP,
     val gridBorderDashed: Boolean = false,
+    val coursePaletteStyle: CoursePaletteStyle = CoursePaletteStyle.Default,
+    val customCourseColors: Map<String, Long> = emptyMap(),
 ) {
     companion object {
         const val DEFAULT_COURSE_CORNER_RADIUS_DP = 10
@@ -314,7 +330,15 @@ data class ScheduleDisplayPreferences(
     val todayOverviewEnabled: Boolean = true,
     /** This display preference is independent of holiday reminder delivery. */
     val courseSessionCountIncludeHolidays: Boolean = true,
+    val timelineIndicatorEnabled: Boolean = false,
+    val gridDashedLinesEnabled: Boolean = false,
+    /** Width of the period column in dp; 0 keeps the automatic width that follows the labels and font. */
+    val timeColumnWidthDp: Int = 0,
 )
+
+/** Bounds of a custom period column width. */
+const val MIN_TIME_COLUMN_WIDTH_DP = 20
+const val MAX_TIME_COLUMN_WIDTH_DP = 72
 
 fun adaptScheduleForegroundColorArgb(argb: Long, darkTheme: Boolean, enabled: Boolean): Long =
     adaptScheduleCustomColorArgb(
@@ -520,6 +544,9 @@ interface UserPreferencesRepository {
     suspend fun setScheduleGridBorderOpacityPercent(percent: Int)
     suspend fun setScheduleGridBorderWidthDp(widthDp: Float)
     suspend fun setScheduleGridBorderDashed(enabled: Boolean)
+    suspend fun setCoursePaletteStyle(style: CoursePaletteStyle)
+    suspend fun setCustomCourseColor(courseKey: String, colorArgb: Long?)
+    suspend fun clearCustomCourseColors()
     suspend fun setScheduleBackgroundColorArgb(argb: Long)
     suspend fun setScheduleBackgroundImageUri(uri: String)
 
@@ -617,6 +644,12 @@ interface UserPreferencesRepository {
     suspend fun setPrivateFilesProviderEnabled(enabled: Boolean)
     suspend fun setWebDavSettings(url: String, username: String, password: String)
     suspend fun setAiImportSettings(apiUrl: String, apiKey: String, model: String, timeoutSeconds: Int)
+    suspend fun setTimelineIndicatorEnabled(enabled: Boolean)
+    suspend fun setGridDashedLinesEnabled(enabled: Boolean)
+    suspend fun setTimeColumnWidthDp(widthDp: Int)
+    suspend fun setEveningBriefingEnabled(enabled: Boolean)
+    suspend fun setTransitReminderEnabled(enabled: Boolean)
+    suspend fun setExamAlertEnabled(enabled: Boolean)
     suspend fun resetScheduleAppearanceAndDisplay()
     suspend fun resetAllSettings()
 }
@@ -649,6 +682,7 @@ object AppBackupStores {
     const val PLUGIN_COMPONENTS = "plugin_component_store"
     const val SCHEDULE_EVENTS = "schedule_events_store"
     const val MEMOS = "memo_store"
+    const val ATTENDANCE = "attendance_store"
 
     val ALL: Set<String> = setOf(
         USER_PREFERENCES,
@@ -662,6 +696,7 @@ object AppBackupStores {
         PLUGIN_COMPONENTS,
         SCHEDULE_EVENTS,
         MEMOS,
+        ATTENDANCE,
     )
 }
 

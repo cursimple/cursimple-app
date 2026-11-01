@@ -164,12 +164,12 @@ fun ReleaseImage(
         contentAlignment = Alignment.Center,
     ) {
         when (val current = state) {
+            // No forced full width: a tall image under a height cap would otherwise overflow onto nearby text.
             is ReleaseImageState.Loaded -> Image(
                 bitmap = current.bitmap,
                 contentDescription = image.caption.ifBlank { null },
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .fillMaxWidth()
                     .aspectRatio(
                         current.bitmap.width.toFloat() / current.bitmap.height.coerceAtLeast(1),
                     )

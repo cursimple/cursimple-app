@@ -107,8 +107,36 @@ class ReleaseMetadataTest(unittest.TestCase):
                 output.write_text("previous=value\n", encoding="utf-8")
                 result = self.run_cli("resolve", "--properties", self.properties, "--tag", "v0.7.5", "--github-output", output)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(result.stdout, f"channel={channel}\nprerelease={expected}\nmake_latest={latest}\n")
+                self.assertEqual(result.stdout, f"channel={channel}\nprerelease={expected}\nmake_latest={latest}\ntest_build=false\n")
                 self.assertEqual(output.read_text(), "previous=value\n" + result.stdout)
+
+    def test_pre_branch_test_tags(self):
+        for version, test_build in (("0.8.2-pre.1", True), ("0.8.2-pre", True), ("0.8.2-preview.1", False),
+                                    ("0.8.2-beta.1", False), ("0.8.2", False)):
+            with self.subTest(version=version):
+                self.properties_for("beta", version)
+                metadata = release.resolve_metadata(self.properties, f"v{version}")
+                self.assertIs(metadata["testBuild"], test_build)
+                self.assertIs(metadata["prerelease"], True)
+        self.properties_for("beta", "0.8.2-pre.1")
+        result = self.run_cli("resolve", "--properties", self.properties, "--tag", "v0.8.2-pre.1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "channel=beta\nprerelease=true\nmake_latest=false\ntest_build=true\n")
+
+    def test_test_tags_must_stay_prerelease(self):
+        for channel in ("stable", None):
+            with self.subTest(channel=channel):
+                self.properties_for(channel, "0.8.2-pre.1")
+                if channel is None:
+                    self.assertIs(release.resolve_metadata(self.properties, "v0.8.2-pre.1")["prerelease"], True)
+                else:
+                    with self.assertRaisesRegex(ValueError, "pre-branch"):
+                        release.resolve_metadata(self.properties, "v0.8.2-pre.1")
+
+    def test_feed_rejects_test_builds(self):
+        with self.assertRaisesRegex(ValueError, "pre-branch"):
+            release.update_feed(self.manifest_for(True, 40, "0.8.2-pre.1"), self.feed, True)
+        self.assertEqual(list(self.feed.iterdir()), [])
 
     def test_invalid_cli_does_not_emit_outputs(self):
         self.properties_for("invalid")

@@ -10,15 +10,22 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.widget.Toast
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Column
@@ -29,14 +36,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.ImageSearch
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.automirrored.rounded.TextSnippet
@@ -46,12 +57,16 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -79,6 +94,8 @@ import com.x500x.cursimple.R
 import com.x500x.cursimple.feature.schedule.sharing.QrCodeCodec
 import com.x500x.cursimple.app.util.launchScheduleShare
 import com.x500x.cursimple.app.util.ScheduleShareCodec
+import com.x500x.cursimple.feature.schedule.SharedFreeTimeDialog
+import com.x500x.cursimple.feature.schedule.SharedTimetable
 import com.x500x.cursimple.app.util.ScheduleSharePayload
 import com.x500x.cursimple.app.ai.AiImportConfig
 import com.x500x.cursimple.app.ai.aiImportErrorText
@@ -88,12 +105,19 @@ import com.x500x.cursimple.app.webdav.webDavErrorText
 import com.x500x.cursimple.app.webdav.WebDavClient
 import com.x500x.cursimple.app.webdav.WebDavConfig
 import com.x500x.cursimple.app.util.ScheduleIcsExporter
+import com.x500x.cursimple.app.util.ScheduleIcsImporter
+import com.x500x.cursimple.app.util.ScheduleWakeUpImporter
+import com.x500x.cursimple.app.util.AiScheduleCompat
+import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.Extension
 import com.x500x.cursimple.app.util.ScheduleImageExporter
 import com.x500x.cursimple.app.util.ScheduleImageOptionsStore
 import com.x500x.cursimple.core.kernel.model.ScheduleEvent
 import com.x500x.cursimple.app.util.ScheduleImageLayout
 import com.x500x.cursimple.core.data.AppBackupPayload
+import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.allCoursesWith
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
@@ -111,6 +135,8 @@ import com.x500x.cursimple.app.util.ScheduleShareDecodeException
 import com.x500x.cursimple.app.util.ScheduleShareDecodeReason
 import androidx.compose.material3.Switch
 import androidx.compose.material3.OutlinedTextField
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.foundation.layout.width
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -159,6 +185,9 @@ fun ImportExportScreen(
     var qrBusy by remember { mutableStateOf(false) }
     var showTextShare by rememberSaveable { mutableStateOf(false) }
     var showTextImport by rememberSaveable { mutableStateOf(false) }
+    var showSharedFreeTime by rememberSaveable { mutableStateOf(false) }
+    var showThirdPartySheet by rememberSaveable { mutableStateOf(false) }
+    var showAiScheduleDialog by rememberSaveable { mutableStateOf(false) }
     val maxImageWeek = remember(schedule, manualCourses) {
         ScheduleImageLayout.maxWeekNumber(schedule, manualCourses)
     }
@@ -171,6 +200,7 @@ fun ImportExportScreen(
     }
     var imageAllWeeks by rememberSaveable { mutableStateOf(true) }
     var imageWallpaperMode by rememberSaveable { mutableStateOf(false) }
+    var importFailure by remember { mutableStateOf<com.x500x.cursimple.app.util.ImportDiagnosis?>(null) }
     var imageOptions by remember { mutableStateOf(ScheduleImageOptionsStore.load(context)) }
     val contentScrollState = rememberScrollState()
     val appBackupJson = remember {
@@ -275,16 +305,12 @@ fun ImportExportScreen(
                     Toast.LENGTH_SHORT,
                 ).show()
             }.onFailure {
-                Toast.makeText(
-                    context,
-                    context.getString(
-                        R.string.ie_ai_import_failed,
-                        context.aiImportErrorText(it)
-                            ?: it.message
-                            ?: context.getString(R.string.ie_unknown_error),
-                    ),
-                    Toast.LENGTH_SHORT,
-                ).show()
+                // The client's own wording is kept in the details; the dialog explains it and what to do.
+                val described = context.aiImportErrorText(it)
+                importFailure = com.x500x.cursimple.app.util.diagnoseImportFailure(
+                    com.x500x.cursimple.app.util.ImportSource.Ai,
+                    if (described != null) IllegalStateException(described, it) else it,
+                )
             }
             aiBusy = false
         }
@@ -334,6 +360,42 @@ fun ImportExportScreen(
         val uri = createAiCameraUri(context)
         aiCameraUri = uri
         aiCameraLauncher.launch(uri)
+    }
+
+    val pickIcsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                val payload = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { ScheduleIcsImporter.parse(it) }
+                }
+                if (payload != null) {
+                    pendingImport = payload
+                }
+            } catch (e: Exception) {
+                importFailure = com.x500x.cursimple.app.util.diagnoseImportFailure(com.x500x.cursimple.app.util.ImportSource.Ics, e)
+            }
+        }
+    }
+
+    val pickWakeUpLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                val payload = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { ScheduleWakeUpImporter.parse(it) }
+                }
+                if (payload != null) {
+                    pendingImport = payload
+                }
+            } catch (e: Exception) {
+                importFailure = com.x500x.cursimple.app.util.diagnoseImportFailure(com.x500x.cursimple.app.util.ImportSource.WakeUp, e)
+            }
+        }
     }
 
     fun restoreRemoteBackup(backup: WebDavBackupFile) {
@@ -419,6 +481,8 @@ fun ImportExportScreen(
         return
     }
 
+    importFailure?.let { ImportFailureDialog(it, onDismiss = { importFailure = null }) }
+
     val canExport = schedule != null || manualCourses.isNotEmpty()
 
     fun uploadBackup() {
@@ -498,9 +562,10 @@ fun ImportExportScreen(
         }
     }
 
-    val sharePayload = remember(termName, termStartDate, schedule, manualCourses) {
+    val sharePayload = remember(termName, termStartDate, schedule, manualCourses, timingProfile) {
         ScheduleSharePayload(termName = termName, termStartDate = termStartDate?.toString(),
-            schedule = schedule, manualCourses = manualCourses)
+            schedule = schedule, manualCourses = manualCourses,
+            timingSlots = timingProfile?.slotTimes.orEmpty())
     }
     fun generateQr() {
         if (qrBusy) return
@@ -544,87 +609,100 @@ fun ImportExportScreen(
                 .padding(top = 8.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            SettingsCardGroup(title = stringResource(R.string.ie_section_import)) {
-                ImportBlock(
-                    icon = Icons.Rounded.QrCodeScanner,
-                    title = stringResource(R.string.ie_import_panel_title),
-                    body = stringResource(R.string.ie_import_panel_body),
-                ) {
-                    Button(
-                        onClick = { openScanner() },
-                        enabled = !importing,
-                        contentPadding = BlockButtonPadding,
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp),
-                    ) { BlockButtonText(stringResource(R.string.ie_scan)) }
-                    AppOutlinedButton(
-                        onClick = {
-                            pickImageLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                            )
-                        },
-                        enabled = !importing,
-                        contentPadding = BlockButtonPadding,
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp),
-                    ) { BlockButtonText(stringResource(R.string.ie_pick_from_gallery)) }
-                }
-                ImportExportRow(
-                    icon = Icons.Rounded.ContentPaste,
-                    title = stringResource(R.string.ie_text_import_title),
-                    subtitle = stringResource(R.string.ie_text_import_body),
-                    enabled = !importing,
-                    onClick = { showTextImport = true },
-                )
-                ImportBlock(
-                    icon = Icons.Rounded.ImageSearch,
-                    title = stringResource(R.string.ie_ai_panel_title),
-                    body = if (aiImportConfig.isComplete) {
-                        stringResource(R.string.ie_ai_panel_body)
-                    } else {
-                        stringResource(R.string.ie_ai_panel_unconfigured)
-                    },
-                ) {
-                    if (!aiImportConfig.isComplete) {
-                        AppOutlinedButton(
-                            onClick = onOpenAiImportSettings,
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingsSectionHeader(stringResource(R.string.ie_section_import))
+                SettingsCard {
+                    ImportBlock(
+                        icon = Icons.Rounded.QrCodeScanner,
+                        title = stringResource(R.string.ie_import_panel_title),
+                        body = stringResource(R.string.ie_import_panel_body),
+                    ) {
+                        Button(
+                            onClick = { openScanner() },
+                            enabled = !importing,
                             contentPadding = BlockButtonPadding,
                             modifier = Modifier
                                 .weight(1f)
                                 .heightIn(min = 48.dp),
-                        ) { BlockButtonText(stringResource(R.string.ie_go_configure)) }
-                    } else {
+                        ) { BlockButtonText(stringResource(R.string.ie_scan)) }
                         AppOutlinedButton(
                             onClick = {
-                                aiImagePickerLauncher.launch(
+                                pickImageLauncher.launch(
                                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
                                 )
                             },
-                            enabled = !aiBusy,
+                            enabled = !importing,
                             contentPadding = BlockButtonPadding,
                             modifier = Modifier
                                 .weight(1f)
                                 .heightIn(min = 48.dp),
-                        ) {
-                            BlockButtonText(
-                                if (aiBusy) {
-                                    stringResource(R.string.ie_ai_recognizing)
-                                } else {
-                                    stringResource(R.string.ie_ai_pick_image)
-                                },
-                            )
-                        }
-                        AppOutlinedButton(
-                            onClick = { openAiCamera() },
-                            enabled = !aiBusy,
-                            contentPadding = BlockButtonPadding,
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 48.dp),
-                        ) { BlockButtonText(stringResource(R.string.ie_ai_take_photo)) }
+                        ) { BlockButtonText(stringResource(R.string.ie_pick_from_gallery)) }
                     }
+                    ImportExportRow(
+                        icon = Icons.Rounded.ContentPaste,
+                        title = stringResource(R.string.ie_text_import_title),
+                        subtitle = stringResource(R.string.ie_text_import_body),
+                        enabled = !importing,
+                        onClick = { showTextImport = true },
+                    )
+                    ImportBlock(
+                        icon = Icons.Rounded.ImageSearch,
+                        title = stringResource(R.string.ie_ai_panel_title),
+                        body = if (aiImportConfig.isComplete) {
+                            stringResource(R.string.ie_ai_panel_body)
+                        } else {
+                            stringResource(R.string.ie_ai_panel_unconfigured)
+                        },
+                    ) {
+                        if (!aiImportConfig.isComplete) {
+                            AppOutlinedButton(
+                                onClick = onOpenAiImportSettings,
+                                contentPadding = BlockButtonPadding,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 48.dp),
+                            ) { BlockButtonText(stringResource(R.string.ie_go_configure)) }
+                        } else {
+                            AppOutlinedButton(
+                                onClick = {
+                                    aiImagePickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                                    )
+                                },
+                                enabled = !aiBusy,
+                                contentPadding = BlockButtonPadding,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 48.dp),
+                            ) {
+                                BlockButtonText(
+                                    if (aiBusy) {
+                                        stringResource(R.string.ie_ai_recognizing)
+                                    } else {
+                                        stringResource(R.string.ie_ai_pick_image)
+                                    },
+                                )
+                            }
+                            AppOutlinedButton(
+                                onClick = { openAiCamera() },
+                                enabled = !aiBusy,
+                                contentPadding = BlockButtonPadding,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 48.dp),
+                            ) { BlockButtonText(stringResource(R.string.ie_ai_take_photo)) }
+                        }
+                    }
+                }
+
+                SettingsCard {
+                    ImportExportRow(
+                        icon = Icons.Rounded.Extension,
+                        title = stringResource(R.string.ie_section_third_party_import),
+                        subtitle = stringResource(R.string.ie_third_party_card_subtitle),
+                        enabled = !importing,
+                        onClick = { showThirdPartySheet = true },
+                    )
                 }
             }
 
@@ -643,6 +721,12 @@ fun ImportExportScreen(
                         subtitle = stringResource(R.string.ie_text_share_body),
                         enabled = canExport,
                         onClick = { showTextShare = true },
+                    )
+                    ImportExportRow(
+                        icon = Icons.Rounded.Schedule,
+                        title = stringResource(com.x500x.cursimple.feature.schedule.R.string.free_time_entry),
+                        subtitle = stringResource(R.string.ie_free_time_body),
+                        onClick = { showSharedFreeTime = true },
                     )
                     ImportExportRow(
                         icon = Icons.Rounded.Image,
@@ -766,6 +850,128 @@ fun ImportExportScreen(
         showTextImport = false
         pendingImport = it
     }, onDismiss = { showTextImport = false })
+    if (showSharedFreeTime) {
+        SharedFreeTimeDialog(
+            myCourses = schedule.allCoursesWith(manualCourses),
+            myTermStart = termStartDate,
+            timingSlots = timingProfile?.slotTimes.orEmpty(),
+            decode = { text -> decodeSharedTimetable(text) },
+            onDismiss = { showSharedFreeTime = false },
+        )
+    }
+
+    if (showThirdPartySheet) {
+        ThirdPartyImportSheet(
+            onDismiss = { showThirdPartySheet = false },
+            onImportIcs = {
+                showThirdPartySheet = false
+                pickIcsLauncher.launch(arrayOf("*/*", "text/calendar"))
+            },
+            onImportWakeUp = {
+                showThirdPartySheet = false
+                pickWakeUpLauncher.launch(arrayOf("*/*", "application/json", "application/zip"))
+            },
+            onImportAiSchedule = {
+                showThirdPartySheet = false
+                showAiScheduleDialog = true
+            },
+        )
+    }
+
+    if (showAiScheduleDialog) {
+        var aiScheduleInput by remember { mutableStateOf("") }
+        var parseError by remember { mutableStateOf<String?>(null) }
+        AlertDialog(
+            onDismissRequest = { showAiScheduleDialog = false },
+            title = {
+                Text(
+                    text = stringResource(R.string.ie_import_aischedule_dialog_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.ie_import_aischedule_dialog_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    AppOutlinedTextField(
+                        value = aiScheduleInput,
+                        onValueChange = {
+                            aiScheduleInput = it
+                            parseError = null
+                        },
+                        label = { Text(stringResource(R.string.ie_import_aischedule_input_label)) },
+                        placeholder = { Text("[{\"name\": \"...\", \"weeks\": [1,2], \"day\": 1, \"sections\": [1,2]}]") },
+                        minLines = 4,
+                        maxLines = 8,
+                        isError = parseError != null,
+                        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    AppOutlinedButton(
+                        onClick = {
+                            val clip = (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).primaryClip
+                            val pasted = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
+                            if (pasted.isNullOrBlank()) {
+                                parseError = context.getString(R.string.ie_text_clipboard_empty)
+                            } else {
+                                aiScheduleInput = pasted
+                                parseError = null
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp),
+                    ) {
+                        AppAtomicText(stringResource(R.string.ie_text_paste))
+                    }
+                    parseError?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = aiScheduleInput.isNotBlank(),
+                    modifier = Modifier.heightIn(min = 48.dp),
+                    onClick = {
+                        try {
+                            val payload = AiScheduleCompat.parseJson(aiScheduleInput)
+                            showAiScheduleDialog = false
+                            pendingImport = payload
+                        } catch (e: Exception) {
+                            parseError = context.getString(
+                                R.string.ie_ai_parse_failed,
+                                e.message ?: context.getString(R.string.ie_unknown_error),
+                            )
+                        }
+                    },
+                ) {
+                    AppAtomicText(stringResource(R.string.ie_section_import))
+                }
+            },
+            dismissButton = {
+                AppOutlinedButton(
+                    onClick = { showAiScheduleDialog = false },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
+                    AppAtomicText(stringResource(R.string.ie_cancel))
+                }
+            },
+        )
+    }
 
     qrBitmap?.let { bitmap ->
         ScheduleQrShareDialog(bitmap, onDismiss = { qrBitmap = null })
@@ -861,6 +1067,7 @@ fun ImportExportScreen(
         val defaultTermName = payload.termName?.takeIf(String::isNotBlank)
             ?: stringResource(com.x500x.cursimple.feature.schedule.R.string.schedule_import_new_term_default)
         var asNewTerm by remember(payload) { mutableStateOf(true) }
+        var useSharedTiming by remember(payload) { mutableStateOf(true) }
         var termNameInput by remember(payload) { mutableStateOf(defaultTermName) }
         val newTermName = termNameInput.trim().takeIf { asNewTerm && it.isNotBlank() }
         val importedTermStart = remember(payload.termStartDate) {
@@ -930,6 +1137,20 @@ fun ImportExportScreen(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
+                    if (payload.timingSlots.isNotEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Switch(
+                                checked = useSharedTiming,
+                                onCheckedChange = { useSharedTiming = it },
+                                enabled = !importing,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.ie_import_use_shared_timing),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
                     if (asNewTerm) {
                         OutlinedTextField(
                             value = termNameInput,
@@ -947,6 +1168,17 @@ fun ImportExportScreen(
                     enabled = !importing,
                     onClick = {
                         importing = true
+                        if (useSharedTiming && payload.timingSlots.isNotEmpty()) {
+                            scope.launch {
+                                DataStoreWidgetPreferencesRepository(context.applicationContext).saveManualTimingProfile(
+                                    TermTimingProfile(
+                                        termStartDate = payload.termStartDate.orEmpty(),
+                                        slotTimes = payload.timingSlots,
+                                        timezone = timingProfile?.timezone.orEmpty(),
+                                    ),
+                                )
+                            }
+                        }
                         onApplyImport(payload.schedule, payload.manualCourses, newTermName) { result ->
                             importing = false
                             pendingImport = null
@@ -1107,6 +1339,143 @@ private fun FootnoteText(text: String) {
         modifier = Modifier.padding(horizontal = 4.dp),
     )
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun ThirdPartyImportSheet(
+    onDismiss: () -> Unit,
+    onImportIcs: () -> Unit,
+    onImportWakeUp: () -> Unit,
+    onImportAiSchedule: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(top = 4.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = stringResource(R.string.ie_section_third_party_import),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = stringResource(R.string.ie_third_party_sheet_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column {
+                    ThirdPartySheetRow(
+                        icon = Icons.Rounded.CalendarMonth,
+                        title = stringResource(R.string.ie_import_ics_title),
+                        subtitle = stringResource(R.string.ie_import_ics_body),
+                        onClick = onImportIcs,
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 70.dp, end = 16.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                    )
+                    ThirdPartySheetRow(
+                        icon = Icons.Rounded.School,
+                        title = stringResource(R.string.ie_import_wakeup_title),
+                        subtitle = stringResource(R.string.ie_import_wakeup_body),
+                        onClick = onImportWakeUp,
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 70.dp, end = 16.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                    )
+                    ThirdPartySheetRow(
+                        icon = Icons.Rounded.Extension,
+                        title = stringResource(R.string.ie_import_aischedule_title),
+                        subtitle = stringResource(R.string.ie_import_aischedule_body),
+                        onClick = onImportAiSchedule,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThirdPartySheetRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+/** A classmate's share code as the courses and term start that free-time comparison needs. */
+private fun decodeSharedTimetable(text: String): Result<SharedTimetable> =
+    ScheduleShareCodec.decode(text).map { payload ->
+        SharedTimetable(
+            courses = payload.schedule.allCoursesWith(payload.manualCourses),
+            termStart = payload.termStartDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
+            termName = payload.termName,
+        )
+    }
 
 internal fun parseImportedTermStartDate(iso: String?): LocalDate? {
     val trimmed = iso?.trim().orEmpty()

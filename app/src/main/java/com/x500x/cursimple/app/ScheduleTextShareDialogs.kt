@@ -21,6 +21,7 @@ import com.x500x.cursimple.R
 import com.x500x.cursimple.app.util.*
 import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
@@ -46,7 +47,7 @@ internal fun ScheduleTextShareDialog(payload: ScheduleSharePayload, onDismiss: (
                 if (value == null && error == null) LinearProgressIndicator(Modifier.fillMaxWidth())
                 if (value != null) {
                     // Show a bounded excerpt; actions always use the complete, unchanged code.
-                    OutlinedTextField(value = value.take(360) + if (value.length > 360) "…" else "",
+                    AppOutlinedTextField(value = value.take(360) + if (value.length > 360) "…" else "",
                         onValueChange = {}, readOnly = true, minLines = 2, maxLines = 4,
                         textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                         modifier = Modifier.fillMaxWidth().testTag("schedule-share-code"))
@@ -87,9 +88,10 @@ internal fun ScheduleTextImportDialog(onDecoded: (ScheduleSharePayload) -> Unit,
         text = {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.ie_text_import_hint), style = MaterialTheme.typography.bodyMedium)
-                OutlinedTextField(value = input, onValueChange = { input = it; error = null }, enabled = !busy,
+                AppOutlinedTextField(value = input, onValueChange = { input = it; error = null }, enabled = !busy,
                     minLines = 3, maxLines = 6, isError = error != null,
                     label = { Text(stringResource(R.string.ie_text_code_label)) },
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                     modifier = Modifier.fillMaxWidth().testTag("schedule-text-input"))
                 AppOutlinedButton(onClick = {
                     val clip = (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).primaryClip

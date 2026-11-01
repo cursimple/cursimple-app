@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app.util
 
+import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import kotlinx.serialization.Serializable
@@ -12,6 +13,8 @@ data class ScheduleSharePayload(
     val termStartDate: String? = null,
     val schedule: TermSchedule? = null,
     val manualCourses: List<CourseItem> = emptyList(),
+    /** The sender's class times (第一节, 午间课, 晚间课 ...), so the receiver sees the same timetable rows. */
+    val timingSlots: List<ClassSlotTime> = emptyList(),
 ) {
     companion object {
         const val CURRENT_VERSION: Int = 1

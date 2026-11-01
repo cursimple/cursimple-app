@@ -1,0 +1,54 @@
+name: Dependency security
+
+on:
+  pull_request:
+    paths: ["**/*.gradle.kts", "gradle/**", "promo-video/package*.json", "**/assets/webcompat/**", "scripts/vendored-dependencies.json", "scripts/audit_dependencies.py", "scripts/security-dependencies.init.gradle", ".github/workflows/dependency-security.yml"]
+  push:
+    branches: [main, pre]
+    paths: ["**/*.gradle.kts", "gradle/**", "promo-video/package*.json", "**/assets/webcompat/**", "scripts/vendored-dependencies.json", "scripts/audit_dependencies.py", "scripts/security-dependencies.init.gradle", ".github/workflows/dependency-security.yml"]
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - name: Resolve runtime, test and build dependency inventory
+        run: ./gradlew -I scripts/security-dependencies.init.gradle securityDependencyInventory
+      - name: Audit Maven coordinates against OSV
+        id: maven
+        continue-on-error: true
+        run: python3 -B scripts/audit_dependencies.py build/reports/security/dependencies.json --output build/reports/security/osv.json
+      - name: Verify and audit vendored browser libraries
+        id: vendored
+        continue-on-error: true
+        run: python3 -B scripts/audit_dependencies.py scripts/vendored-dependencies.json --output build/reports/security/vendored-osv.json
+      - name: Audit video tooling lockfile
+        id: npm
+        continue-on-error: true
+        working-directory: promo-video
+        run: npm audit --package-lock-only --audit-level=low --json > ../build/reports/security/npm-audit.json
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dependency-security-${{ github.sha }}
+          path: build/reports/security/
+          if-no-files-found: warn
+      - name: Enforce audit results
+        if: always() && (steps.maven.outcome == 'failure' || steps.vendored.outcome == 'failure' || steps.npm.outcome == 'failure')
+        run: exit 1

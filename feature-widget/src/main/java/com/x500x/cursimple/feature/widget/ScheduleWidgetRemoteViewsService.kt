@@ -54,7 +54,7 @@ private class ScheduleCourseListFactory(
 
     override fun getViewAt(position: Int): RemoteViews {
         val rowData = rows.getOrNull(position)
-            ?: return RemoteViews(context.packageName, R.layout.widget_schedule_course_row)
+            ?: return RemoteViews(context.packageName, R.layout.widget_schedule_course_row_surface)
         return buildScheduleCourseRow(context, rowData, themeAccent, widgetTheme)
     }
 
@@ -75,11 +75,11 @@ internal fun buildScheduleCourseRow(
     themeAccent: ThemeAccent,
     widgetTheme: WidgetThemePreferences,
 ): RemoteViews {
-    val row = RemoteViews(context.packageName, R.layout.widget_schedule_course_row)
+    val row = RemoteViews(context.packageName, R.layout.widget_schedule_course_row_surface)
     row.applyAccentBackground(
-        R.id.course_row_root,
         widgetTheme,
         if (rowData.status == CourseStatus.Live) WidgetSurfaceTone.RowVariant else WidgetSurfaceTone.Row,
+        isDark = resolveWidgetIsDark(context, widgetTheme.widgetThemeMode),
     )
     row.applyOpenAppFillInIntent(R.id.course_row_root, widgetTheme)
     row.setTextViewText(
@@ -127,6 +127,10 @@ internal fun buildScheduleCourseRow(
     } else {
         row.setInt(R.id.course_badge, "setBackgroundResource", R.drawable.widget_bg_badge)
         row.setTextColor(R.id.course_badge, ContextCompat.getColor(context, R.color.widget_badge_text))
+    }
+    if (!rowData.onHoliday && resolveWidgetIsDark(context, widgetTheme.widgetThemeMode)) {
+        row.setTextColor(R.id.course_title, 0xFFE6E1E5.toInt())
+        listOf(R.id.course_nodes, R.id.course_time, R.id.course_subtitle).forEach { row.setTextColor(it, 0xFFCAC4D0.toInt()) }
     }
     return row
 }

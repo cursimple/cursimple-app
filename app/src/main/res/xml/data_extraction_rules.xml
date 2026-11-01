@@ -15,8 +15,11 @@
             path="github_account.xml" />
         <exclude domain="sharedpref" path="extension_secure_config.xml" />
         <exclude domain="file" path="notification-outbox/" />
+        <exclude domain="file" path="plugin-home-cache/" />
         <exclude domain="sharedpref" path="notice_display_tests.xml" />
         <exclude domain="sharedpref" path="native_notice_expiry.xml" />
+        <exclude domain="root" path="app_webview/" />
+        <exclude domain="sharedpref" path="private_files_provider.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude
@@ -33,7 +36,10 @@
             path="github_account.xml" />
         <exclude domain="sharedpref" path="extension_secure_config.xml" />
         <exclude domain="file" path="notification-outbox/" />
+        <exclude domain="file" path="plugin-home-cache/" />
         <exclude domain="sharedpref" path="notice_display_tests.xml" />
         <exclude domain="sharedpref" path="native_notice_expiry.xml" />
+        <exclude domain="root" path="app_webview/" />
+        <exclude domain="sharedpref" path="private_files_provider.xml" />
     </device-transfer>
 </data-extraction-rules>

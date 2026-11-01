@@ -2,6 +2,8 @@ package com.x500x.cursimple.feature.plugin
 
 import com.x500x.cursimple.feature.plugin.ui.AppAssistChip
 import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import android.content.ClipData
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -215,6 +217,7 @@ fun PluginLogScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FilterBar(
     levelFilter: PluginLogLevel?,
@@ -241,37 +244,40 @@ private fun FilterBar(
             singleLine = true,
             placeholder = { Text(stringResource(R.string.plugin_log_search_placeholder)) },
         )
-        Row(
+        // Chips wrap to a new line instead of squeezing a label letter by letter.
+        FlowRow(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
         ) {
             AppFilterChip(
                 selected = levelFilter == null,
                 onClick = { onLevelFilter(null) },
-                label = { Text(stringResource(R.string.plugin_log_filter_all_levels)) },
+                label = { ChipLabel(stringResource(R.string.plugin_log_filter_all_levels)) },
             )
             PluginLogLevel.values().forEach { lv ->
                 AppFilterChip(
                     selected = levelFilter == lv,
                     onClick = { onLevelFilter(lv) },
-                    label = { Text(lv.short) },
+                    label = { ChipLabel(lv.short) },
                 )
             }
         }
-        Row(
+        FlowRow(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
         ) {
             AppFilterChip(
                 selected = sourceFilter == null,
                 onClick = { onSourceFilter(null) },
-                label = { Text(stringResource(R.string.plugin_log_filter_all_sources)) },
+                label = { ChipLabel(stringResource(R.string.plugin_log_filter_all_sources)) },
             )
             PluginLogSource.values().forEach { src ->
                 AppFilterChip(
                     selected = sourceFilter == src,
                     onClick = { onSourceFilter(src) },
-                    label = { Text(src.token) },
+                    label = { ChipLabel(src.token) },
                 )
             }
         }
@@ -394,6 +400,11 @@ private fun LogEntryRow(
             }
         }
     }
+}
+
+@Composable
+private fun ChipLabel(text: String) {
+    Text(text = text, maxLines = 1, softWrap = false)
 }
 
 @Composable

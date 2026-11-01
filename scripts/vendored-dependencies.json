@@ -1,0 +1,30 @@
+{
+  "queries": [
+    {
+      "package": {
+        "ecosystem": "npm",
+        "name": "jquery"
+      },
+      "version": "3.7.1"
+    },
+    {
+      "package": {
+        "ecosystem": "npm",
+        "name": "jquery-migrate"
+      },
+      "version": "3.6.0"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "feature-plugin/src/main/assets/webcompat/jquery-3.7.1.min.js",
+      "sha256": "fc9a93dd241f6b045cbff0481cf4e1901becd0e12fb45166a8f17f95823f0b1a",
+      "source": "https://code.jquery.com/jquery-3.7.1.min.js"
+    },
+    {
+      "path": "feature-plugin/src/main/assets/webcompat/jquery-migrate-3.6.0.min.js",
+      "sha256": "2d6c259781f90000bfdb4807db5345824e2b60cbd986f735283d1ce621bb42f3",
+      "source": "https://code.jquery.com/jquery-migrate-3.6.0.min.js"
+    }
+  ]
+}

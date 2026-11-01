@@ -151,8 +151,11 @@ class ScheduleStressOverflowTest {
         val stack = stackCellItems(listOf("A", "B", "C"), 40.dp)
         assertTrue(stack.whole)
         assertEquals(40.dp, stack.pieces.single().height)
-        // Two courses too short to split still get the expander when it fits.
-        assertEquals(22.dp, stackCellItems(listOf("A", "B"), 54.dp).moreHeight)
+        // Two short entries now fit above the 22dp minimum; no expander is needed.
+        val pair = stackCellItems(listOf("A", "B"), 54.dp)
+        assertEquals(listOf("A", "B"), pair.pieces.map { it.entry })
+        assertEquals(25.5.dp, pair.pieces.first().height)
+        assertEquals(0.dp, pair.moreHeight)
     }
 
     @Test

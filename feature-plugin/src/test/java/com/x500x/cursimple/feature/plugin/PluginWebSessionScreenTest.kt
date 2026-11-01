@@ -7,6 +7,7 @@ import com.x500x.cursimple.core.plugin.web.WebNetworkPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionCaptureSpec
 import com.x500x.cursimple.core.plugin.web.WebSessionPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
+import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import android.webkit.WebSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -16,6 +17,60 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PluginWebSessionScreenTest {
+    @Test
+    fun `Yangtze workbench guidance applies to general import and plugin sessions`() {
+        val url = "https://atrust.yangtzeu.edu.cn:4443/portal/#/app_center"
+        for (pluginId in listOf("builtin.school-portal", "yangtzeu")) {
+            val request = webRequest().copy(pluginId = pluginId, allowedHosts = listOf("yangtzeu.edu.cn"))
+            assertEquals(R.string.plugin_web_yangtze_workbench_hint, schoolPortalGuidance(request, url))
+            assertEquals(R.string.plugin_web_yangtze_workbench_hint, schoolPortalGuidance(request, "$url/?tab=all"))
+        }
+    }
+
+    @Test
+    fun `workbench guidance ignores login routes query targets and unrelated hosts`() {
+        val request = webRequest().copy(allowedHosts = listOf("yangtzeu.edu.cn", "example.edu"))
+        listOf(
+            "https://atrust.yangtzeu.edu.cn:4443/",
+            "https://atrust.yangtzeu.edu.cn:4443/portal/#/login",
+            "https://atrust.yangtzeu.edu.cn:4443/portal/#/app_center_other",
+            "https://atrust.yangtzeu.edu.cn:4443/portal/shortcut.html?appUrl=/portal/%23/app_center",
+            "https://atrust.example.edu/portal/#/app_center",
+            "https://atrust.yangtzeu.edu.cn.evil.example/portal/#/app_center",
+            "not a url",
+        ).forEach { assertNull(it, schoolPortalGuidance(request, it)) }
+        assertNull(schoolPortalGuidance(webRequest(), "https://atrust.yangtzeu.edu.cn:4443/portal/#/app_center"))
+    }
+
+    @Test
+    fun `Yangtze academic home guidance is limited to general imports on the home page`() {
+        val request = webRequest().copy(pluginId = "builtin.school-portal", allowedHosts = listOf("yangtzeu.edu.cn"))
+        for (host in listOf("jwc3.yangtzeu.edu.cn", "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn")) {
+            assertEquals(R.string.plugin_web_yangtze_timetable_hint,
+                schoolPortalGuidance(request, "https://$host/eams/home.action?lang=zh"))
+            assertEquals(R.string.plugin_web_yangtze_timetable_hint,
+                schoolPortalGuidance(request, "https://$host/eams5/home.action"))
+            assertNull(schoolPortalGuidance(request.copy(pluginId = "yangtzeu"), "https://$host/eams/home.action"))
+            assertNull(schoolPortalGuidance(request, "https://$host/eams/courseTableForStd.action"))
+            assertNull(schoolPortalGuidance(request, "https://$host/eams/login.action"))
+        }
+        assertNull(schoolPortalGuidance(request,
+            "https://atrust.yangtzeu.edu.cn:4443/portal/shortcut.html?appUrl=/eams/home.action"))
+    }
+
+    @Test
+    fun `import errors keep their full reason and take precedence over page errors`() {
+        val message = "没有找到课表。".repeat(30) + "\n请打开我的课表，再点击上传课表。"
+        val status = pluginWebFailureStatus(message, "HTTP 500")
+        assertEquals(PluginWebStatus.ImportError(message), status)
+        assertTrue(status!!.showsFullMessage())
+        assertEquals(PluginWebStatus.PageError("HTTP 500"), pluginWebFailureStatus(null, "HTTP 500"))
+        assertNull(pluginWebFailureStatus(null, null))
+        assertTrue(PluginWebStatus.PageError("HTTP 500").showsFullMessage())
+        assertTrue(PluginWebStatus.ConsoleError(message).showsFullMessage())
+        assertFalse(PluginWebStatus.Opened("课表").showsFullMessage())
+    }
+
     @Test
     fun `allowed host accepts exact host and subdomain`() {
         val allowed = listOf("example.edu.cn")
@@ -272,6 +327,7 @@ class PluginWebSessionScreenTest {
     fun `plugin runtime script includes gated context and schedule draft writer`() {
         val request = webRequest().copy(
             termId = "2026-spring",
+            timingSlots = listOf(ClassSlotTime(4, 4, "14:00", "15:35", "第三节")),
             entryScript = "export async function run(ctx) { ctx.schedule.addCourse({ title: 'A' }); return ctx.schedule.commit({ termId: ctx.term.id }); }",
             permissions = listOf(
                 PluginPermission.WebReadDom,
@@ -287,6 +343,9 @@ class PluginWebSessionScreenTest {
         assertTrue(script.contains("schedule.write"))
         assertTrue(script.contains("__CURSIMPLE_SCHEDULE_DRAFT_JSON"))
         assertTrue(script.contains("2026-spring"))
+        assertTrue(script.contains("slotTimes: timingSlots"))
+        assertTrue(script.contains("第三节"))
+        assertTrue(script.contains("14:00"))
         assertFalse(script.contains("android.webkit"))
     }
 

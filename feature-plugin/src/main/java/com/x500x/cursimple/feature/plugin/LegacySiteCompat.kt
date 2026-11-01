@@ -6,10 +6,14 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
+import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.x500x.cursimple.core.plugin.logging.PluginLogger
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
@@ -105,7 +109,10 @@ internal class LegacySiteCompat(
             }
 
             val stream = if (status >= 400) connection.errorStream else connection.inputStream
-            val body = stream?.use { it.readBytes() } ?: ByteArray(0)
+            if (connection.contentLengthLong > MAX_LEGACY_DOCUMENT_BYTES) {
+                throw IOException("Legacy document exceeds size limit")
+            }
+            val body = stream?.use { readLegacyDocument(it) } ?: ByteArray(0)
             val (mimeType, charset) = parseContentType(connection.contentType)
             val headers = legacyDocumentResponseHeaders(headerFields)
             val reason = connection.responseMessage?.takeIf(String::isNotBlank) ?: httpReasonPhrase(status)
@@ -175,9 +182,43 @@ internal class LegacySiteCompat(
         const val LEGACY_AGENT_CLUSTER = "?0"
         private const val CONNECT_TIMEOUT_MS = 15_000
         private const val READ_TIMEOUT_MS = 30_000
-        private const val JQUERY_ASSET = "webcompat/jquery-1.12.4.min.js"
-        private const val JQUERY_MIGRATE_ASSET = "webcompat/jquery-migrate-1.4.1.min.js"
+        private const val JQUERY_ASSET = "webcompat/jquery-3.7.1.min.js"
+        private const val JQUERY_MIGRATE_ASSET = "webcompat/jquery-migrate-3.6.0.min.js"
     }
+}
+
+/**
+ * WebView tags every request with `X-Requested-With: <app package>`. Legacy academic servers read that
+ * header as an AJAX call and answer with a bare fragment (no head, no scripts), which renders as a blank
+ * page. Chrome never sends it, so stop sending it. Returns false when this WebView cannot do that, in
+ * which case [LegacySiteCompat.interceptDocument] still proxies documents without the header.
+ */
+internal fun WebView.suppressRequestedWithHeader(): Boolean {
+    if (!WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST)) return false
+    return runCatching { WebSettingsCompat.setRequestedWithHeaderOriginAllowList(settings, emptySet()) }
+        .onFailure { error ->
+            PluginLogger.error(
+                "plugin.web_compat.requested_with_failed",
+                mapOf("error" to (error.message ?: error.javaClass.simpleName)),
+            )
+        }.isSuccess
+}
+
+internal const val MAX_LEGACY_DOCUMENT_BYTES = 8 * 1024 * 1024L
+
+/** Bound unknown/chunked responses as well as the declared Content-Length. */
+internal fun readLegacyDocument(input: InputStream, limit: Long = MAX_LEGACY_DOCUMENT_BYTES): ByteArray {
+    val output = ByteArrayOutputStream()
+    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+    var total = 0L
+    while (true) {
+        val count = input.read(buffer)
+        if (count < 0) break
+        total += count
+        if (total > limit) throw IOException("Legacy document exceeds size limit")
+        output.write(buffer, 0, count)
+    }
+    return output.toByteArray()
 }
 
 /**

@@ -81,6 +81,7 @@ internal object CalendarWidgetRenderer {
         heightDp: Float,
         density: Float,
         labels: CalendarRenderLabels,
+        isDark: Boolean = false,
     ): Bitmap {
         val rawW = max(1f, widthDp * density)
         val rawH = max(1f, heightDp * density)
@@ -89,10 +90,10 @@ internal object CalendarWidgetRenderer {
         val canvas = Canvas(bitmap)
         val px = density * shrink
         val accent = accentOf(data.widgetTheme)
-        val accentText = widgetAccentTextColor(data.widgetTheme)
+        val accentText = widgetAccentTextColor(data.widgetTheme, isDark)
         when {
-            data.week != null -> drawWeek(canvas, data.week, px, accent, accentText, labels)
-            data.month != null -> drawMonth(canvas, data.month, px, accent, accentText, labels)
+            data.week != null -> drawWeek(canvas, data.week, px, accent, accentText, labels, isDark)
+            data.month != null -> drawMonth(canvas, data.month, px, accent, accentText, labels, isDark)
         }
         return bitmap
     }
@@ -100,7 +101,9 @@ internal object CalendarWidgetRenderer {
     private fun accentOf(theme: WidgetThemePreferences): Int =
         if (theme.themeAccent == ThemeAccent.Custom) theme.customColorArgb else AccentColors.presetPrimary(theme.themeAccent)
 
-    private fun drawWeek(canvas: Canvas, week: CalendarWeekData, px: Float, accent: Int, accentText: Int, labels: CalendarRenderLabels) {
+    private fun drawWeek(canvas: Canvas, week: CalendarWeekData, px: Float, accent: Int, accentText: Int, labels: CalendarRenderLabels, isDark: Boolean) {
+        val textPrimary = if (isDark) 0xFFE6E1E5.toInt() else TEXT_PRIMARY
+        val textSecondary = if (isDark) 0xFFCAC4D0.toInt() else TEXT_SECONDARY
         val w = canvas.width.toFloat()
         val h = canvas.height.toFloat()
         val gutter = weekGutterDp(week) * px
@@ -123,16 +126,16 @@ internal object CalendarWidgetRenderer {
             canvas.drawRoundRect(RectF(0f, top + px, w, top + rowH - px), 8 * px, 8 * px, fill)
         }
 
-        val line = Paint().apply { color = GRID_LINE; strokeWidth = max(1f, 0.6f * px) }
+        val line = Paint().apply { color = if (isDark) 0x33FFFFFF else GRID_LINE; strokeWidth = max(1f, 0.6f * px) }
         week.rows.forEachIndexed { index, row ->
             val top = header + index * rowH
             if (index > 0) canvas.drawLine(gutter, top, w, top, line)
             drawRowLabel(canvas, row, RectF(0f, top, gutter, top + rowH), px,
-                if (index in week.currentRows) accentText else TEXT_SECONDARY, index in week.currentRows)
+                if (index in week.currentRows) accentText else textSecondary, index in week.currentRows)
         }
 
-        val weekdayPaint = textPaint(9f * px, TEXT_SECONDARY, bold = false).apply { textAlign = Paint.Align.CENTER }
-        val datePaint = textPaint(12f * px, TEXT_PRIMARY, bold = true).apply { textAlign = Paint.Align.CENTER }
+        val weekdayPaint = textPaint(9f * px, textSecondary, bold = false).apply { textAlign = Paint.Align.CENTER }
+        val datePaint = textPaint(12f * px, textPrimary, bold = true).apply { textAlign = Paint.Align.CENTER }
         val tagPaint = textPaint(7.5f * px, EXAM_RED, bold = true).apply { textAlign = Paint.Align.CENTER }
         week.days.forEachIndexed { index, day ->
             val left = gutter + index * colW
@@ -143,8 +146,8 @@ internal object CalendarWidgetRenderer {
                 canvas.drawRoundRect(RectF(cx - pillW / 2, 2 * px, cx + pillW / 2, header - 3 * px), 9 * px, 9 * px, fill)
             }
             val onAccent = day.isToday
-            weekdayPaint.color = if (onAccent) 0xE6FFFFFF.toInt() else TEXT_SECONDARY
-            datePaint.color = if (onAccent) 0xFFFFFFFF.toInt() else if (day.onHoliday) INACTIVE_ON else TEXT_PRIMARY
+            weekdayPaint.color = if (onAccent) 0xE6FFFFFF.toInt() else textSecondary
+            datePaint.color = if (onAccent) 0xFFFFFFFF.toInt() else if (day.onHoliday) INACTIVE_ON else textPrimary
             canvas.drawText(labels.weekdays.getOrElse(day.date.dayOfWeek.value - 1) { "" }, cx, 12.5f * px, weekdayPaint)
             canvas.drawText(day.date.dayOfMonth.toString(), cx, 26f * px, datePaint)
             val tag = when {
@@ -192,7 +195,7 @@ internal object CalendarWidgetRenderer {
         }
 
         if (week.blocks.all { it.isEmpty() } && !labels.emptyMessage.isNullOrBlank()) {
-            val paint = textPaint(11f * px, TEXT_SECONDARY, bold = true).apply { textAlign = Paint.Align.CENTER }
+            val paint = textPaint(11f * px, textSecondary, bold = true).apply { textAlign = Paint.Align.CENTER }
             canvas.drawText(labels.emptyMessage, gutter + (w - gutter) / 2f, centerBaseline(header, h - header, paint), paint)
         }
     }
@@ -287,7 +290,9 @@ internal object CalendarWidgetRenderer {
         canvas.restore()
     }
 
-    private fun drawMonth(canvas: Canvas, month: CalendarMonthData, px: Float, accent: Int, accentText: Int, labels: CalendarRenderLabels) {
+    private fun drawMonth(canvas: Canvas, month: CalendarMonthData, px: Float, accent: Int, accentText: Int, labels: CalendarRenderLabels, isDark: Boolean) {
+        val textPrimary = if (isDark) 0xFFE6E1E5.toInt() else TEXT_PRIMARY
+        val textSecondary = if (isDark) 0xFFCAC4D0.toInt() else TEXT_SECONDARY
         val w = canvas.width.toFloat()
         val h = canvas.height.toFloat()
         val top = MONTH_HEADER_DP * px
@@ -297,12 +302,12 @@ internal object CalendarWidgetRenderer {
         val rowH = (h - top - bottom) / rows
         val fill = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        val weekdayPaint = textPaint(9f * px, TEXT_SECONDARY, bold = false).apply { textAlign = Paint.Align.CENTER }
+        val weekdayPaint = textPaint(9f * px, textSecondary, bold = false).apply { textAlign = Paint.Align.CENTER }
         for (i in 0 until 7) {
             canvas.drawText(labels.weekdays.getOrElse(i) { "" }, colW * i + colW / 2f, centerBaseline(0f, top, weekdayPaint), weekdayPaint)
         }
 
-        val datePaint = textPaint(min(12.5f * px, rowH * 0.4f), TEXT_PRIMARY, bold = true).apply { textAlign = Paint.Align.CENTER }
+        val datePaint = textPaint(min(12.5f * px, rowH * 0.4f), textPrimary, bold = true).apply { textAlign = Paint.Align.CENTER }
         val tagPaint = textPaint(min(7.5f * px, rowH * 0.2f), EXAM_RED, bold = true).apply { textAlign = Paint.Align.CENTER }
         val dotR = min(2.1f * px, rowH * 0.07f)
         month.days.forEachIndexed { index, day ->
@@ -320,9 +325,9 @@ internal object CalendarWidgetRenderer {
             }
             datePaint.color = when {
                 day.isToday -> 0xFFFFFFFF.toInt()
-                !inMonth -> withAlpha(TEXT_SECONDARY, 0x66)
+                !inMonth -> withAlpha(textSecondary, 0x66)
                 day.onHoliday -> EXAM_RED
-                else -> TEXT_PRIMARY
+                else -> textPrimary
             }
             val baseline = numberCenterY - (datePaint.descent() + datePaint.ascent()) / 2f
             canvas.drawText(day.date.dayOfMonth.toString(), cx, baseline, datePaint)
@@ -354,7 +359,7 @@ internal object CalendarWidgetRenderer {
             }
         }
 
-        val legendPaint = textPaint(8.5f * px, TEXT_SECONDARY, bold = false)
+        val legendPaint = textPaint(8.5f * px, textSecondary, bold = false)
         val entries = listOf(accent to labels.legendClass, EXAM_RED to labels.legendExam, EVENT_ORANGE to labels.legendEvent)
         val itemGap = 10f * px
         val textGap = 3.5f * px

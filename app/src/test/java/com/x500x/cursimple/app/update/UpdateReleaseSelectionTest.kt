@@ -98,4 +98,24 @@ class UpdateReleaseSelectionTest {
 
         assertEquals("first", pickUpdateRelease(entries, includePrerelease = true)?.tagName)
     }
+
+    @Test
+    fun `pre-branch test builds are never offered`() {
+        val entries = listOf(
+            entry(0, "v0.8.2-pre.1", prerelease = true, publishedAt = "2026-10-20T00:00:00Z"),
+            entry(1, "v0.8.1", prerelease = true, publishedAt = "2026-10-10T00:00:00Z"),
+        )
+
+        assertEquals("v0.8.1", pickUpdateRelease(entries, includePrerelease = true)?.tagName)
+        assertNull(pickUpdateRelease(entries.take(1), includePrerelease = true))
+    }
+
+    @Test
+    fun `only a trailing pre suffix marks a test build`() {
+        assertTrue(isTestReleaseTag("v0.8.2-pre.1"))
+        assertTrue(isTestReleaseTag("v0.8.2-pre"))
+        assertFalse(isTestReleaseTag("v0.8.2-preview.1"))
+        assertFalse(isTestReleaseTag("v0.8.2-beta.1"))
+        assertFalse(isTestReleaseTag("v0.8.2"))
+    }
 }

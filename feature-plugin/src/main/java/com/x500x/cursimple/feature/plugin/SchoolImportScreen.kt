@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,6 +22,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Search
@@ -40,6 +43,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -53,12 +57,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
+import com.x500x.cursimple.core.plugin.school.SchoolPortalCatalog
+import com.x500x.cursimple.core.plugin.school.SchoolPortalEntry
 import com.x500x.cursimple.core.plugin.web.WebSessionPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
 
 /** Search schools, install a matching plugin and sign in without leaving the import page. */
+private const val MAX_SCHOOL_MATCHES = 60
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SchoolImportRoute(
@@ -74,12 +84,25 @@ fun SchoolImportRoute(
     onBack: () -> Unit,
     onBrowseAllPlugins: () -> Unit,
     onAddCourseManually: () -> Unit,
+    onOpenSchoolPortal: (SchoolPortalEntry) -> Unit,
     modifier: Modifier = Modifier,
     accountKey: String? = null,
 ) {
     val context = LocalContext.current
     val uiState by pluginMarketViewModel.uiState.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
+    val catalog by produceState(initialValue = emptyList<SchoolPortalEntry>(), context) {
+        value = withContext(Dispatchers.IO) { runCatching { SchoolPortalCatalog.load(context) }.getOrDefault(emptyList()) }
+    }
+    // Blank query shows the well-known schools and plugin-bound schools; a query searches the full catalog.
+    val schoolRows = remember(catalog, query) {
+        val all = SchoolPortalCatalog.search(catalog, query)
+        // Plugin-bound schools come first: their import is the recommended path.
+        val shown = if (query.isBlank()) all.filter { it.tiers.isNotEmpty() || it.usesPlugin } else all.take(MAX_SCHOOL_MATCHES)
+        shown.sortedByDescending { it.usesPlugin }
+    }
+    val searchHits = remember(catalog, query) { SchoolPortalCatalog.search(catalog, query).size }
+    val catalogRepoNames = remember(catalog) { catalog.mapNotNull { it.pluginRepo?.lowercase() }.toSet() }
 
     LaunchedEffect(pluginSources, componentSources, accountKey) {
         pluginMarketViewModel.setSources(pluginSources, componentSources)
@@ -185,63 +208,128 @@ fun SchoolImportRoute(
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
 
-            if (uiState.marketRepos.isNotEmpty()) {
-                Text(
-                    text = if (query.isBlank()) {
-                        pluralStringResource(R.plurals.school_import_catalog_count, uiState.marketRepos.size, uiState.marketRepos.size)
-                    } else {
-                        pluralStringResource(
-                            R.plurals.school_import_match_count,
-                            uiState.marketRepos.size,
-                            uiState.marketRepos.size,
-                            matched.size,
-                        )
-                    },
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            // Count the schools in the catalog, not the plugin repositories.
+            Text(
+                text = if (query.isBlank()) {
+                    pluralStringResource(R.plurals.school_portal_count_total, catalog.size, catalog.size)
+                } else {
+                    pluralStringResource(R.plurals.school_portal_count_match, searchHits, searchHits)
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
-            when {
-                uiState.marketRepos.isEmpty() && uiState.isLoading -> SchoolImportBusy()
-
-                uiState.marketRepos.isEmpty() -> SchoolImportEmpty(
-                    text = stringResource(R.string.school_import_market_empty),
-                    actionText = stringResource(R.string.school_import_retry),
-                    onAction = { pluginMarketViewModel.loadRegistry() },
-                )
-
-                else -> LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    if (matched.isEmpty()) {
-                        item(key = "no-match") {
-                            Box(appItemMotion()) {
-                                SchoolImportEmpty(
-                                    text = stringResource(R.string.school_import_no_match, query.trim()),
-                                    hint = stringResource(R.string.school_import_no_match_hint),
-                                    actionText = stringResource(R.string.school_import_add_manually),
-                                    onAction = onAddCourseManually,
-                                    secondaryActionText = stringResource(R.string.school_import_refresh_list),
-                                    onSecondaryAction = { pluginMarketViewModel.loadRegistry() },
-                                )
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                item(key = "school-header") {
+                    Text(
+                        text = stringResource(R.string.school_portal_section_title),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                items(schoolRows, key = { "school-${it.id}" }) { school ->
+                    Box(appItemMotion()) {
+                        if (school.usesPlugin) {
+                            val repo = uiState.marketRepos.firstOrNull { it.fullName.equals(school.pluginRepo, ignoreCase = true) }
+                            // General import stays available so a broken plugin can be tested through the portal.
+                            var showGeneral by rememberSaveable(school.id) { mutableStateOf(false) }
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (repo != null) {
+                                    val installed = installedByRepo[repo.fullName]
+                                    SchoolPluginRow(
+                                        repo = repo,
+                                        installed = installed,
+                                        upgrade = installed?.let { availableUpgrade(it, uiState) },
+                                        busy = uiState.isLoading,
+                                        checking = uiState.processingRepo(repo.fullName) || (installed != null &&
+                                            (uiState.checkingUpdateKey == installed.installKey || uiState.upgradingKey == installed.installKey)),
+                                        syncingPluginId = syncingPluginId,
+                                        importLabel = stringResource(R.string.school_portal_badge_plugin),
+                                        onInstall = { pluginMarketViewModel.installFromGitHub(repo) },
+                                        onSync = { record -> pluginMarketViewModel.syncWithUpdateCheck(record) },
+                                        onUpgrade = { record, latest -> pluginMarketViewModel.upgradeThenSync(record, latest) },
+                                    )
+                                } else {
+                                    SchoolPortalRow(
+                                        school = school,
+                                        unavailableText = stringResource(R.string.school_portal_plugin_unavailable),
+                                        onOpen = {},
+                                    )
+                                }
+                                // Collapsed by default; expanding shows the portal address field.
+                                AppOutlinedButton(
+                                    onClick = { showGeneral = !showGeneral },
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                                ) {
+                                    Text(stringResource(R.string.school_portal_action_open))
+                                    Spacer(Modifier.size(6.dp))
+                                    Icon(
+                                        imageVector = if (showGeneral) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                                if (showGeneral) {
+                                    // General import always uses the fixed address from the school list, never the plugin.
+                                    if (!school.portalUrl.isNullOrBlank()) {
+                                        Button(
+                                            onClick = { onOpenSchoolPortal(school) },
+                                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                                        ) {
+                                            Text(stringResource(R.string.school_portal_action_open))
+                                        }
+                                    } else {
+                                        // No fixed address in the list: the user enters the portal address.
+                                        SchoolUrlFallback(
+                                            hint = stringResource(R.string.school_portal_general_alt_hint),
+                                            onOpen = { url ->
+                                                onOpenSchoolPortal(SchoolPortalEntry(id = school.id, name = school.name, portalUrl = url))
+                                            },
+                                        )
+                                    }
+                                }
                             }
-                        }
-                        item(key = "catalog-header") {
-                            Text(
-                                text = pluralStringResource(
-                                    R.plurals.school_import_catalog_header,
-                                    uiState.marketRepos.size,
-                                    uiState.marketRepos.size,
-                                ),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 8.dp),
-                            )
+                        } else {
+                            SchoolPortalRow(school = school, unavailableText = null, onOpen = { onOpenSchoolPortal(school) })
                         }
                     }
-                    items(matched.ifEmpty { uiState.marketRepos }, key = { it.fullName }) { repo ->
+                }
+                if (query.isNotBlank() && schoolRows.isEmpty()) {
+                    item(key = "school-no-match") {
+                        Box(appItemMotion()) {
+                            SchoolUrlFallback(onOpen = { url ->
+                                onOpenSchoolPortal(SchoolPortalEntry(id = "custom", name = query.trim(), portalUrl = url))
+                            })
+                        }
+                    }
+                }
+
+                // Plugin repositories that no catalog school claims.
+                val marketOnly = matched.filterNot { it.fullName.lowercase() in catalogRepoNames }
+                if (uiState.marketRepos.isEmpty() && uiState.isLoading) {
+                    item(key = "market-busy") { SchoolImportBusy() }
+                } else if (uiState.marketRepos.isEmpty()) {
+                    item(key = "market-empty") {
+                        SchoolImportEmpty(
+                            text = stringResource(R.string.school_import_market_empty),
+                            actionText = stringResource(R.string.school_import_retry),
+                            onAction = { pluginMarketViewModel.loadRegistry() },
+                        )
+                    }
+                } else if (marketOnly.isNotEmpty()) {
+                    item(key = "market-header") {
+                        Text(
+                            text = pluralStringResource(R.plurals.school_import_catalog_header, marketOnly.size, marketOnly.size),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                    items(marketOnly, key = { "repo-${it.fullName}" }) { repo ->
                         Box(appItemMotion()) {
                             val installed = installedByRepo[repo.fullName]
                             SchoolPluginRow(
@@ -258,13 +346,13 @@ fun SchoolImportRoute(
                             )
                         }
                     }
-                    item(key = "browse-all") {
-                        AppOutlinedButton(
-                            onClick = onBrowseAllPlugins,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(stringResource(R.string.school_import_browse_all))
-                        }
+                }
+                item(key = "browse-all") {
+                    AppOutlinedButton(
+                        onClick = onBrowseAllPlugins,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.school_import_browse_all))
                     }
                 }
             }
@@ -340,6 +428,104 @@ private fun SchoolImportSteps() {
     }
 }
 
+/** Shown when no catalogued school matches: the user enters a portal address for general import. */
+@Composable
+private fun SchoolUrlFallback(hint: String? = null, onOpen: (String) -> Unit) {
+    var url by rememberSaveable { mutableStateOf("") }
+    var invalid by rememberSaveable { mutableStateOf(false) }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = hint ?: stringResource(R.string.school_portal_no_match),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            OutlinedTextField(
+                value = url,
+                onValueChange = {
+                    url = it
+                    invalid = false
+                },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                isError = invalid,
+                label = { Text(stringResource(R.string.school_portal_url_label)) },
+                supportingText = if (invalid) {
+                    { Text(stringResource(R.string.school_portal_url_invalid)) }
+                } else {
+                    null
+                },
+            )
+            Button(
+                onClick = {
+                    val trimmed = url.trim()
+                    if (SchoolPortalCatalog.isOpenablePortal(trimmed)) onOpen(trimmed) else invalid = true
+                },
+                enabled = url.isNotBlank(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            ) {
+                Text(stringResource(R.string.school_portal_action_open))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SchoolPortalRow(
+    school: SchoolPortalEntry,
+    unavailableText: String?,
+    onOpen: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.School,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = school.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                )
+                Text(
+                    text = stringResource(
+                        if (school.usesPlugin) R.string.school_portal_badge_plugin else R.string.school_portal_badge_portal,
+                    ),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                unavailableText?.let {
+                    Text(text = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            if (unavailableText == null) {
+                Button(onClick = onOpen, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.school_portal_action_open), maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun SchoolPluginRow(
     repo: GitHubRepoSummary,
@@ -352,6 +538,8 @@ private fun SchoolPluginRow(
     onInstall: () -> Unit,
     onSync: (InstalledPluginRecord) -> Unit,
     onUpgrade: (InstalledPluginRecord, GitHubRepoSummary) -> Unit,
+    /** Button text for the import action when the row comes from the school catalog. */
+    importLabel: String? = null,
 ) {
     val syncing = installed != null &&
         (syncingPluginId == installed.installKey || syncingPluginId == installed.pluginId)
@@ -420,8 +608,17 @@ private fun SchoolPluginRow(
                 installed != null -> Button(
                     onClick = { onSync(installed) },
                     enabled = !busy,
+                    modifier = Modifier.heightIn(min = 48.dp),
                 ) {
-                    Text(stringResource(R.string.school_import_action_sync), maxLines = 1)
+                    Text(importLabel ?: stringResource(R.string.school_import_action_sync), maxLines = 1)
+                }
+
+                importLabel != null -> Button(
+                    onClick = onInstall,
+                    enabled = !busy,
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
+                    Text(importLabel, maxLines = 1)
                 }
 
                 else -> AppOutlinedButton(onClick = onInstall, enabled = !busy) {

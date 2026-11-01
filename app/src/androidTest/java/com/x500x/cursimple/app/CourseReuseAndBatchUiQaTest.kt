@@ -82,7 +82,8 @@ class CourseReuseAndBatchUiQaTest {
         for (tag in listOf("course-teacher-reuse", "course-teacher-weeks")) {
             val node = compose.onNodeWithTag(tag).performScrollTo().fetchSemanticsNode()
             with(compose.density) {
-                assertTrue("$tag 画成了 ${node.size.width.toDp()}", node.size.width.toDp() <= 36.dp)
+                // 36dp is rounded to whole pixels on some densities (e.g. 95px reads as 36.19dp); allow that rounding.
+                assertTrue("$tag 画成了 ${node.size.width.toDp()}", node.size.width.toDp() <= 36.5.dp)
                 assertTrue("$tag 只能点 ${node.touchBoundsInRoot}", node.touchBoundsInRoot.width.toDp() >= 48.dp &&
                     node.touchBoundsInRoot.height.toDp() >= 48.dp)
             }

@@ -39,8 +39,9 @@ enum class DayMood(val lines: Int) {
 
 /**
  * Return null while courses remain. holidayNameRes selects holiday-specific text; unknown
- * tomorrowHoliday omits related cases. Enable timeSensitive only for promptly refreshed app
- * surfaces.
+ * tomorrowHoliday omits related cases. tomorrowHasClasses is what "classes tomorrow" wording needs: a day
+ * that is not a holiday can still have no classes (a weekend), so only a known class day earns those lines.
+ * Enable timeSensitive only for promptly refreshed app surfaces.
  */
 fun dayMood(
     now: LocalDateTime,
@@ -50,19 +51,20 @@ fun dayMood(
     totalCourses: Int,
     hasMoreToday: Boolean,
     timeSensitive: Boolean,
+    tomorrowHasClasses: Boolean? = null,
 ): DayMood? {
     if (hasMoreToday) return null
     val time = now.toLocalTime()
     val dayOfWeek = now.dayOfWeek
     if (timeSensitive && (time >= LATE_NIGHT_START || time < LATE_NIGHT_END)) return DayMood.LateNight
     if (isHoliday) {
-        return if (tomorrowHoliday == false) DayMood.HolidayLastDay else holidayMoodOf(holidayNameRes)
+        return if (tomorrowHasClasses == true) DayMood.HolidayLastDay else holidayMoodOf(holidayNameRes)
     }
     if (totalCourses == 0) {
         return when (dayOfWeek) {
             DayOfWeek.SATURDAY -> DayMood.WeekendFree
             DayOfWeek.SUNDAY ->
-                if (timeSensitive && time >= EVENING_START && tomorrowHoliday == false) DayMood.SundayNight
+                if (timeSensitive && time >= EVENING_START && tomorrowHasClasses == true) DayMood.SundayNight
                 else DayMood.WeekendFree
             else -> DayMood.WeekdayFree
         }

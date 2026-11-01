@@ -1,5 +1,15 @@
 package com.x500x.cursimple.feature.schedule
 
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Alignment
+import com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents
 import com.x500x.cursimple.core.kernel.model.DEFAULT_TERM_WEEK_COUNT
 import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
@@ -84,7 +94,7 @@ fun AddCourseDialog(
     var eventRepeatUntil by rememberSaveable { mutableStateOf<String?>(null) }
     val weekAnchor = remember { eventWeekAnchor(termStartDate, today) }
     var eventPickedWeeks by rememberSaveable { mutableStateOf(emptyList<Int>()) }
-    var eventColorArgb by rememberSaveable { mutableStateOf<Long?>(null) }
+    var eventAppearance by rememberSaveable(stateSaver = ItemAppearanceSaver) { mutableStateOf(ItemAppearance()) }
     var eventSubmitted by remember { mutableStateOf(false) }
 
     val reuse = rememberCourseReuseValues(existingCourses)
@@ -99,34 +109,76 @@ fun AddCourseDialog(
     val eventWeeksMissing = eventRepeat == EventRepeat.Weeks && eventPickedWeeks.isEmpty()
     val canSaveEvent = !eventTitleMissing && !eventTimeInvalid && !eventWeeksMissing
 
+    fun submit() {
+        if (isEventMode) {
+            eventSubmitted = true
+            if (!canSaveEvent) return
+            val event = ScheduleEvent(
+                id = "event-${UUID.randomUUID()}",
+                title = sharedTitle.trim(),
+                date = eventDate.toString(),
+                startTime = eventStart,
+                endTime = eventEnd,
+                location = sharedLocation.trim(),
+                note = eventNote.trim(),
+                colorArgb = eventAppearance.fill,
+                colorEndArgb = eventAppearance.fillEnd,
+                borderArgb = eventAppearance.border,
+            ).withRepeat(eventRepeat, eventRepeatUntil, eventPickedWeeks, weekAnchor)
+            onConfirmEvent?.invoke(event)
+        } else {
+            draft?.let(onConfirm)
+        }
+    }
+
+    // A full page rather than a floating card: the save button stays in the top bar while the form scrolls,
+    // and the whole page lifts above the keyboard.
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 24.dp)
-                .heightIn(max = 640.dp),
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 4.dp,
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    text = stringResource(
-                        if (initial != null) R.string.schedule_edit_course_title
-                        else if (isEventMode) R.string.schedule_event_add_title
-                        else if (scheduleType == ScheduleItemType.Exam) R.string.schedule_add_exam_title
-                        else R.string.schedule_add_course_title,
-                    ),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
+        Surface(modifier = Modifier.fillMaxSize().testTag("add-course-page"), color = MaterialTheme.colorScheme.background) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton(onClick = onDismiss, modifier = Modifier.testTag("add-course-close")) {
+                        androidx.compose.material3.Icon(
+                            androidx.compose.material.icons.Icons.Rounded.Close,
+                            contentDescription = stringResource(R.string.schedule_action_cancel),
+                        )
+                    }
+                    Text(
+                        text = stringResource(
+                            if (initial != null) R.string.schedule_edit_course_title
+                            else if (isEventMode) R.string.schedule_event_add_title
+                            else if (scheduleType == ScheduleItemType.Exam) R.string.schedule_add_exam_title
+                            else R.string.schedule_add_course_title,
+                        ),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Button(
+                        onClick = ::submit,
+                        enabled = if (isEventMode) true else draft != null,
+                        modifier = Modifier.testTag("add-course-save"),
+                    ) { Text(stringResource(R.string.schedule_action_save), maxLines = 1) }
+                }
 
                 if (initial == null && onConfirmEvent != null) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         AppFilterChip(
                             selected = scheduleType == ScheduleItemType.Course,
                             onClick = { scheduleType = ScheduleItemType.Course },
@@ -170,15 +222,16 @@ fun AddCourseDialog(
                         onRepeatUntilChange = { eventRepeatUntil = it },
                         pickedWeeks = eventPickedWeeks,
                         onPickedWeeksChange = { eventPickedWeeks = it },
-                        colorArgb = eventColorArgb,
-                        onColorArgbChange = { eventColorArgb = it },
+                        appearance = eventAppearance,
+                        onAppearanceChange = { eventAppearance = it },
                         submitted = eventSubmitted,
                         weekAnchor = weekAnchor,
                         weekLimit = maxOf(maxWeekCount, eventPickedWeeks.maxOrNull() ?: 0),
                         locationOptions = locationOptions,
                         modifier = Modifier
-                            .weight(1f, fill = false)
-                            .verticalScroll(rememberScrollState()),
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 } else {
                     CourseEditFormFields(
@@ -202,43 +255,13 @@ fun AddCourseDialog(
                             { scheduleType = ScheduleItemType.Event }
                         } else null,
                         modifier = Modifier
-                            .weight(1f, fill = false)
-                            .verticalScroll(rememberScrollState()),
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                         slotTimes = slotTimes,
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            if (isEventMode) {
-                                eventSubmitted = true
-                                if (!canSaveEvent) return@Button
-                                val event = ScheduleEvent(
-                                    id = "event-${UUID.randomUUID()}",
-                                    title = sharedTitle.trim(),
-                                    date = eventDate.toString(),
-                                    startTime = eventStart,
-                                    endTime = eventEnd,
-                                    location = sharedLocation.trim(),
-                                    note = eventNote.trim(),
-                                    colorArgb = eventColorArgb,
-                                ).withRepeat(eventRepeat, eventRepeatUntil, eventPickedWeeks, weekAnchor)
-                                onConfirmEvent?.invoke(event)
-                            } else {
-                                draft?.let(onConfirm)
-                            }
-                        },
-                        enabled = if (isEventMode) true else draft != null,
-                    ) { Text(stringResource(R.string.schedule_action_save)) }
-                }
             }
         }
     }

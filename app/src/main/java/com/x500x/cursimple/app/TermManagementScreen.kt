@@ -1,5 +1,18 @@
 package com.x500x.cursimple.app
 
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.Unarchive
+import androidx.compose.material.icons.rounded.Archive
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.platform.testTag
+import com.x500x.cursimple.feature.schedule.TermStats
+import com.x500x.cursimple.feature.schedule.TermStatsContent
+import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import com.x500x.cursimple.feature.plugin.ui.appItemMotion
@@ -99,8 +112,17 @@ fun TermManagementScreen(
     onDelete: (id: String) -> Unit,
     onMerge: (ids: List<String>, name: String) -> Unit = { _, _ -> },
     onMergeWithAlignment: ((ids: List<String>, name: String, alignment: TermMergeAlignment, anchorTermId: String) -> Unit)? = null,
+    onCopy: (sourceId: String, name: String, startDate: LocalDate?, keepReminders: Boolean) -> Unit = { _, _, _, _ -> },
+    loadStats: (termId: String, onResult: (TermStats?) -> Unit) -> Unit = { _, _ -> },
+    onArchive: (id: String, archived: Boolean) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
+    var copyTarget by remember { mutableStateOf<TermProfile?>(null) }
+    var statsTarget by remember { mutableStateOf<TermProfile?>(null) }
+    var statsResult by remember { mutableStateOf<TermStats?>(null) }
+    var statsLoaded by remember { mutableStateOf(false) }
+    val liveTerms = remember(state.terms) { state.terms.filterNot { it.archived } }
+    val archivedTerms = remember(state.terms) { state.terms.filter { it.archived } }
     var showCreateSheet by rememberSaveable { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<TermProfile?>(null) }
     var pickDateTarget by remember { mutableStateOf<TermProfile?>(null) }
@@ -246,14 +268,14 @@ fun TermManagementScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp),
             ) {
-                if (!selecting && state.terms.size > 1) {
+                if (!selecting && liveTerms.size > 1) {
                     item(key = "term_merge_hero") {
                         TermMergeHeroCard(
                             onStartMerge = { selecting = true },
                         )
                     }
                 }
-                items(state.terms, key = { it.id }) { term ->
+                items(liveTerms, key = { it.id }) { term ->
                     Box(appItemMotion()) {
                         val termDate = term.termStartDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
                         val shiftWeeks = if (minSelectedDate != null && termDate != null) {
@@ -276,11 +298,74 @@ fun TermManagementScreen(
                             onPickDate = { pickDateTarget = term },
                             onDelete = { deleteTarget = term },
                             canDelete = state.terms.size > 1,
+                            onCopy = { copyTarget = term },
+                            onStats = { statsTarget = term },
+                            onArchive = { onArchive(term.id, true) },
+                            canArchive = term.id != state.activeTermId,
                         )
+                    }
+                }
+                if (!selecting && archivedTerms.isNotEmpty()) {
+                    item(key = "archived_header") {
+                        Text(
+                            text = stringResource(R.string.term_archived_title),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp, start = 4.dp),
+                        )
+                    }
+                    items(archivedTerms, key = { "archived-${it.id}" }) { term ->
+                        Box(appItemMotion()) {
+                            TermRow(
+                                term = term,
+                                active = false,
+                                selecting = false,
+                                selected = false,
+                                shiftWeeks = 0,
+                                onToggle = {},
+                                onActivate = {},
+                                onRename = {},
+                                onPickDate = {},
+                                onDelete = { deleteTarget = term },
+                                canDelete = state.terms.size > 1,
+                                archived = true,
+                                onStats = { statsTarget = term },
+                                onArchive = { onArchive(term.id, false) },
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+
+    copyTarget?.let { source ->
+        CopyTermDialog(
+            source = source,
+            onDismiss = { copyTarget = null },
+            onConfirm = { name, date, keep ->
+                onCopy(source.id, name, date, keep)
+                copyTarget = null
+            },
+        )
+    }
+
+    statsTarget?.let { term ->
+        LaunchedEffect(term.id) {
+            statsLoaded = false
+            statsResult = null
+            loadStats(term.id) { stats ->
+                statsResult = stats
+                statsLoaded = true
+            }
+        }
+        TermStatsDialog(
+            termName = term.name,
+            loaded = statsLoaded,
+            stats = statsResult,
+            onDismiss = { statsTarget = null },
+        )
     }
 
     if (showCreateSheet) {
@@ -425,6 +510,7 @@ private fun TermMergeHeroCard(
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun TermRow(
     term: TermProfile,
@@ -438,6 +524,11 @@ private fun TermRow(
     onRename: () -> Unit,
     onPickDate: () -> Unit,
     onDelete: () -> Unit,
+    archived: Boolean = false,
+    onCopy: () -> Unit = {},
+    onStats: () -> Unit = {},
+    onArchive: () -> Unit = {},
+    canArchive: Boolean = false,
 ) {
     val isHighlighted = if (selecting) selected else active
     val containerColor by animateColorAsState(
@@ -547,9 +638,19 @@ private fun TermRow(
             }
             if (!selecting) {
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ActionChip(label = stringResource(R.string.term_action_rename), icon = Icons.Rounded.Edit, onClick = onRename)
-                    ActionChip(label = stringResource(R.string.term_action_date), icon = Icons.Rounded.CalendarMonth, onClick = onPickDate)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (archived) {
+                        ActionChip(label = stringResource(R.string.term_action_stats), icon = Icons.Rounded.BarChart, onClick = onStats)
+                        ActionChip(label = stringResource(R.string.term_action_unarchive), icon = Icons.Rounded.Unarchive, onClick = onArchive)
+                    } else {
+                        ActionChip(label = stringResource(R.string.term_action_rename), icon = Icons.Rounded.Edit, onClick = onRename)
+                        ActionChip(label = stringResource(R.string.term_action_date), icon = Icons.Rounded.CalendarMonth, onClick = onPickDate)
+                        ActionChip(label = stringResource(R.string.term_action_copy), icon = Icons.Rounded.ContentCopy, onClick = onCopy)
+                        ActionChip(label = stringResource(R.string.term_action_stats), icon = Icons.Rounded.BarChart, onClick = onStats)
+                        if (canArchive) {
+                            ActionChip(label = stringResource(R.string.term_action_archive), icon = Icons.Rounded.Archive, onClick = onArchive)
+                        }
+                    }
                     if (canDelete) {
                         ActionChip(
                             label = stringResource(R.string.term_action_delete),
@@ -1188,4 +1289,117 @@ private fun TermDatePickerDialog(
             CalendarMonthPicker(selected = selectedDate, onSelect = { selectedDate = it })
         },
     )
+}
+
+/** Copy a term: a name, an optional start date for the new term, and whether reminder times come along. */
+@Composable
+private fun CopyTermDialog(
+    source: TermProfile,
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, startDate: LocalDate?, keepReminders: Boolean) -> Unit,
+) {
+    val defaultName = stringResource(R.string.term_copy_default_name, source.name)
+    var name by rememberSaveable(source.id) { mutableStateOf(defaultName) }
+    var startDate by remember(source.id) { mutableStateOf<LocalDate?>(null) }
+    var keepReminders by rememberSaveable(source.id) { mutableStateOf(false) }
+    var pickingDate by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(28.dp),
+        title = { Text(stringResource(R.string.term_copy_title, source.name)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = stringResource(R.string.term_copy_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.term_copy_name_label)) },
+                    modifier = Modifier.fillMaxWidth().testTag("term-copy-name"),
+                )
+                AppOutlinedButton(onClick = { pickingDate = true }, modifier = Modifier.testTag("term-copy-date")) {
+                    Text(
+                        startDate?.let { stringResource(R.string.term_copy_date_set, it.toString()) }
+                            ?: stringResource(R.string.term_copy_date_later),
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = keepReminders,
+                        onCheckedChange = { keepReminders = it },
+                        modifier = Modifier.testTag("term-copy-reminders"),
+                    )
+                    Text(stringResource(R.string.term_copy_keep_reminders), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(name.trim().ifBlank { source.name }, startDate, keepReminders) },
+                enabled = true,
+                modifier = Modifier.testTag("term-copy-confirm"),
+            ) { Text(stringResource(R.string.term_copy_confirm)) }
+        },
+        dismissButton = {
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(com.x500x.cursimple.feature.schedule.R.string.schedule_action_cancel)) }
+        },
+    )
+    if (pickingDate) {
+        TermDatePickerDialog(
+            initial = startDate ?: LocalDate.now(),
+            onDismiss = { pickingDate = false },
+            onConfirm = { startDate = it; pickingDate = false },
+        )
+    }
+}
+
+/** Statistics of one term, full screen with a close button. The numbers come from the same scheduling rules as the timetable. */
+@Composable
+private fun TermStatsDialog(
+    termName: String,
+    loaded: Boolean,
+    stats: TermStats?,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        Surface(modifier = Modifier.fillMaxSize().testTag("term-stats-dialog"), color = MaterialTheme.colorScheme.background) {
+            Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    AppCircleIconButton(onClick = onDismiss) {
+                        Icon(Icons.Rounded.Close, contentDescription = stringResource(com.x500x.cursimple.feature.schedule.R.string.schedule_action_close))
+                    }
+                    Text(
+                        text = stringResource(R.string.term_stats_title, termName),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (!loaded) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        androidx.compose.material3.CircularProgressIndicator()
+                    }
+                } else {
+                    val fallback = stringResource(com.x500x.cursimple.feature.schedule.R.string.stats_no_term)
+                    if (stats == null) {
+                        Text(fallback, modifier = Modifier.padding(16.dp).testTag("term-stats-empty"))
+                    } else {
+                        TermStatsContent(stats, modifier = Modifier.fillMaxSize())
+                    }
+                }
+            }
+        }
+    }
 }

@@ -9,6 +9,7 @@ import android.util.Base64
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import com.x500x.cursimple.core.plugin.logging.PluginLogger
+import com.x500x.cursimple.core.plugin.school.SchoolPortalCatalog
 import java.security.KeyStore
 import java.util.Locale
 import javax.crypto.Cipher
@@ -20,7 +21,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
- * Remember credentials per plugin and host with Keystore encryption, excluded from backups.
+ * Remember credentials per owner and exact host with Keystore encryption, excluded from backups.
  * Autofill requires user submission and preserves interactive challenges.
  */
 internal data class WebLoginCredential(
@@ -29,27 +30,57 @@ internal data class WebLoginCredential(
     val password: String,
 )
 
-internal class WebLoginCredentialStore(context: Context) {
+internal class WebLoginCredentialStore(
+    context: Context,
+    private val policy: WebLoginCredentialPolicy = WebLoginCredentialPolicy(
+        runCatching { SchoolPortalCatalog.load(context.applicationContext) }.getOrDefault(emptyList()),
+    ),
+) {
 
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun find(pluginId: String, host: String): WebLoginCredential? {
-        val raw = prefs.getString(entryKey(pluginId, host), null) ?: return null
+        val owners = policy.owners(pluginId, host)
+        for (owner in owners) {
+            val stored = read(owner, host) ?: continue
+            if (owner != owners.first() || !stored.encryptedUsername) {
+                // Re-encrypt legacy entries, including their formerly plaintext account name.
+                save(pluginId, stored.credential)
+            }
+            return stored.credential
+        }
+        return null
+    }
+
+    private data class ReadCredential(val credential: WebLoginCredential, val encryptedUsername: Boolean)
+
+    private fun read(owner: String, host: String): ReadCredential? {
+        val raw = prefs.getString(entryKey(owner, host), null) ?: return null
         val entry = runCatching { json.decodeFromString<StoredEntry>(raw) }.getOrNull() ?: return null
-        val password = runCatching { decrypt(entry.password) }
+        return runCatching {
+            ReadCredential(
+                WebLoginCredential(
+                    host = normalizeHost(host),
+                    username = entry.encryptedUsername?.let(::decrypt) ?: entry.username,
+                    password = decrypt(entry.password),
+                ),
+                encryptedUsername = entry.encryptedUsername != null,
+            )
+        }
             .onFailure { error ->
                 PluginLogger.warn(
                     "plugin.web_login.decrypt_failed",
                     mapOf("error" to (error.message ?: error.javaClass.simpleName)),
                 )
             }
-            .getOrNull() ?: return null
-        return WebLoginCredential(host = normalizeHost(host), username = entry.username, password = password)
+            .getOrNull()
     }
 
     fun save(pluginId: String, credential: WebLoginCredential): Boolean {
-        val encrypted = runCatching { encrypt(credential.password) }
+        val entry = runCatching {
+            StoredEntry(password = encrypt(credential.password), encryptedUsername = encrypt(credential.username))
+        }
             .onFailure { error ->
                 PluginLogger.error(
                     "plugin.web_login.encrypt_failed",
@@ -57,35 +88,41 @@ internal class WebLoginCredentialStore(context: Context) {
                 )
             }
             .getOrNull() ?: return false
-        val entry = StoredEntry(username = credential.username, password = encrypted)
-        prefs.edit()
-            .putString(entryKey(pluginId, credential.host), json.encodeToString(StoredEntry.serializer(), entry))
-            .remove(neverKey(pluginId, credential.host))
-            .apply()
+        val owners = policy.owners(pluginId, credential.host)
+        val editor = prefs.edit()
+            .putString(entryKey(owners.first(), credential.host), json.encodeToString(StoredEntry.serializer(), entry))
+        owners.forEach { editor.remove(neverKey(it, credential.host)) }
+        owners.drop(1).forEach { editor.remove(entryKey(it, credential.host)) }
+        editor.apply()
         return true
     }
 
     fun isNeverSave(pluginId: String, host: String): Boolean =
-        prefs.getBoolean(neverKey(pluginId, host), false)
+        policy.owners(pluginId, host).any { prefs.getBoolean(neverKey(it, host), false) }
 
     fun setNeverSave(pluginId: String, host: String) {
-        prefs.edit().putBoolean(neverKey(pluginId, host), true).apply()
+        prefs.edit().putBoolean(neverKey(policy.owners(pluginId, host).first(), host), true).apply()
     }
 
     fun hasAny(pluginId: String): Boolean {
-        val entryPrefix = "$ENTRY_PREFIX${pluginId}|"
-        val neverPrefix = "$NEVER_PREFIX${pluginId}|"
-        return prefs.all.keys.any { it.startsWith(entryPrefix) || it.startsWith(neverPrefix) }
+        return keysFor(pluginId, setOf(ENTRY_PREFIX, NEVER_PREFIX)).isNotEmpty()
     }
 
+    fun hasSavedCredentials(pluginId: String): Boolean =
+        keysFor(pluginId, setOf(ENTRY_PREFIX)).any { key ->
+            find(pluginId, key.substringAfterLast('|')) != null
+        }
+
     fun clear(pluginId: String) {
-        val entryPrefix = "$ENTRY_PREFIX${pluginId}|"
-        val neverPrefix = "$NEVER_PREFIX${pluginId}|"
         val editor = prefs.edit()
-        prefs.all.keys
-            .filter { it.startsWith(entryPrefix) || it.startsWith(neverPrefix) }
-            .forEach(editor::remove)
+        keysFor(pluginId, setOf(ENTRY_PREFIX, NEVER_PREFIX, ACCOUNT_PREFIX)).forEach(editor::remove)
         editor.apply()
+    }
+
+    private fun keysFor(pluginId: String, prefixes: Set<String>): List<String> = prefs.all.keys.filter { key ->
+        val prefix = prefixes.firstOrNull(key::startsWith) ?: return@filter false
+        val parts = key.removePrefix(prefix).split('|', limit = 2)
+        parts.size == 2 && policy.owns(pluginId, parts[0], parts[1])
     }
 
     /**
@@ -93,17 +130,20 @@ internal class WebLoginCredentialStore(context: Context) {
      * one. Only a hash is kept, so the marker works even when the user declines saving passwords.
      */
     fun rememberAccount(pluginId: String, host: String, username: String): Boolean {
-        val key = accountKey(pluginId, host)
+        val owners = policy.owners(pluginId, host)
+        val key = accountKey(owners.first(), host)
         val marker = accountMarker(username)
-        val previous = prefs.getString(key, null) ?: find(pluginId, host)?.username?.let(::accountMarker)
-        if (previous != marker) prefs.edit().putString(key, marker).apply()
+        val previous = owners.firstNotNullOfOrNull { prefs.getString(accountKey(it, host), null) }
+            ?: find(pluginId, host)?.username?.let(::accountMarker)
+        val editor = prefs.edit().putString(key, marker)
+        owners.drop(1).forEach { editor.remove(accountKey(it, host)) }
+        editor.apply()
         return previous != marker
     }
 
     fun forgetAccounts(pluginId: String) {
-        val prefix = "$ACCOUNT_PREFIX${pluginId}|"
         val editor = prefs.edit()
-        prefs.all.keys.filter { it.startsWith(prefix) }.forEach(editor::remove)
+        keysFor(pluginId, setOf(ACCOUNT_PREFIX)).forEach(editor::remove)
         editor.apply()
     }
 
@@ -148,7 +188,11 @@ internal class WebLoginCredentialStore(context: Context) {
     }
 
     @Serializable
-    private data class StoredEntry(val username: String, val password: String)
+    private data class StoredEntry(
+        val username: String = "",
+        val password: String,
+        val encryptedUsername: String? = null,
+    )
 
     companion object {
         /** Keep storage names aligned with app backup exclusion rules. */
@@ -182,7 +226,7 @@ internal class WebLoginAssist(
 
     fun onPageFinished(webView: WebView, url: String?) {
         val host = hostOf(url) ?: return
-        if (!isAllowedHost(url.orEmpty(), allowedHosts)) return
+        if (!isLoginPageAllowed(url)) return
         val saved = if (suppressAutofill) null else store.find(pluginId, host)
         webView.evaluateJavascript(webLoginAssistScript(host, saved), null)
     }
@@ -196,7 +240,7 @@ internal class WebLoginAssist(
             if (reportedHost.isBlank() || user.isBlank() || user.length > MAX_FIELD_CHARS) return
             webView.post {
                 val currentHost = hostOf(webView.url) ?: return@post
-                if (currentHost != reportedHost || !isAllowedHost(webView.url.orEmpty(), allowedHosts)) return@post
+                if (currentHost != reportedHost || !isLoginPageAllowed(webView.url)) return@post
                 if (store.rememberAccount(pluginId, currentHost, user)) onAccountChanged(currentHost)
             }
         }
@@ -210,7 +254,7 @@ internal class WebLoginAssist(
             webView.post {
                 val currentHost = hostOf(webView.url) ?: return@post
                 if (currentHost != reportedHost) return@post
-                if (!isAllowedHost(webView.url.orEmpty(), allowedHosts)) return@post
+                if (!isLoginPageAllowed(webView.url)) return@post
                 if (store.rememberAccount(pluginId, currentHost, user)) onAccountChanged(currentHost)
                 if (store.isNeverSave(pluginId, currentHost)) return@post
                 val saved = store.find(pluginId, currentHost)
@@ -219,6 +263,10 @@ internal class WebLoginAssist(
             }
         }
     }
+
+    private fun isLoginPageAllowed(url: String?): Boolean =
+        runCatching { Uri.parse(url.orEmpty()).scheme.equals("https", true) }.getOrDefault(false) &&
+            isAllowedHost(url.orEmpty(), allowedHosts)
 
     companion object {
         const val BRIDGE_NAME = "CurSimpleLoginBridge"

@@ -39,6 +39,7 @@ class SystemCalendarPlanTest {
         assertEquals(1, drafts.size)
         assertNull(drafts.single().rrule)
         assertEquals(100L, drafts.single().durationMinutes)
+        assertEquals("cursimple:course:c1:regular", drafts.single().uid)
     }
 
     @Test

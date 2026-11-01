@@ -369,6 +369,20 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_SCHEDULE_GRID_BORDER_DASHED] = enabled }
     }
 
+    override suspend fun setCoursePaletteStyle(style: CoursePaletteStyle) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_COURSE_PALETTE_STYLE] = style.name }
+    }
+
+    override suspend fun setCustomCourseColor(courseKey: String, colorArgb: Long?) {
+        store.edit { prefs ->
+            prefs.updateCustomCourseColor(courseKey, colorArgb)
+        }
+    }
+
+    override suspend fun clearCustomCourseColors() {
+        store.edit { prefs -> prefs.remove(KEY_SCHEDULE_CUSTOM_COURSE_COLORS) }
+    }
+
     override suspend fun setScheduleBackgroundColorArgb(argb: Long) {
         var previousImageUri: String? = null
         store.edit { prefs ->
@@ -783,6 +797,36 @@ class DataStoreUserPreferencesRepository(
         }
     }
 
+    override suspend fun setTimelineIndicatorEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_TIMELINE_INDICATOR_ENABLED] = enabled }
+    }
+
+    override suspend fun setGridDashedLinesEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_GRID_DASHED_LINES_ENABLED] = enabled }
+    }
+
+    override suspend fun setTimeColumnWidthDp(widthDp: Int) {
+        store.edit { prefs ->
+            if (widthDp <= 0) {
+                prefs.remove(KEY_SCHEDULE_DISPLAY_TIME_COLUMN_WIDTH_DP)
+            } else {
+                prefs[KEY_SCHEDULE_DISPLAY_TIME_COLUMN_WIDTH_DP] = widthDp.coerceIn(MIN_TIME_COLUMN_WIDTH_DP, MAX_TIME_COLUMN_WIDTH_DP)
+            }
+        }
+    }
+
+    override suspend fun setEveningBriefingEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_CLASS_NOTICE_EVENING_BRIEFING_ENABLED] = enabled }
+    }
+
+    override suspend fun setTransitReminderEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_CLASS_NOTICE_TRANSIT_REMINDER_ENABLED] = enabled }
+    }
+
+    override suspend fun setExamAlertEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_CLASS_NOTICE_EXAM_ALERT_ENABLED] = enabled }
+    }
+
     override suspend fun resetScheduleAppearanceAndDisplay() {
         var previousImageUri: String? = null
         store.edit { prefs ->
@@ -798,48 +842,7 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs ->
             previousImageUri = prefs[KEY_SCHEDULE_BACKGROUND_IMAGE_URI]
             previousAlarmRingtoneUri = prefs[KEY_ALARM_RINGTONE_URI]
-            prefs.remove(KEY_THEME_MODE)
-            prefs.remove(KEY_THEME_ACCENT)
-            prefs.remove(KEY_THEME_CUSTOM_COLOR)
-            prefs.remove(KEY_APP_LANGUAGE)
-            prefs.remove(KEY_ADVANCED_TOOLS)
-            prefs.remove(KEY_DEBUG_FORCED_DATE_EPOCH_DAY)
-            prefs.remove(KEY_DEBUG_FORCED_DATETIME)
-            prefs.remove(KEY_ALARM_BACKEND)
-            prefs.remove(KEY_ALARM_RINGTONE_URI)
-            prefs.remove(KEY_ALARM_ALERT_MODE)
-            prefs.remove(KEY_ALARM_RING_DURATION_SECONDS)
-            prefs.remove(KEY_ALARM_REPEAT_INTERVAL_SECONDS)
-            prefs.remove(KEY_ALARM_REPEAT_COUNT)
-            prefs.remove(KEY_LAST_ALARM_POLL_AT_MILLIS)
-            prefs.remove(KEY_AUTO_SILENCE_ENABLED)
-            prefs.remove(KEY_AUTO_SILENCE_MODE)
-            prefs.remove(KEY_AUTO_UPDATE_ENABLED)
-            prefs.remove(KEY_IGNORED_UPDATE_VERSION_CODE)
-            prefs.remove(KEY_UPDATE_NOTICE_VERSION_CODE)
-            prefs.remove(KEY_UPDATE_NOTICE_VERSION_NAME)
-            prefs.remove(KEY_MUTED_UPDATE_VERSION_CODE)
-            prefs.remove(KEY_PLUGIN_REGISTRY_REPO)
-            prefs.remove(KEY_PLUGIN_SOURCES)
-            prefs.remove(KEY_COMPONENT_SOURCES)
-            prefs.remove(KEY_DRAWER_LAYOUT)
-            prefs.remove(KEY_APP_LAYOUT)
-            prefs.remove(KEY_BOTTOM_BAR_SIZE)
-            prefs.remove(LEGACY_KEY_PLUGIN_MARKET_INDEX_URL)
-            prefs.remove(KEY_PLUGIN_MARKET_CACHE_JSON)
-            prefs.remove(KEY_PLUGIN_MARKET_CACHED_AT_MILLIS)
-            prefs.remove(KEY_PLUGIN_MARKET_CACHED_REGISTRY)
-            prefs.remove(KEY_COMPONENT_MARKET_INDEX_URL)
-            prefs.remove(KEY_PRIVATE_FILES_PROVIDER_ENABLED)
-            prefs.remove(KEY_WEBDAV_URL)
-            prefs.remove(KEY_WEBDAV_USERNAME)
-            prefs.remove(KEY_WEBDAV_PASSWORD)
-            prefs.remove(KEY_AI_IMPORT_API_URL)
-            prefs.remove(KEY_AI_IMPORT_API_KEY)
-            prefs.remove(KEY_AI_IMPORT_MODEL)
-            prefs.remove(KEY_AI_IMPORT_TIMEOUT_SECONDS)
-            prefs.remove(KEY_HOLIDAY_CALENDAR_BUILT_IN_ENABLED)
-            prefs.removeScheduleAppearanceAndDisplay()
+            prefs.removeAllSettings()
         }
         releasePersistedReadPermission(previousImageUri)
         releasePersistedReadPermission(previousAlarmRingtoneUri)
@@ -1062,6 +1065,10 @@ class DataStoreUserPreferencesRepository(
                 this[KEY_SCHEDULE_GRID_BORDER_WIDTH_DP] ?: ScheduleCardStylePreferences.DEFAULT_GRID_BORDER_WIDTH_DP,
             ),
             gridBorderDashed = this[KEY_SCHEDULE_GRID_BORDER_DASHED] ?: false,
+            coursePaletteStyle = this[KEY_SCHEDULE_COURSE_PALETTE_STYLE]?.let {
+                runCatching { CoursePaletteStyle.valueOf(it) }.getOrNull()
+            } ?: CoursePaletteStyle.Default,
+            customCourseColors = decodeCustomCourseColors(this[KEY_SCHEDULE_CUSTOM_COURSE_COLORS]),
         )
     }
 
@@ -1102,6 +1109,10 @@ class DataStoreUserPreferencesRepository(
             locationAtPrefix = this[KEY_SCHEDULE_DISPLAY_LOCATION_AT_PREFIX] ?: true,
             teacherVisible = this[KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE] ?: true,
             totalScheduleDisplayEnabled = this[KEY_SCHEDULE_DISPLAY_TOTAL_SCHEDULE_DISPLAY_ENABLED] ?: true,
+            timelineIndicatorEnabled = this[KEY_SCHEDULE_DISPLAY_TIMELINE_INDICATOR_ENABLED] ?: false,
+            gridDashedLinesEnabled = this[KEY_SCHEDULE_DISPLAY_GRID_DASHED_LINES_ENABLED] ?: false,
+            timeColumnWidthDp = (this[KEY_SCHEDULE_DISPLAY_TIME_COLUMN_WIDTH_DP] ?: 0)
+                .let { if (it <= 0) 0 else it.coerceIn(MIN_TIME_COLUMN_WIDTH_DP, MAX_TIME_COLUMN_WIDTH_DP) },
         )
     }
 
@@ -1128,6 +1139,12 @@ class DataStoreUserPreferencesRepository(
             bannerDurationSeconds = ClassNoticePreferences.coerceBannerDurationSeconds(
                 this[KEY_CLASS_NOTICE_BANNER_DURATION] ?: ClassNoticePreferences.DEFAULT_BANNER_DURATION_SECONDS,
             ),
+            eveningBriefingEnabled = this[KEY_CLASS_NOTICE_EVENING_BRIEFING_ENABLED] ?: false,
+            eveningBriefingHour = this[KEY_CLASS_NOTICE_EVENING_BRIEFING_HOUR] ?: 21,
+            eveningBriefingMinute = this[KEY_CLASS_NOTICE_EVENING_BRIEFING_MINUTE] ?: 30,
+            transitReminderEnabled = this[KEY_CLASS_NOTICE_TRANSIT_REMINDER_ENABLED] ?: false,
+            examAlertEnabled = this[KEY_CLASS_NOTICE_EXAM_ALERT_ENABLED] ?: false,
+            examAlertAdvanceMinutes = this[KEY_CLASS_NOTICE_EXAM_ALERT_ADVANCE_MINUTES] ?: 45,
         )
 
     private fun Preferences.toAutoSilencePreferences(): AutoSilencePreferences = AutoSilencePreferences(
@@ -1155,49 +1172,6 @@ class DataStoreUserPreferencesRepository(
         suppressedUntilMillis = this[KEY_AUTO_SILENCE_SESSION_SUPPRESSED_UNTIL_MILLIS] ?: 0L,
     )
 
-    private fun MutablePreferences.removeScheduleAppearanceAndDisplay() {
-        remove(KEY_SCHEDULE_COURSE_TEXT_SIZE_SP)
-        remove(KEY_SCHEDULE_COURSE_TEXT_COLOR_ARGB)
-        remove(KEY_SCHEDULE_EXAM_TEXT_SIZE_SP)
-        remove(KEY_SCHEDULE_EXAM_TEXT_COLOR_ARGB)
-        remove(KEY_SCHEDULE_HEADER_TEXT_SIZE_SP)
-        remove(KEY_SCHEDULE_HEADER_TEXT_COLOR_ARGB)
-        remove(KEY_SCHEDULE_TODAY_HEADER_BACKGROUND_COLOR_ARGB)
-        remove(KEY_SCHEDULE_TEXT_HORIZONTAL_CENTER)
-        remove(KEY_SCHEDULE_TEXT_VERTICAL_CENTER)
-        remove(KEY_SCHEDULE_AUTO_SHRINK_LONG_TITLES)
-        remove(KEY_SCHEDULE_TRUNCATION_ELLIPSIS)
-        remove(KEY_SCHEDULE_TEXT_FULL_CENTER)
-        remove(KEY_SCHEDULE_COURSE_CORNER_RADIUS_DP)
-        remove(KEY_SCHEDULE_COURSE_CARD_HEIGHT_DP)
-        remove(KEY_SCHEDULE_OPACITY_PERCENT)
-        remove(KEY_SCHEDULE_INACTIVE_COURSE_OPACITY_PERCENT)
-        remove(KEY_SCHEDULE_GRID_BORDER_COLOR_ARGB)
-        remove(KEY_SCHEDULE_GRID_BORDER_OPACITY_PERCENT)
-        remove(KEY_SCHEDULE_GRID_BORDER_WIDTH_DP)
-        remove(KEY_SCHEDULE_GRID_BORDER_DASHED)
-        remove(KEY_SCHEDULE_BACKGROUND_TYPE)
-        remove(KEY_SCHEDULE_BACKGROUND_COLOR_ARGB)
-        remove(KEY_SCHEDULE_BACKGROUND_IMAGE_URI)
-        remove(KEY_SCHEDULE_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT)
-        remove(KEY_SCHEDULE_CUSTOM_COLORS_ADAPT_TO_THEME)
-        remove(KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED)
-        remove(KEY_TODAY_OVERVIEW_ENABLED)
-        remove(KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE)
-        remove(KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE)
-        remove(KEY_SCHEDULE_DISPLAY_ROW_FIT_MODE)
-        remove(KEY_SCHEDULE_DISPLAY_WEEK_START_DAY)
-        remove(KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED)
-        remove(KEY_COURSE_SESSION_COUNT_INCLUDE_HOLIDAYS)
-        remove(KEY_PLUGIN_TIMETABLE_ROWS)
-        remove(KEY_SCHEDULE_DISPLAY_PINCH_ZOOM_ENABLED)
-        remove(KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE)
-        remove(KEY_SCHEDULE_DISPLAY_LOCATION_AT_PREFIX)
-        remove(KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED)
-        remove(KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE)
-        remove(KEY_SCHEDULE_DISPLAY_TOTAL_SCHEDULE_DISPLAY_ENABLED)
-    }
-
     private fun releasePersistedReadPermission(uriString: String?) {
         if (uriString.isNullOrBlank()) return
         runCatching {
@@ -1223,7 +1197,7 @@ class DataStoreUserPreferencesRepository(
             .apply()
     }
 
-    private companion object {
+    internal companion object {
         val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         val KEY_THEME_ACCENT = stringPreferencesKey("theme_accent")
         val KEY_THEME_CUSTOM_COLOR = intPreferencesKey("theme_custom_color")
@@ -1267,6 +1241,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_GRID_BORDER_OPACITY_PERCENT = intPreferencesKey("schedule_grid_border_opacity_percent")
         val KEY_SCHEDULE_GRID_BORDER_WIDTH_DP = floatPreferencesKey("schedule_grid_border_width_dp")
         val KEY_SCHEDULE_GRID_BORDER_DASHED = booleanPreferencesKey("schedule_grid_border_dashed")
+        val KEY_SCHEDULE_COURSE_PALETTE_STYLE = stringPreferencesKey("schedule_course_palette_style")
+        val KEY_SCHEDULE_CUSTOM_COURSE_COLORS = stringPreferencesKey("schedule_custom_course_colors")
         val KEY_SCHEDULE_BACKGROUND_TYPE = stringPreferencesKey("schedule_background_type")
         val KEY_SCHEDULE_BACKGROUND_COLOR_ARGB = longPreferencesKey("schedule_background_color_argb")
         val KEY_SCHEDULE_BACKGROUND_IMAGE_URI = stringPreferencesKey("schedule_background_image_uri")
@@ -1369,6 +1345,15 @@ class DataStoreUserPreferencesRepository(
         val KEY_AI_IMPORT_API_KEY = stringPreferencesKey(AI_IMPORT_API_KEY_PREFERENCE_KEY)
         val KEY_AI_IMPORT_MODEL = stringPreferencesKey("ai_import_model")
         val KEY_AI_IMPORT_TIMEOUT_SECONDS = intPreferencesKey("ai_import_timeout_seconds")
+        val KEY_SCHEDULE_DISPLAY_TIMELINE_INDICATOR_ENABLED = booleanPreferencesKey("schedule_display_timeline_indicator_enabled")
+        val KEY_SCHEDULE_DISPLAY_GRID_DASHED_LINES_ENABLED = booleanPreferencesKey("schedule_display_grid_dashed_lines_enabled")
+        val KEY_SCHEDULE_DISPLAY_TIME_COLUMN_WIDTH_DP = intPreferencesKey("schedule_display_time_column_width_dp")
+        val KEY_CLASS_NOTICE_EVENING_BRIEFING_ENABLED = booleanPreferencesKey("class_notice_evening_briefing_enabled")
+        val KEY_CLASS_NOTICE_EVENING_BRIEFING_HOUR = intPreferencesKey("class_notice_evening_briefing_hour")
+        val KEY_CLASS_NOTICE_EVENING_BRIEFING_MINUTE = intPreferencesKey("class_notice_evening_briefing_minute")
+        val KEY_CLASS_NOTICE_TRANSIT_REMINDER_ENABLED = booleanPreferencesKey("class_notice_transit_reminder_enabled")
+        val KEY_CLASS_NOTICE_EXAM_ALERT_ENABLED = booleanPreferencesKey("class_notice_exam_alert_enabled")
+        val KEY_CLASS_NOTICE_EXAM_ALERT_ADVANCE_MINUTES = intPreferencesKey("class_notice_exam_alert_advance_minutes")
 
         const val DEFAULT_RING_DURATION_SECONDS = DEFAULT_APP_ALARM_RING_DURATION_SECONDS
         const val DEFAULT_REPEAT_INTERVAL_SECONDS = DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
@@ -1380,5 +1365,131 @@ class DataStoreUserPreferencesRepository(
         const val MIN_REPEAT_COUNT = 1
         const val MAX_REPEAT_COUNT = 10
         const val PRIVATE_FILES_PROVIDER_PREFS = "private_files_provider"
+
+        internal fun MutablePreferences.removeAllSettings() {
+            remove(KEY_THEME_MODE)
+            remove(KEY_THEME_ACCENT)
+            remove(KEY_THEME_CUSTOM_COLOR)
+            remove(KEY_APP_LANGUAGE)
+            remove(KEY_ADVANCED_TOOLS)
+            remove(KEY_DEBUG_FORCED_DATE_EPOCH_DAY)
+            remove(KEY_DEBUG_FORCED_DATETIME)
+            remove(KEY_ALARM_BACKEND)
+            remove(KEY_ALARM_RINGTONE_URI)
+            remove(KEY_ALARM_ALERT_MODE)
+            remove(KEY_ALARM_RING_DURATION_SECONDS)
+            remove(KEY_ALARM_REPEAT_INTERVAL_SECONDS)
+            remove(KEY_ALARM_REPEAT_COUNT)
+            remove(KEY_LAST_ALARM_POLL_AT_MILLIS)
+            remove(KEY_AUTO_SILENCE_ENABLED)
+            remove(KEY_AUTO_SILENCE_MODE)
+            remove(KEY_CLASS_NOTICE_EVENING_BRIEFING_ENABLED)
+            remove(KEY_CLASS_NOTICE_EVENING_BRIEFING_HOUR)
+            remove(KEY_CLASS_NOTICE_EVENING_BRIEFING_MINUTE)
+            remove(KEY_CLASS_NOTICE_TRANSIT_REMINDER_ENABLED)
+            remove(KEY_CLASS_NOTICE_EXAM_ALERT_ENABLED)
+            remove(KEY_CLASS_NOTICE_EXAM_ALERT_ADVANCE_MINUTES)
+            remove(KEY_AUTO_UPDATE_ENABLED)
+            remove(KEY_IGNORED_UPDATE_VERSION_CODE)
+            remove(KEY_UPDATE_NOTICE_VERSION_CODE)
+            remove(KEY_UPDATE_NOTICE_VERSION_NAME)
+            remove(KEY_MUTED_UPDATE_VERSION_CODE)
+            remove(KEY_PLUGIN_REGISTRY_REPO)
+            remove(KEY_PLUGIN_SOURCES)
+            remove(KEY_COMPONENT_SOURCES)
+            remove(KEY_DRAWER_LAYOUT)
+            remove(KEY_APP_LAYOUT)
+            remove(KEY_BOTTOM_BAR_SIZE)
+            remove(LEGACY_KEY_PLUGIN_MARKET_INDEX_URL)
+            remove(KEY_PLUGIN_MARKET_CACHE_JSON)
+            remove(KEY_PLUGIN_MARKET_CACHED_AT_MILLIS)
+            remove(KEY_PLUGIN_MARKET_CACHED_REGISTRY)
+            remove(KEY_COMPONENT_MARKET_INDEX_URL)
+            remove(KEY_PRIVATE_FILES_PROVIDER_ENABLED)
+            remove(KEY_WEBDAV_URL)
+            remove(KEY_WEBDAV_USERNAME)
+            remove(KEY_WEBDAV_PASSWORD)
+            remove(KEY_AI_IMPORT_API_URL)
+            remove(KEY_AI_IMPORT_API_KEY)
+            remove(KEY_AI_IMPORT_MODEL)
+            remove(KEY_AI_IMPORT_TIMEOUT_SECONDS)
+            remove(KEY_HOLIDAY_CALENDAR_BUILT_IN_ENABLED)
+            removeScheduleAppearanceAndDisplay()
+        }
+
+        internal fun MutablePreferences.removeScheduleAppearanceAndDisplay() {
+            remove(KEY_SCHEDULE_COURSE_TEXT_SIZE_SP)
+            remove(KEY_SCHEDULE_COURSE_TEXT_COLOR_ARGB)
+            remove(KEY_SCHEDULE_EXAM_TEXT_SIZE_SP)
+            remove(KEY_SCHEDULE_EXAM_TEXT_COLOR_ARGB)
+            remove(KEY_SCHEDULE_HEADER_TEXT_SIZE_SP)
+            remove(KEY_SCHEDULE_HEADER_TEXT_COLOR_ARGB)
+            remove(KEY_SCHEDULE_TODAY_HEADER_BACKGROUND_COLOR_ARGB)
+            remove(KEY_SCHEDULE_TEXT_HORIZONTAL_CENTER)
+            remove(KEY_SCHEDULE_TEXT_VERTICAL_CENTER)
+            remove(KEY_SCHEDULE_AUTO_SHRINK_LONG_TITLES)
+            remove(KEY_SCHEDULE_TRUNCATION_ELLIPSIS)
+            remove(KEY_SCHEDULE_TEXT_FULL_CENTER)
+            remove(KEY_SCHEDULE_COURSE_CORNER_RADIUS_DP)
+            remove(KEY_SCHEDULE_COURSE_CARD_HEIGHT_DP)
+            remove(KEY_SCHEDULE_OPACITY_PERCENT)
+            remove(KEY_SCHEDULE_INACTIVE_COURSE_OPACITY_PERCENT)
+            remove(KEY_SCHEDULE_GRID_BORDER_COLOR_ARGB)
+            remove(KEY_SCHEDULE_GRID_BORDER_OPACITY_PERCENT)
+            remove(KEY_SCHEDULE_GRID_BORDER_WIDTH_DP)
+            remove(KEY_SCHEDULE_GRID_BORDER_DASHED)
+            remove(KEY_SCHEDULE_COURSE_PALETTE_STYLE)
+            remove(KEY_SCHEDULE_CUSTOM_COURSE_COLORS)
+            remove(KEY_SCHEDULE_BACKGROUND_TYPE)
+            remove(KEY_SCHEDULE_BACKGROUND_COLOR_ARGB)
+            remove(KEY_SCHEDULE_BACKGROUND_IMAGE_URI)
+            remove(KEY_SCHEDULE_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT)
+            remove(KEY_SCHEDULE_CUSTOM_COLORS_ADAPT_TO_THEME)
+            remove(KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED)
+            remove(KEY_TODAY_OVERVIEW_ENABLED)
+            remove(KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE)
+            remove(KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE)
+            remove(KEY_SCHEDULE_DISPLAY_ROW_FIT_MODE)
+            remove(KEY_SCHEDULE_DISPLAY_WEEK_START_DAY)
+            remove(KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED)
+            remove(KEY_COURSE_SESSION_COUNT_INCLUDE_HOLIDAYS)
+            remove(KEY_PLUGIN_TIMETABLE_ROWS)
+            remove(KEY_SCHEDULE_DISPLAY_PINCH_ZOOM_ENABLED)
+            remove(KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE)
+            remove(KEY_SCHEDULE_DISPLAY_LOCATION_AT_PREFIX)
+            remove(KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED)
+            remove(KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE)
+            remove(KEY_SCHEDULE_DISPLAY_TOTAL_SCHEDULE_DISPLAY_ENABLED)
+            remove(KEY_SCHEDULE_DISPLAY_TIMELINE_INDICATOR_ENABLED)
+            remove(KEY_SCHEDULE_DISPLAY_GRID_DASHED_LINES_ENABLED)
+            remove(KEY_SCHEDULE_DISPLAY_TIME_COLUMN_WIDTH_DP)
+        }
+
+        internal fun MutablePreferences.updateCustomCourseColor(courseKey: String, colorArgb: Long?) {
+            val current = decodeCustomCourseColors(this[KEY_SCHEDULE_CUSTOM_COURSE_COLORS]).toMutableMap()
+            if (colorArgb != null) {
+                current[courseKey] = colorArgb
+            } else {
+                current.remove(courseKey)
+            }
+            this[KEY_SCHEDULE_CUSTOM_COURSE_COLORS] = encodeCustomCourseColors(current)
+        }
+
+        internal fun encodeCustomCourseColors(map: Map<String, Long>): String =
+            Json.encodeToString(map)
+
+        internal fun decodeCustomCourseColors(str: String?): Map<String, Long> {
+            if (str.isNullOrBlank()) return emptyMap()
+            runCatching { Json.decodeFromString<Map<String, Long>>(str) }.getOrNull()?.let { return it }
+            // Keep reading legacy id=argb entries; the next edit writes the whole map as JSON.
+            return str.split(";").mapNotNull { entry ->
+                val parts = entry.split("=")
+                if (parts.size == 2) {
+                    val key = parts[0]
+                    val value = parts[1].toLongOrNull()
+                    if (value != null) key to value else null
+                } else null
+            }.toMap()
+        }
     }
 }
