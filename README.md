@@ -9,7 +9,7 @@
 开源、免费、无广告的 Android 课表应用。用学校插件导入课表，用扩展组件接入学习平台和通知渠道，在手机与桌面管理课程、事务和待办。
 
 [![CI](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml)
-[![最新正式版 1.0.0](https://img.shields.io/badge/Latest%20stable-1.0.0-2e8b57)](https://github.com/cursimple/cursimple-app/releases/tag/v1.0.0)
+[![最新测试版 0.8.2](https://img.shields.io/badge/Latest%20beta-0.8.2-e08a2e)](https://github.com/cursimple/cursimple-app/releases/tag/v0.8.2)
 [![Downloads](https://img.shields.io/github/downloads/cursimple/cursimple-app/total)](https://github.com/cursimple/cursimple-app/releases)
 [![License](https://img.shields.io/github/license/cursimple/cursimple-app)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-7.0%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com)
@@ -18,7 +18,7 @@
 
 </div>
 
-当前发布渠道为 **正式版（stable）**。公开安装包、更新公告和更新清单均以 v1.0.0 Release 为准。
+当前公开安装包为 **测试版（beta）v0.8.2**。1.0.0 正式版正在重新整理，暂未公开发布。
 
 ## 先认识课简
 
@@ -32,7 +32,7 @@
 
 ## 下载安装与开始使用
 
-在 [Releases](https://github.com/cursimple/cursimple-app/releases) 选择 v1.0.0，或从[官网的下载区](https://cursimple.github.io/#download)下载安装包。正式版会通过 stable 更新源提供。
+在 [Releases](https://github.com/cursimple/cursimple-app/releases) 选择 v0.8.2，或从[官网的下载区](https://cursimple.github.io/#download)下载安装包。正式版重新发布后会通过 stable 更新源提供。
 
 | APK | 适用设备 |
 |---|---|
@@ -161,7 +161,7 @@
 
 </div>
 
-截图使用虚构演示数据，展示当前 1.0.0 版本的主要界面。
+截图使用虚构演示数据，展示课简的主要界面。
 
 ## 从源码构建
 

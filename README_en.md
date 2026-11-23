@@ -9,7 +9,7 @@
 An open-source, free Android timetable app without ads. Import courses with school plugins, connect learning platforms and notification services with components, and manage courses, events and tasks on your phone and home screen.
 
 [![CI](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml)
-[![Latest stable 1.0.0](https://img.shields.io/badge/Latest%20stable-1.0.0-2e8b57)](https://github.com/cursimple/cursimple-app/releases/tag/v1.0.0)
+[![Latest beta 0.8.2](https://img.shields.io/badge/Latest%20beta-0.8.2-e08a2e)](https://github.com/cursimple/cursimple-app/releases/tag/v0.8.2)
 [![Downloads](https://img.shields.io/github/downloads/cursimple/cursimple-app/total)](https://github.com/cursimple/cursimple-app/releases)
 [![License](https://img.shields.io/github/license/cursimple/cursimple-app)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-7.0%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com)
@@ -18,7 +18,7 @@ An open-source, free Android timetable app without ads. Import courses with scho
 
 </div>
 
-The current release channel is **stable**. The v1.0.0 Release, update feed and release announcement describe the published build.
+The current public package is **beta v0.8.2**. Stable 1.0.0 is being reorganized and is temporarily unpublished.
 
 ## How CurSimple fits together
 
@@ -32,7 +32,7 @@ Home screen widgets display courses, notes or component content. Components are 
 
 ## Download and get started
 
-Choose v1.0.0 from [Releases](https://github.com/cursimple/cursimple-app/releases) or use the [website download section](https://cursimple.github.io/#download). Stable updates are published through the stable feed.
+Choose v0.8.2 from [Releases](https://github.com/cursimple/cursimple-app/releases) or use the [website download section](https://cursimple.github.io/#download). Stable updates will use the stable feed after the stable release is republished.
 
 | APK | Device |
 |---|---|
@@ -161,7 +161,7 @@ Public sources work directly. Private repositories use a token with read permiss
 
 </div>
 
-Screenshots use fictional demo data and show the main screens of the current 1.0.0 release.
+Screenshots use fictional demo data and show the main CurSimple screens.
 
 ## Build from source
 
