@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
@@ -26,14 +27,11 @@ import androidx.compose.material.icons.rounded.SettingsBackupRestore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import com.x500x.cursimple.feature.plugin.ui.AppModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -44,14 +42,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppDialogDangerButton
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.Restore
 
 /** Long-press actions expose editing, moving and removal alongside batch reminder selection. */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun CourseActionSheet(
     course: CourseItem,
@@ -66,12 +73,15 @@ internal fun CourseActionSheet(
     onRestorePlugin: () -> Unit,
     onAddAtPosition: () -> Unit,
     position: CourseTimeSlot = course.time,
+    /** Courses sharing the pressed cell; with two or more, the sheet shows a switcher. */
+    siblings: List<CourseItem> = emptyList(),
+    onSelectCourse: (CourseItem) -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var confirmDelete by remember { mutableStateOf(false) }
     var confirmRestore by remember { mutableStateOf(false) }
 
-    ModalBottomSheet(
+    AppModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surface,
@@ -94,6 +104,30 @@ internal fun CourseActionSheet(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (siblings.size > 1) {
+                Spacer(Modifier.size(4.dp))
+                Text(
+                    text = stringResource(R.string.schedule_overlap_pick_title, siblings.size),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("course-action-switcher"),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    siblings.forEach { sibling ->
+                        AppFilterChip(
+                            selected = sibling.id == course.id,
+                            onClick = { onSelectCourse(sibling) },
+                            label = { Text(sibling.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            modifier = Modifier.testTag("course-action-switch-${sibling.id}"),
+                        )
+                    }
+                }
+            }
             Spacer(Modifier.size(8.dp))
 
             CourseActionRow(
@@ -154,18 +188,20 @@ internal fun CourseActionSheet(
     }
 
     if (confirmDelete) {
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { confirmDelete = false },
+            tone = AppDialogTone.Danger,
+            icon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.schedule_library_delete_title)) },
             text = { Text(stringResource(R.string.schedule_library_delete_body, course.title)) },
             confirmButton = {
-                AppOutlinedButton(onClick = {
+                AppDialogDangerButton(onClick = {
                     confirmDelete = false
                     onDelete()
                 }) { Text(stringResource(R.string.schedule_library_delete_confirm)) }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = { confirmDelete = false }) {
+                AppDialogSecondaryButton(onClick = { confirmDelete = false }) {
                     Text(stringResource(R.string.schedule_action_cancel))
                 }
             },
@@ -173,18 +209,19 @@ internal fun CourseActionSheet(
     }
 
     if (confirmRestore) {
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { confirmRestore = false },
+            icon = { Icon(Icons.Rounded.Restore, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.schedule_course_detail_restore_plugin_title)) },
             text = { Text(stringResource(R.string.schedule_course_detail_restore_plugin_body, course.title)) },
             confirmButton = {
-                AppOutlinedButton(onClick = {
+                AppDialogPrimaryButton(onClick = {
                     confirmRestore = false
                     onRestorePlugin()
                 }) { Text(stringResource(R.string.schedule_action_restore_plugin)) }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = { confirmRestore = false }) {
+                AppDialogSecondaryButton(onClick = { confirmRestore = false }) {
                     Text(stringResource(R.string.schedule_action_cancel))
                 }
             },
@@ -261,10 +298,12 @@ internal fun MoveCourseDialog(
     existingCourses: List<CourseItem>,
     onDismiss: () -> Unit,
     onConfirm: (CourseTimeSlot) -> Unit,
+    slotTimes: List<ClassSlotTime> = emptyList(),
 ) {
     val span = (course.time.endNode - course.time.startNode + 1).coerceAtLeast(1)
     // Preserve out-of-profile positions when opening the picker rather than silently clamping.
-    val nodeCeiling = maxOf(maxNodeCount, course.time.endNode)
+    val nodeCeiling = maxOf(slotTimes.maxOfOrNull { it.endNode } ?: maxNodeCount, course.time.endNode)
+    val periods = remember(slotTimes, nodeCeiling) { coursePeriodSlots(slotTimes, nodeCeiling) }
     val maxStartNode = (nodeCeiling - span + 1).coerceAtLeast(1)
     var dayOfWeek by remember(course.id) { mutableIntStateOf(course.time.dayOfWeek.coerceIn(1, 7)) }
     var startNode by remember(course.id) {
@@ -284,8 +323,9 @@ internal fun MoveCourseDialog(
         }
     }
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.OpenWith, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.schedule_move_dialog_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -314,54 +354,13 @@ internal fun MoveCourseDialog(
                     }
                 }
 
-                Text(
-                    text = stringResource(R.string.schedule_move_dialog_start_node),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                CoursePeriodField(
+                    label = stringResource(R.string.schedule_move_dialog_start_node),
+                    slots = periods,
+                    choices = periods.filter { it.startNode <= maxStartNode },
+                    node = startNode,
+                    onSelect = { startNode = it.startNode },
                 )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    IconButton(
-                        onClick = { startNode = (startNode - 1).coerceAtLeast(1) },
-                        enabled = startNode > 1,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Remove,
-                            contentDescription = stringResource(R.string.schedule_move_dialog_earlier),
-                        )
-                    }
-                    Surface(
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                    ) {
-                        Box(
-                            modifier = Modifier.padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = if (span == 1) {
-                                    stringResource(R.string.schedule_node_single, startNode)
-                                } else {
-                                    stringResource(R.string.schedule_node_range, startNode, endNode)
-                                },
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                    }
-                    IconButton(
-                        onClick = { startNode = (startNode + 1).coerceAtMost(maxStartNode) },
-                        enabled = startNode < maxStartNode,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = stringResource(R.string.schedule_move_dialog_later),
-                        )
-                    }
-                }
 
                 if (overlapping.isNotEmpty()) {
                     Surface(
@@ -383,12 +382,12 @@ internal fun MoveCourseDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = { onConfirm(target) }, enabled = !unchanged) {
+            AppDialogPrimaryButton(onClick = { onConfirm(target) }, enabled = !unchanged) {
                 Text(stringResource(R.string.schedule_move_dialog_confirm))
             }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
         },
     )
 }

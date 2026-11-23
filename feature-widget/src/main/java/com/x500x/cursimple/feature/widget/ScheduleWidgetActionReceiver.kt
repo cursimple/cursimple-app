@@ -28,6 +28,7 @@ class ScheduleWidgetActionReceiver : BroadcastReceiver() {
                         null
                     },
                     renderedDateIso = intent.getStringExtra(EXTRA_RENDERED_DATE),
+                    targetDateIso = intent.getStringExtra(EXTRA_TARGET_DATE),
                 )
             } finally {
                 pendingResult.finish()
@@ -41,6 +42,7 @@ class ScheduleWidgetActionReceiver : BroadcastReceiver() {
         appWidgetId: Int,
         renderedOffset: Int?,
         renderedDateIso: String? = null,
+        targetDateIso: String? = null,
     ) {
         val repository = DataStoreWidgetPreferencesRepository(context)
         val todayIso = widgetTodayIso(context)
@@ -53,8 +55,13 @@ class ScheduleWidgetActionReceiver : BroadcastReceiver() {
                     .toInt()
             }
             ?: renderedOffset
+        // A picked date becomes a day offset from today.
+        val gotoOffset = targetDateIso
+            ?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+            ?.let { java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.parse(todayIso), it).toInt() }
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
             when (action) {
+                ACTION_GOTO -> repository.setWidgetDayOffset(gotoOffset ?: return, todayIso)
                 ACTION_PREV -> {
                     if (currentOffset != null) {
                         repository.setWidgetDayOffset(currentOffset - 1, todayIso)
@@ -78,6 +85,7 @@ class ScheduleWidgetActionReceiver : BroadcastReceiver() {
             return
         }
         when (action) {
+            ACTION_GOTO -> repository.setWidgetDayOffset(appWidgetId, gotoOffset ?: return, todayIso)
             ACTION_PREV -> {
                 if (currentOffset != null) {
                     repository.setWidgetDayOffset(appWidgetId, currentOffset - 1, todayIso)
@@ -104,9 +112,11 @@ class ScheduleWidgetActionReceiver : BroadcastReceiver() {
         const val ACTION_PREV = "prev"
         const val ACTION_NEXT = "next"
         const val ACTION_RESET = "reset"
+        const val ACTION_GOTO = "goto"
 
         const val EXTRA_ACTION = "schedule_widget_action"
         const val EXTRA_CURRENT_OFFSET = "schedule_widget_current_offset"
         const val EXTRA_RENDERED_DATE = "schedule_widget_rendered_date"
+        const val EXTRA_TARGET_DATE = "schedule_widget_target_date"
     }
 }

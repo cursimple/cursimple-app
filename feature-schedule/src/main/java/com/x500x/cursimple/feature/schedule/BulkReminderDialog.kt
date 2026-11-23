@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -11,7 +12,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import androidx.compose.runtime.Composable
@@ -25,6 +25,13 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material3.Icon
 
 @Composable
 fun BulkReminderDialog(
@@ -54,9 +61,10 @@ fun BulkReminderDialog(
     val advance = advanceMinutesText.toIntOrNull()
     val canSave = advance != null && advance in 0..720
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(24.dp),
+        icon = { Icon(Icons.Rounded.NotificationsActive, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(if (containsExam) R.string.schedule_bulk_reminder_exam_title else R.string.schedule_bulk_reminder_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -69,7 +77,7 @@ fun BulkReminderDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = advanceMinutesText,
                     onValueChange = { advanceMinutesText = it.filter(Char::isDigit).take(4) },
                     label = { Text(stringResource(R.string.schedule_advance_minutes_label)) },
@@ -96,13 +104,13 @@ fun BulkReminderDialog(
             }
         },
         confirmButton = {
-            Button(
+            AppDialogPrimaryButton(
                 onClick = { onConfirm(advance ?: 20, ringtoneUri) },
                 enabled = canSave,
             ) { Text(stringResource(R.string.schedule_action_create)) }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.schedule_action_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.schedule_action_cancel)) }
         },
     )
 }

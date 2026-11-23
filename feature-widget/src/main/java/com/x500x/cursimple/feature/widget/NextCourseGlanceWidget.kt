@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
@@ -67,17 +68,24 @@ open class NextCourseGlanceWidgetReceiver : AppWidgetProvider() {
     }
 
     companion object {
-        @Suppress("DEPRECATION")
         suspend fun updateWidgets(context: Context, appWidgetIds: IntArray? = null) {
+            updateWidgetsAndGetData(context, appWidgetIds)
+        }
+
+        @Suppress("DEPRECATION")
+        internal suspend fun updateWidgetsAndGetData(context: Context, appWidgetIds: IntArray? = null): NextCourseWidgetData? {
             val appContext = context.widgetLocaleContext()
             val manager = AppWidgetManager.getInstance(appContext)
             val ids = appWidgetIds ?: collectIds(appContext, manager)
-            if (ids.isEmpty()) return
+            if (ids.isEmpty()) return null
             val data = NextCourseDataSource.load(appContext)
             ids.forEach { appWidgetId ->
                 manager.updateAppWidget(appWidgetId, buildViews(appContext, appWidgetId, data))
-                manager.notifyAppWidgetViewDataChanged(intArrayOf(appWidgetId), R.id.next_course_list)
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                    manager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.next_course_list)
+                }
             }
+            return data
         }
 
         private fun collectIds(context: Context, manager: AppWidgetManager): IntArray {

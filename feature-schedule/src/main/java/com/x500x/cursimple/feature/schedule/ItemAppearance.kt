@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,7 +23,6 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -53,6 +53,9 @@ import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import com.x500x.cursimple.feature.plugin.ui.AppSlider
 import com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents
 import kotlin.math.roundToInt
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
 
 /**
  * Own look of a course or event: a fill, an optional second color to blend into, and an outline.
@@ -421,8 +424,9 @@ internal fun ColorPickerDialog(initial: Long, onDismiss: () -> Unit, onConfirm: 
         android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, value)).toLong() and 0xFFFFFFFFL
     }
     fun syncHex() { hex = formatHexColor(current) }
-    androidx.compose.material3.AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Palette, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.schedule_appearance_custom)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -432,7 +436,7 @@ internal fun ColorPickerDialog(initial: Long, onDismiss: () -> Unit, onConfirm: 
                     color = argbColor(current),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 ) {}
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = hex,
                     onValueChange = { input ->
                         hex = input
@@ -466,13 +470,13 @@ internal fun ColorPickerDialog(initial: Long, onDismiss: () -> Unit, onConfirm: 
             }
         },
         confirmButton = {
-            AppOutlinedButton(
+            AppDialogPrimaryButton(
                 onClick = { onConfirm(parseHexColor(hex) ?: current) },
                 modifier = Modifier.testTag("color-picker-confirm"),
             ) { Text(stringResource(R.string.schedule_action_save)) }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
         },
     )
 }

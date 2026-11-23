@@ -153,7 +153,7 @@
     <string name="schedule_reminder_rule_action_label">Action</string>
     <string name="schedule_reminder_rule_delete_condition">Delete condition</string>
     <string name="schedule_reminder_rule_delete_action">Delete action</string>
-    <string name="schedule_reminder_rule_no_label">No label available</string>
+    <string name="schedule_reminder_rule_no_label">No label</string>
     <string name="schedule_reminder_rule_course_label">Period</string>
     <string name="schedule_reminder_presence_exists">has class</string>
     <string name="schedule_reminder_presence_absent">no class</string>
@@ -237,7 +237,7 @@
     <string name="schedule_course_detail_restore_plugin_body">Your edits to %1$s will be discarded and the plugin-synced version restored.</string>
     <string name="schedule_exam_mute_this">Cancel this one</string>
     <string name="schedule_status_week_unknown">Week unknown</string>
-    <string name="schedule_status_other_week">Other weeks</string>
+    <string name="schedule_status_other_week">Other wk</string>
     <string name="schedule_status_on_holiday">Holiday</string>
     <string name="schedule_status_cancelled">Cancelled</string>
     <string name="schedule_status_manual">Manual</string>
@@ -357,6 +357,8 @@
     </plurals>
     <string name="schedule_library_empty">No classes this term yet, the timetable is on its way~</string>
     <string name="schedule_library_no_match">No matching course</string>
+    <string name="schedule_library_event_no_match">No matching event</string>
+    <string name="schedule_library_event_source_no_match">No events match the selected sources</string>
     <string name="schedule_library_variants_expand">Show variants</string>
     <string name="schedule_library_variants_collapse">Hide variants</string>
     <string name="schedule_library_variants_hint">Rows below highlight what differs from the Main row. Tap a row to edit it.</string>
@@ -371,7 +373,7 @@
     <string name="schedule_library_add">Add a course</string>
     <string name="schedule_library_plugin_editable_hint">Plugin-synced courses can be edited too; editing turns one into a manual course so the next sync will not overwrite it</string>
     <string name="schedule_library_delete_title">Delete this course?</string>
-    <string name="schedule_library_delete_body">%1$s will be removed from the timetable, along with its own alarm.</string>
+    <string name="schedule_library_delete_body">%1$s leaves the timetable and its own alarm goes too. You can bring it back from the recycle bin at the top right of 管理列表.</string>
     <string name="schedule_library_delete_confirm">Delete</string>
     <string name="schedule_library_restore_title">Revert to plugin data?</string>
     <string name="schedule_library_restore_body">Your edits to %1$s will be discarded and the plugin-synced version restored.</string>
@@ -476,8 +478,8 @@
     <string name="schedule_conflict_warning_separator">"; "</string>
     <string name="schedule_conflict_warning_overflow">" and %1$d in total"</string>
     <string name="schedule_holiday_unnamed">Holiday</string>
-    <string name="schedule_hint_needs_sync">No timetable yet. Sync one from the plugin page, or tap an empty cell to add a course.</string>
-    <string name="schedule_hint_no_courses">The timetable is still empty. Tap an empty cell to add your first class</string>
+    <string name="schedule_hint_needs_sync">Nothing imported yet: tap + at the top right, then "Import from your university", or tap an empty cell to add a course.</string>
+    <string name="schedule_hint_no_courses">The timetable is empty. Tap + at the top right, then "Import from your university" to bring in the whole term; you can also tap an empty cell to add one course.</string>
     <string name="schedule_hint_no_course_this_week">No courses this week. Switch to another week, or tap an empty cell to add one.</string>
     <string name="schedule_empty_holiday_subtitle">This day is a holiday: no courses are scheduled and no course alarms will ring.</string>
     <string name="schedule_empty_not_started_title">Not in session yet, rest a little longer~</string>
@@ -723,7 +725,6 @@
     <string name="schedule_day_sheet_current_source">Now: follows the timetable of %1$d/%2$d %3$s</string>
     <string name="schedule_day_sheet_current_today">Now: today</string>
     <string name="schedule_overlap_pick_title">%1$d classes in this slot</string>
-    <string name="schedule_overlap_pick_body">Pick the one you want to edit.</string>
     <string name="schedule_same_slot_prev">Previous</string>
     <string name="schedule_same_slot_next">Next</string>
     <string name="schedule_same_slot_position">%1$d / %2$d</string>
@@ -768,10 +769,19 @@
     <string name="schedule_overflow_in_minutes">Starts in %1$d min</string>
     <string name="schedule_overflow_in_hours">Starts in %1$d h %2$d min</string>
     <string name="schedule_overflow_finished">Finished</string>
+    <string name="schedule_overflow_this_week">In class this week</string>
+    <plurals name="schedule_overflow_runs_weeks">
+        <item quantity="one">In class in week %1$s</item>
+        <item quantity="other">In class in weeks %1$s</item>
+    </plurals>
     <string name="schedule_event_group_close">Close</string>
     <plurals name="schedule_course_more_description">
         <item quantity="one">%1$d course here, tap to see it</item>
         <item quantity="other">%1$d courses here, tap to see all</item>
+    </plurals>
+    <plurals name="schedule_course_more_count">
+        <item quantity="one">%1$d course</item>
+        <item quantity="other">%1$d courses</item>
     </plurals>
     <plurals name="schedule_event_group_count">
         <item quantity="one">%1$d event</item>
@@ -998,6 +1008,8 @@
     <string name="schedule_course_session_progress">Sessions %1$d/%2$d</string>
     <string name="schedule_course_session_not_scheduled">Not scheduled here · %1$d total</string>
     <string name="schedule_course_session_needs_start">Set the term start date to count sessions</string>
+    <string name="schedule_course_end_near_badge">1 week left</string>
+    <string name="schedule_course_end_final_badge">Final week</string>
     <string name="schedule_today_makeup_notice">Make-up day: Schedule for %1$s applies today</string>
     <string name="schedule_today_free_slots_title">Free Slots &amp; Study Windows</string>
     <string name="schedule_today_free_all_day">All clear today, enjoy your self-study time</string>
@@ -1021,4 +1033,47 @@
     <string name="school_portal_import_done">Timetable imported.</string>
     <string name="school_portal_plugin_no_portal">This plugin does not provide a usable portal address.</string>
     <string name="stats_week_detail">Week %1$d: %2$d classes</string>
+    <string name="stats_early_morning">Early classes</string>
+    <string name="stats_evening">Evening classes</string>
+    <string name="stats_peak_week">Busiest week</string>
+    <string name="stats_peak_day">Busiest day</string>
+    <string name="stats_count_sessions">%1$d classes</string>
+    <string name="stats_week_value">Week %1$d, %2$d classes</string>
+    <string name="stats_none">None</string>
+    <string name="stats_monday">Mon, %1$d</string>
+    <string name="stats_tuesday">Tue, %1$d</string>
+    <string name="stats_wednesday">Wed, %1$d</string>
+    <string name="stats_thursday">Thu, %1$d</string>
+    <string name="stats_friday">Fri, %1$d</string>
+    <string name="stats_saturday">Sat, %1$d</string>
+    <string name="stats_sunday">Sun, %1$d</string>
+    <string name="stats_peak_week_detail">Busiest week</string>
+    <string name="stats_peak_day_detail">Busiest day</string>
+    <string name="stats_early_morning_detail">Early classes</string>
+    <string name="stats_evening_detail">Evening classes</string>
+    <string name="schedule_course_session_label">Sessions</string>
+    <string name="schedule_course_end_final">Final week</string>
+    <string name="schedule_course_end_near">2nd-to-last week</string>
+    <string name="schedule_library_bin_open">Recycle bin (%1$d)</string>
+    <string name="schedule_library_bin_title">Recycle bin (%1$d)</string>
+    <string name="schedule_library_bin_empty">The recycle bin is empty</string>
+    <string name="schedule_library_bin_plugin_item">From a plugin</string>
+    <string name="schedule_library_bin_restore">Restore</string>
+    <string name="schedule_library_bin_restore_title">Restore this course?</string>
+    <string name="schedule_library_bin_restore_body">"%1$s" goes back to where it was on the timetable.</string>
+    <string name="schedule_library_bin_clear">Empty</string>
+    <string name="schedule_library_bin_clear_title">Empty the recycle bin?</string>
+    <string name="schedule_library_bin_clear_body">Courses in the bin are deleted for good. This cannot be undone.</string>
+    <string name="schedule_library_bin_clear_confirm">Empty</string>
+    <string name="schedule_library_bin_detail_time">Time: %1$s</string>
+    <string name="schedule_library_bin_detail_period">Periods %1$d-%2$d</string>
+    <string name="schedule_library_bin_detail_weeks">Weeks: %1$s</string>
+    <string name="schedule_library_bin_detail_location">Room: %1$s</string>
+    <string name="schedule_library_bin_detail_teacher">Teacher: %1$s</string>
+    <string name="schedule_library_bin_detail_weeks_unknown">No weeks set</string>
+    <string name="schedule_library_bin_detail_weekday">Day: %1$s</string>
+    <string name="schedule_library_bin_detail_period_line">Periods: %1$s</string>
+    <string name="schedule_library_bin_detail_clock">Time: %1$s</string>
+    <string name="schedule_library_bin_tag_location">Room %1$s</string>
+    <string name="schedule_library_bin_tag_teacher">Teacher %1$s</string>
 </resources>

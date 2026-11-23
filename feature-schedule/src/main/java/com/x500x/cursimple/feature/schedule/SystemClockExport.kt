@@ -52,6 +52,13 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AccessTime
+import androidx.compose.material3.Icon
 
 /**
  * System Clock chooses the next wall-clock occurrence; defer tomorrow's export until today's
@@ -176,8 +183,9 @@ internal fun SystemClockExportDialog(
     val scope = rememberCoroutineScope()
     val timeFormat = remember { DateTimeFormatter.ofPattern("HH:mm") }
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = { if (!sending) onDismiss() },
+        icon = { Icon(Icons.Rounded.AccessTime, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.schedule_system_clock_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -252,7 +260,7 @@ internal fun SystemClockExportDialog(
         },
         confirmButton = {
             if (plan.writable.isNotEmpty() && !plan.alreadyMuted) {
-                Button(
+                AppDialogPrimaryButton(
                     enabled = !sending,
                     onClick = {
                         sending = true
@@ -276,7 +284,7 @@ internal fun SystemClockExportDialog(
             }
         },
         dismissButton = {
-            AppOutlinedButton(enabled = !sending, onClick = onDismiss) {
+            AppDialogSecondaryButton(enabled = !sending, onClick = onDismiss) {
                 Text(stringResource(R.string.schedule_action_cancel))
             }
         },

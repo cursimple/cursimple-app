@@ -37,7 +37,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import com.x500x.cursimple.feature.plugin.ui.AppModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -70,6 +70,13 @@ import com.x500x.cursimple.feature.widget.WidgetCatalog
 import com.x500x.cursimple.feature.widget.WidgetCatalogEntry
 import com.x500x.cursimple.feature.widget.WidgetDiagnostics
 import com.x500x.cursimple.core.data.VendorPermissionKey
+import com.x500x.cursimple.core.reminder.permission.MiuiPermissions
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.WarningAmber
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,13 +144,15 @@ fun WidgetPickerSheet(
     val preferManualAdd = remember(pinUnsupportedOnDevice, forcePinOnce) {
         !forcePinOnce && (pinUnsupportedOnDevice || WidgetCatalog.pinLikelyIgnored(context))
     }
-    // Show shortcut-permission guidance only for detected vendor launchers lacking confirmation.
-    val needsVendorPermissionNotice = remember(vendorPermissionAcks) {
-        WidgetCatalog.detectLauncherVendor(context) != WidgetCatalog.LauncherVendor.Other &&
+    val shortcutPermission = remember(context, refreshTick) { MiuiPermissions.installShortcut(context) }
+    val needsVendorPermissionNotice = when (shortcutPermission) {
+        true -> false
+        false -> true
+        null -> WidgetCatalog.detectLauncherVendor(context) != WidgetCatalog.LauncherVendor.Other &&
             VendorPermissionKey.SHORTCUT_PIN !in vendorPermissionAcks
     }
 
-    ModalBottomSheet(
+    AppModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surface,
@@ -266,27 +275,31 @@ fun WidgetPickerSheet(
     }
 
     permissionNoticeEntry?.let { entry ->
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { permissionNoticeEntry = null },
+            tone = AppDialogTone.Warning,
+            icon = { Icon(Icons.Rounded.Info, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.widget_pin_permission_notice_title)) },
             text = { Text(stringResource(R.string.widget_pin_permission_notice_body)) },
             confirmButton = {
-                AppOutlinedButton(onClick = {
+                AppDialogPrimaryButton(onClick = {
                     permissionNoticeEntry = null
                     WidgetCatalog.openShortcutPermission(context)
                 }) { Text(stringResource(R.string.widget_pin_permission_notice_open)) }
             },
             dismissButton = {
                 Row {
-                    AppOutlinedButton(onClick = {
+                    AppDialogSecondaryButton(onClick = {
                         permissionNoticeEntry = null
                         pendingConfirm = entry
                     }) { Text(stringResource(R.string.widget_pin_permission_notice_skip)) }
-                    AppOutlinedButton(onClick = {
-                        permissionNoticeEntry = null
-                        onVendorPermissionAckChange(VendorPermissionKey.SHORTCUT_PIN, true)
-                        pendingConfirm = entry
-                    }) { Text(stringResource(R.string.widget_pin_permission_notice_done)) }
+                    if (shortcutPermission == null) {
+                        AppDialogSecondaryButton(onClick = {
+                            permissionNoticeEntry = null
+                            onVendorPermissionAckChange(VendorPermissionKey.SHORTCUT_PIN, true)
+                            pendingConfirm = entry
+                        }) { Text(stringResource(R.string.widget_pin_permission_notice_done)) }
+                    }
                 }
             },
         )
@@ -294,19 +307,21 @@ fun WidgetPickerSheet(
 
     val unconfirmed = pinUnconfirmed
     if (unconfirmed != null) {
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { pinUnconfirmed = null },
+            tone = AppDialogTone.Warning,
+            icon = { Icon(Icons.Rounded.WarningAmber, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.widget_pin_unconfirmed_title)) },
             text = { Text(stringResource(R.string.widget_pin_unconfirmed_body, unconfirmed.title)) },
             confirmButton = {
                 // Offer vendor permissions before issuing another pinning request.
-                AppOutlinedButton(onClick = {
+                AppDialogPrimaryButton(onClick = {
                     pinUnconfirmed = null
                     WidgetCatalog.openShortcutPermission(context)
                 }) { Text(stringResource(R.string.widget_pin_unconfirmed_permission)) }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = {
+                AppDialogSecondaryButton(onClick = {
                     pinUnconfirmed = null
                     manualGuideEntry = unconfirmed
                 }) {
@@ -344,8 +359,9 @@ fun WidgetPickerSheet(
     val pending = pendingConfirm
     if (pending != null) {
         val installed = (installedCounts[pending.id] ?: 0) > 0
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { pendingConfirm = null },
+            icon = { Icon(Icons.Rounded.Widgets, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.widget_sheet_title)) },
             text = {
                 Text(
@@ -357,17 +373,17 @@ fun WidgetPickerSheet(
                 )
             },
             confirmButton = {
-                AppOutlinedButton(onClick = {
+                AppDialogPrimaryButton(onClick = {
                     val entry = pending
                     pendingConfirm = null
                     if (preferManualAdd) {
                         manualGuideEntry = entry
-                        return@AppOutlinedButton
+                        return@AppDialogPrimaryButton
                     }
                     // Ask about vendor requirements before pinning; skipping proceeds without recording permission approval.
                     if (needsVendorPermissionNotice) {
                         permissionNoticeEntry = entry
-                        return@AppOutlinedButton
+                        return@AppDialogPrimaryButton
                     }
                     when (val result = WidgetCatalog.requestPin(context, entry)) {
                         is WidgetCatalog.PinRequestResult.Started -> {
@@ -387,7 +403,7 @@ fun WidgetPickerSheet(
                 }) { Text(stringResource(R.string.widget_confirm_add)) }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = { pendingConfirm = null }) { Text(stringResource(R.string.widget_confirm_cancel)) }
+                AppDialogSecondaryButton(onClick = { pendingConfirm = null }) { Text(stringResource(R.string.widget_confirm_cancel)) }
             },
         )
     }
@@ -406,8 +422,9 @@ private fun WidgetHelpDialog(
 ) {
     val context = LocalContext.current
     val report = remember { WidgetDiagnostics.collect(context) }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Info, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.widget_help_title)) },
         text = {
             Column(
@@ -451,10 +468,10 @@ private fun WidgetHelpDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.widget_help_got_it)) }
+            AppDialogPrimaryButton(onClick = onDismiss) { Text(stringResource(R.string.widget_help_got_it)) }
         },
         dismissButton = {
-            AppOutlinedButton(
+            AppDialogSecondaryButton(
                 onClick = {
                     val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
                     clipboard?.setPrimaryClip(
@@ -681,8 +698,9 @@ private fun ManualAddGuideDialog(
         }
     }
     val permissionTip = permissionTipRes?.let { stringResource(it) }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Info, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.widget_manual_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -714,18 +732,18 @@ private fun ManualAddGuideDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.widget_help_got_it)) }
+            AppDialogPrimaryButton(onClick = onDismiss) { Text(stringResource(R.string.widget_help_got_it)) }
         },
         dismissButton = {
             Row {
                 onRetryPin?.let { retry ->
-                    AppOutlinedButton(onClick = {
+                    AppDialogSecondaryButton(onClick = {
                         onDismiss()
                         retry()
                     }) { Text(stringResource(R.string.widget_manual_retry_pin)) }
                 }
                 if (permissionTip != null) {
-                    AppOutlinedButton(onClick = {
+                    AppDialogSecondaryButton(onClick = {
                         onOpenAppDetails()
                         onDismiss()
                     }) { Text(stringResource(R.string.widget_manual_open_settings)) }

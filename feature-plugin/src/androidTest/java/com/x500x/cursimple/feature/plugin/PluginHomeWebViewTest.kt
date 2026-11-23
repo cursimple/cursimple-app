@@ -7,6 +7,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -19,6 +20,24 @@ import org.junit.Test
 
 class PluginHomeWebViewTest {
     @get:Rule val compose = createComposeRule()
+
+    @Test fun pluginPageKeepsContentGesturesUntilItLeaves() {
+        val gestures = com.x500x.cursimple.feature.plugin.ui.EmbeddedPageGestures()
+        val visible = mutableStateOf(true)
+        val record = com.x500x.cursimple.core.plugin.install.InstalledPluginRecord(
+            pluginId = "gesture-fixture", name = "Gesture fixture", version = "1", versionCode = 1,
+            storagePath = "/missing-gesture-fixture", installedAt = "2026-11-20",
+            source = com.x500x.cursimple.core.plugin.install.PluginInstallSource.Local,
+        )
+        compose.setContent {
+            CompositionLocalProvider(com.x500x.cursimple.feature.plugin.ui.LocalEmbeddedPageGestures provides gestures) {
+                if (visible.value) PluginHomeScreen(record = record, onBack = {})
+            }
+        }
+        compose.runOnIdle { assertTrue(gestures.ownsContentGestures) }
+        compose.runOnIdle { visible.value = false }
+        compose.runOnIdle { assertFalse(gestures.ownsContentGestures) }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     @Test fun percentageHeightPortalRendersItsEntriesAndResizes() {

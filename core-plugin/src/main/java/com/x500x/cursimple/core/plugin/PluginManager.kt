@@ -509,7 +509,7 @@ class PluginManager(
                     sourceName = session.record.name.takeUnless { session.record.pluginId == SCHOOL_PORTAL_PLUGIN_ID },
                 ),
                 uiSchema = session.uiSchema,
-                timingProfile = session.timingProfile,
+                timingProfile = effectiveDraft.resolveTimingProfile(session.timingProfile),
                 messages = session.messages,
             ).also {
                 logRuntimeResult("plugin.sync.resume.result", logPluginId, startedAt, it, session.traceId)

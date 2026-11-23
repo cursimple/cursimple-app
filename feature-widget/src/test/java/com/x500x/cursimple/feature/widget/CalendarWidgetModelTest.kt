@@ -2,6 +2,7 @@ package com.x500x.cursimple.feature.widget
 
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseCategory
+import com.x500x.cursimple.core.kernel.model.CourseEndWarning
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import org.junit.Assert.assertEquals
@@ -20,8 +21,29 @@ class CalendarWidgetModelTest {
     private fun day(date: LocalDate, vararg courses: CourseItem, events: Int = 0, holiday: Boolean = false, makeUp: Boolean = false) =
         CalendarDay(date, isToday = false, onHoliday = holiday, makeUpWorkday = makeUp, courses = courses.toList(), eventCount = events)
 
+    private fun warningDay(date: LocalDate, weekIndex: Int, course: CourseItem) =
+        CalendarDay(
+            date = date,
+            isToday = false,
+            onHoliday = false,
+            makeUpWorkday = false,
+            courses = listOf(course),
+            eventCount = 0,
+            weekIndex = weekIndex,
+            courseEndWarningEnabled = true,
+        )
+
     private val monday = LocalDate.of(2026, 10, 5)
     private fun week(vararg perDay: List<CourseItem>) = (0 until 7).map { i -> day(monday.plusDays(i.toLong()), *perDay.getOrElse(i) { emptyList() }.toTypedArray()) }
+
+    @Test fun `calendar blocks carry course ending warnings into week renderer`() {
+        val course = course("选修课", 1, 2).copy(weeks = listOf(3, 4))
+        val near = calendarBlocksOf(warningDay(monday, weekIndex = 3, course)).single()
+        val final = calendarBlocksOf(warningDay(monday, weekIndex = 4, course)).single()
+
+        assertEquals(CourseEndWarning.NearEnd, near.endWarning)
+        assertEquals(CourseEndWarning.FinalWeek, final.endWarning)
+    }
 
     @Test fun `month cell anchors stack tag above date above dots and stay inside the cell`() {
         assertTrue(CalendarWidgetRenderer.MONTH_TAG_CENTER in 0f..1f)

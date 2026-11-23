@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.core.content.FileProvider
+import com.x500x.cursimple.feature.plugin.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -139,7 +140,7 @@ internal suspend fun saveExtensionImage(context: Context, file: File, name: Stri
         Intent.createChooser(
             Intent(Intent.ACTION_SEND).setType(safeMime).putExtra(Intent.EXTRA_STREAM, uri)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
-            "保存图片",
+            context.getString(R.string.extension_share_image_title),
         ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
     )
     return false

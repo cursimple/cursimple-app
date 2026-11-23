@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="glance_appwidget_description">CurSimple · Daily agenda</string>
-    <string name="next_course_widget_description">CurSimple · Next class</string>
-    <string name="reminder_widget_description">CurSimple · Class alarms</string>
+    <string name="glance_appwidget_description">CurSimple Daily agenda</string>
+    <string name="next_course_widget_description">CurSimple Next class</string>
+    <string name="reminder_widget_description">CurSimple Class alarms</string>
     <string name="widget_label_today">Daily agenda</string>
     <string name="widget_label_next">Next class</string>
     <string name="widget_capsule_name">Course capsule</string>
@@ -16,7 +16,7 @@
     <string name="widget_catalog_reminder_description">Class alarms about to ring</string>
 
     <string name="widget_month_day">%1$d/%2$d</string>
-    <string name="widget_title_date_tag">%1$s · %2$s</string>
+    <string name="widget_title_date_tag">%1$s %2$s</string>
     <string name="widget_date_weekday">%1$s %2$s</string>
 
     <string name="widget_day_tag_yesterday">Yesterday</string>
@@ -26,10 +26,10 @@
     <string name="widget_day_tag_behind">-%1$dd</string>
 
     <string name="widget_holiday_default">Holiday</string>
-    <string name="widget_empty_holiday">%1$s · No classes</string>
-    <string name="widget_empty_term_start_missing">No start date yet · Tap to set one</string>
+    <string name="widget_empty_holiday">%1$s No classes</string>
+    <string name="widget_empty_term_start_missing">No start date yet, tap to set one</string>
     <string name="widget_empty_before_term_start">Not in session yet</string>
-    <string name="widget_empty_before_term_start_date">Not in session yet · starts %1$d/%2$d~</string>
+    <string name="widget_empty_before_term_start_date">Not in session yet, starts %1$d/%2$d~</string>
     <string name="widget_empty_yesterday">No classes yesterday</string>
     <string name="widget_empty_today">No classes today, enjoy your day</string>
     <string name="widget_empty_tomorrow">Nothing tomorrow, have a rest~</string>
@@ -39,16 +39,16 @@
     <string name="widget_agenda_empty_tomorrow">Nothing planned tomorrow</string>
     <string name="widget_agenda_empty_other_day">Nothing planned that day</string>
 
-    <string name="widget_subtitle_holiday">%1$s · %2$s</string>
-    <string name="widget_subtitle_term_start_missing">%1$s · No term start</string>
-    <string name="widget_subtitle_before_term_start">%1$s · Not started</string>
-    <string name="widget_subtitle_source">%1$s · Using %2$s</string>
+    <string name="widget_subtitle_holiday">%1$s %2$s</string>
+    <string name="widget_subtitle_term_start_missing">%1$s No term start</string>
+    <string name="widget_subtitle_before_term_start">%1$s Not started</string>
+    <string name="widget_subtitle_source">%1$s Using %2$s</string>
 
     <string name="widget_next_header_today">Today</string>
     <string name="widget_next_header_tomorrow">Tomorrow</string>
-    <string name="widget_next_header_holiday">%1$s · %2$s</string>
-    <string name="widget_next_header_source">%1$s · Using %2$s</string>
-    <string name="widget_next_header_status">%1$s · %2$s</string>
+    <string name="widget_next_header_holiday">%1$s %2$s</string>
+    <string name="widget_next_header_source">%1$s Using %2$s</string>
+    <string name="widget_next_header_status">%1$s %2$s</string>
     <string name="widget_next_empty_no_more_today">Today\'s classes are all done~</string>
     <string name="widget_next_empty_today">No classes today, enjoy it</string>
     <string name="widget_next_empty_tomorrow">No classes tomorrow, get some good sleep</string>
@@ -67,8 +67,10 @@
 
     <string name="widget_node_range">P%1$d-%2$d</string>
     <string name="widget_course_subtitle_placeholder">TBD</string>
-    <string name="widget_exam_title">Exam · %1$s</string>
+    <string name="widget_exam_title">Exam %1$s</string>
     <string name="widget_course_reminder_badge">Alarm</string>
+    <string name="widget_course_end_near">Ending soon</string>
+    <string name="widget_course_end_final">Final week</string>
     <string name="widget_row_event_tag">Event</string>
 
     <string name="widget_reminder_badge_count">%1$d</string>
@@ -90,7 +92,7 @@
     <string name="widget_diag_device">Device</string>
     <string name="widget_diag_system">System</string>
     <string name="widget_diag_system_android">Android %1$s (API %2$d)</string>
-    <string name="widget_diag_system_with_extra">%1$s · %2$s</string>
+    <string name="widget_diag_system_with_extra">%1$s %2$s</string>
     <string name="widget_diag_launcher">Launcher</string>
     <string name="widget_diag_launcher_unknown">Unknown</string>
     <string name="widget_diag_pin">One-tap add</string>
@@ -99,7 +101,7 @@
     <string name="widget_diag_pin_order">Request order</string>
     <string name="widget_diag_pin_order_empty">No usable provider</string>
     <string name="widget_diag_vendor">Detected vendor</string>
-    <string name="widget_diag_entry_value">%1$d provider(s) parsed by the system · %2$d on the home screen</string>
+    <string name="widget_diag_entry_value">%1$d provider(s) parsed by the system, %2$d on the home screen</string>
     <string name="widget_diag_preview">Preview image</string>
     <string name="widget_diag_preview_missing">Not declared</string>
     <string name="widget_diag_preview_undecodable">Cannot decode</string>
@@ -108,7 +110,7 @@
     <string name="widget_diag_vendor_autostart">Vendor auto-start page</string>
     <string name="widget_diag_vendor_autostart_present">Present</string>
     <string name="widget_diag_vendor_autostart_absent">None (stock or unsupported system)</string>
-    <string name="widget_preview_date">Sep 20 · Today</string>
+    <string name="widget_preview_date">Sep 20 Today</string>
     <string name="widget_preview_weekday">Saturday</string>
     <string name="widget_preview_nodes_1">Periods 1-2  08:00-09:35</string>
     <string name="widget_preview_nodes_2">Event  12:30-13:00</string>
@@ -118,20 +120,20 @@
     <string name="widget_preview_place_2">Student Center</string>
     <string name="widget_preview_next_title">Next class</string>
     <string name="widget_preview_next_badge">In 20 min</string>
-    <string name="widget_preview_next_line">08:00-09:35 · East 13-C-315</string>
+    <string name="widget_preview_next_line">08:00-09:35 East 13-C-315</string>
     <string name="widget_preview_reminder_title">Class alarms</string>
     <string name="widget_preview_reminder_badge">On</string>
     <string name="widget_preview_reminder_1">Today 07:50  Data Structures</string>
     <string name="widget_preview_reminder_2">Tomorrow 09:55  Modern History</string>
-    <string name="widget_preview_reminder_sub_1">10 min before · East 13-C-315</string>
-    <string name="widget_preview_reminder_sub_2">10 min before · East 11-A-207</string>
+    <string name="widget_preview_reminder_sub_1">10 min before East 13-C-315</string>
+    <string name="widget_preview_reminder_sub_2">10 min before East 11-A-207</string>
     <string name="widget_diag_pin_ignored">Declared supported, but this launcher ignores it (manual add is used instead)</string>
 
-    <string name="calendar_widget_description">CurSimple · Course calendar</string>
+    <string name="calendar_widget_description">CurSimple Course calendar</string>
     <string name="widget_label_calendar">Course calendar</string>
     <string name="widget_label_tasks">Component widgets</string>
     <string name="component_widget_slot_label">Optional component</string>
-    <string name="component_widget_slot_description">CurSimple · optional component</string>
+    <string name="component_widget_slot_description">CurSimple optional component</string>
     <string name="widget_catalog_calendar_description">Week timetable and month calendar; tap a day to open its classes</string>
     <string name="widget_catalog_tasks_description">Choose a declared widget with UI and content managed by its component</string>
     <string name="widget_background_image_error">Background image unavailable</string>
@@ -173,7 +175,7 @@
     <string name="widget_memo_empty">All to-dos done, great job!</string>
     <string name="widget_memo_notebook_other">Other notes</string>
     <string name="widget_memo_pending">To-do</string>
-    <string name="widget_memo_subtitle">Check to finish · Tap text to edit</string>
+    <string name="widget_memo_subtitle">Check to finish, tap text to edit</string>
     <string name="widget_memo_count">%1$d to-dos</string>
     <string name="widget_memo_scroll_more">Swipe to see every to-do</string>
     <string name="widget_memo_pinned">Pinned</string>
@@ -193,4 +195,6 @@
     <string name="widget_memo_add_action">Add task</string>
     <string name="widget_memo_empty_compact">Tap + to add a to-do</string>
     <string name="widget_loading_text">Loading…</string>
+    <string name="widget_legend_end_final">Last week</string>
+    <string name="widget_legend_end_near">2nd-to-last week</string>
 </resources>

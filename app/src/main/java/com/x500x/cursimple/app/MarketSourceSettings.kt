@@ -1,6 +1,8 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import com.x500x.cursimple.feature.plugin.ui.AppConfirmationDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
 import com.x500x.cursimple.feature.plugin.ui.AppInfoBlock
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -8,7 +10,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,13 +30,9 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,8 +49,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -74,6 +77,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Key
 
 class MarketSourceServices(
     val registry: GitHubRegistryRepository,
@@ -99,27 +108,27 @@ internal fun MarketSourceSettings(
 ) {
     val account by services.account.account.collectAsState()
     val checkKey by services.account.revision.collectAsState()
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SourceListCard(
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        SourceListSection(
             kind = MarketSourceKind.Plugin,
             sources = pluginSources,
             onChange = onPluginSourcesChange,
             services = services,
             checkKey = checkKey,
         )
-        SourceListCard(
+        SourceListSection(
             kind = MarketSourceKind.Component,
             sources = componentSources,
             onChange = onComponentSourcesChange,
             services = services,
             checkKey = checkKey,
         )
-        GitHubAccountCard(account = account, services = services)
+        GitHubAccountSection(account = account, services = services)
     }
 }
 
 @Composable
-private fun SourceListCard(
+private fun SourceListSection(
     kind: MarketSourceKind,
     sources: List<String>,
     onChange: (List<String>) -> Unit,
@@ -149,46 +158,44 @@ private fun SourceListCard(
     var adding by rememberSaveable { mutableStateOf(false) }
     var pendingRemoval by rememberSaveable { mutableStateOf<String?>(null) }
     val default = DefaultMarketSources.of(kind)
-    SettingsCardSurface {
-        Text(
-            stringResource(if (kind == MarketSourceKind.Plugin) R.string.market_sources_plugin_title else R.string.market_sources_component_title),
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            stringResource(R.string.market_sources_subtitle),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SettingsCardGroup(
+            stringResource(
+                if (kind == MarketSourceKind.Plugin) R.string.market_sources_plugin_title else R.string.market_sources_component_title,
+            ),
+        ) {
+            sources.forEach { slug ->
+                SourceRow(
+                    slug = slug,
+                    isDefault = slug.equals(default, ignoreCase = true),
+                    kind = kind,
+                    status = statuses[slug],
+                    checked = slug in statuses,
+                    onRecheck = { check(slug) },
+                    onRemove = { pendingRemoval = slug },
+                )
+            }
+            SourceActionRow(
+                icon = Icons.Rounded.Add,
+                label = stringResource(R.string.market_sources_add),
+                onClick = { adding = true },
+            )
+            if (sources.none { it.equals(default, ignoreCase = true) }) {
+                SourceActionRow(
+                    icon = Icons.Rounded.Public,
+                    label = stringResource(R.string.market_sources_restore_default),
+                    onClick = { onChange(listOf(default) + sources) },
+                )
+            }
+        }
+        SettingsHintText(stringResource(R.string.market_sources_subtitle))
         if (sources.isEmpty()) {
             Text(
                 stringResource(R.string.market_sources_empty),
-                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(horizontal = 6.dp),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 17.25.sp),
                 color = MaterialTheme.colorScheme.error,
             )
-        }
-        sources.forEach { slug ->
-            SourceRow(
-                slug = slug,
-                isDefault = slug.equals(default, ignoreCase = true),
-                kind = kind,
-                status = statuses[slug],
-                checked = slug in statuses,
-                onRecheck = { check(slug) },
-                onRemove = { pendingRemoval = slug },
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AppOutlinedButton(onClick = { adding = true }) {
-                Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(stringResource(R.string.market_sources_add))
-            }
-            if (sources.none { it.equals(default, ignoreCase = true) }) {
-                AppOutlinedButton(onClick = { onChange(listOf(default) + sources) }) {
-                    Text(stringResource(R.string.market_sources_restore_default))
-                }
-            }
         }
     }
     if (adding) {
@@ -206,6 +213,8 @@ private fun SourceListCard(
     }
     pendingRemoval?.let { target ->
         AppConfirmationDialog(
+            icon = Icons.Rounded.DeleteOutline,
+            tone = AppDialogTone.Danger,
             title = stringResource(R.string.market_sources_remove_confirm_title),
             message = stringResource(R.string.market_sources_remove_confirm_body),
             confirmLabel = stringResource(R.string.market_sources_remove_confirm),
@@ -219,6 +228,7 @@ private fun SourceListCard(
                 AppInfoBlock(
                     label = if (DefaultMarketSources.isDefault(target)) stringResource(R.string.market_source_public) else null,
                     value = target,
+                    showDivider = false,
                 )
             },
         )
@@ -235,46 +245,77 @@ private fun SourceRow(
     onRecheck: () -> Unit,
     onRemove: () -> Unit,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surface,
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 if (isDefault) Icons.Rounded.Public else Icons.Rounded.Folder,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(22.dp),
+                modifier = Modifier.size(20.dp),
             )
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                if (isDefault) stringResource(R.string.market_source_public) else slug,
+                style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, lineHeight = 18.2.sp, letterSpacing = 0.sp),
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (isDefault) {
                 Text(
-                    if (isDefault) stringResource(R.string.market_source_public) else slug,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    text = slug,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 16.7.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (isDefault) {
-                    Text(slug, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                if (checked) SourceStatusLine(status, kind)
             }
-            if (checked && status == null) {
-                CircularProgressIndicator(modifier = Modifier.padding(12.dp).size(18.dp), strokeWidth = 2.dp)
-            } else {
-                OutlinedIconButton(onClick = onRecheck, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.market_sources_recheck))
-                }
-            }
-            Spacer(Modifier.width(4.dp))
-            OutlinedIconButton(onClick = onRemove, modifier = Modifier.size(40.dp)) {
-                Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.market_sources_remove))
-            }
+            if (checked) SourceStatusLine(status, kind)
+        }
+        if (checked && status == null) {
+            CircularProgressIndicator(modifier = Modifier.padding(horizontal = 10.dp).size(18.dp), strokeWidth = 2.dp)
+        } else {
+            SourceIconButton(
+                icon = Icons.Rounded.Refresh,
+                description = stringResource(R.string.market_sources_recheck),
+                tint = MaterialTheme.colorScheme.primary,
+                onClick = onRecheck,
+            )
+        }
+        SourceIconButton(
+            icon = Icons.Rounded.Delete,
+            description = stringResource(R.string.market_sources_remove),
+            tint = MaterialTheme.colorScheme.error,
+            onClick = onRemove,
+        )
+    }
+}
+
+/** The 38dp outlined pill the design uses for a row's trailing actions. */
+@Composable
+private fun SourceIconButton(icon: ImageVector, description: String, tint: Color, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.size(38.dp),
+        shape = RoundedCornerShape(19.dp),
+        color = Color.Transparent,
+        contentColor = tint,
+        border = BorderStroke(1.5.dp, tint.copy(alpha = 0.45f)),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = description, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -284,7 +325,8 @@ private fun SourceStatusLine(status: SourceStatus, kind: MarketSourceKind) {
     val (text, ok) = sourceStatusText(status, kind)
     Text(
         text,
-        style = MaterialTheme.typography.labelSmall,
+        modifier = Modifier.padding(top = 2.dp),
+        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 16.7.sp),
         color = when {
             status == null -> MaterialTheme.colorScheme.onSurfaceVariant
             ok -> MaterialTheme.colorScheme.primary
@@ -297,8 +339,9 @@ private fun SourceStatusLine(status: SourceStatus, kind: MarketSourceKind) {
 private fun sourceStatusText(status: SourceStatus, kind: MarketSourceKind): Pair<String, Boolean> = when (status) {
     null -> stringResource(R.string.market_source_status_checking) to false
     is MarketSourceCheck.Available -> {
-        val count = stringResource(
-            if (kind == MarketSourceKind.Plugin) R.string.market_source_status_plugins else R.string.market_source_status_components,
+        val count = pluralStringResource(
+            if (kind == MarketSourceKind.Plugin) R.plurals.market_source_status_plugins else R.plurals.market_source_status_components,
+            status.count,
             status.count,
         )
         (if (status.viaAccount) stringResource(R.string.market_source_status_available_account, count) else stringResource(R.string.market_source_status_available, count)) to true
@@ -326,14 +369,15 @@ private fun AddSourceDialog(
     val slug = GitHubRepoAddress.parse(input)
     val duplicate = slug != null && existing.any { it.equals(slug, ignoreCase = true) }
     val checkedThis = checkedSlug != null && checkedSlug == slug
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = { if (!checking) onDismiss() },
+        icon = { Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = {
             Text(stringResource(if (kind == MarketSourceKind.Plugin) R.string.market_sources_add_plugin_title else R.string.market_sources_add_component_title))
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = input,
                     onValueChange = { input = it; result = null; checkedSlug = null },
                     modifier = Modifier.fillMaxWidth(),
@@ -366,14 +410,14 @@ private fun AddSourceDialog(
         },
         confirmButton = {
             val failed = checkedThis && result !is MarketSourceCheck.Available
-            Button(
+            AppDialogPrimaryButton(
                 enabled = slug != null && !duplicate && !checking,
                 onClick = {
-                    val target = slug ?: return@Button
+                    val target = slug ?: return@AppDialogPrimaryButton
                     if (failed) {
                         // Allow adding a private source before signing in.
                         onAdd(target, result ?: MarketSourceCheck.NotFound)
-                        return@Button
+                        return@AppDialogPrimaryButton
                     }
                     checking = true
                     scope.launch {
@@ -389,50 +433,62 @@ private fun AddSourceDialog(
             }
         },
         dismissButton = {
-            AppOutlinedButton(enabled = !checking, onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+            AppDialogSecondaryButton(enabled = !checking, onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }
 
 @Composable
-private fun GitHubAccountCard(account: GitHubAccount?, services: MarketSourceServices) {
+private fun GitHubAccountSection(account: GitHubAccount?, services: MarketSourceServices) {
     val context = LocalContext.current
     val resources = LocalResources.current
     var pastingToken by rememberSaveable { mutableStateOf(false) }
     var deviceLogin by rememberSaveable { mutableStateOf(false) }
-    SettingsCardSurface {
-        Text(stringResource(R.string.github_account_title), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-        if (account == null) {
-            Text(
-                stringResource(R.string.github_account_logged_out),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SettingsCardGroup(stringResource(R.string.github_account_title)) {
+            if (account == null) {
                 if (services.oauthClientId.isNotBlank()) {
-                    Button(onClick = { deviceLogin = true }) { Text(stringResource(R.string.github_account_login_device)) }
-                    AppOutlinedButton(onClick = { pastingToken = true }) { Text(stringResource(R.string.github_account_login_token)) }
-                } else {
-                    Button(onClick = { pastingToken = true }) { Text(stringResource(R.string.github_account_login_token)) }
-                }
-            }
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                AccountInitial(account.login)
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(account.login, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        stringResource(R.string.github_account_logged_in),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    SourceActionRow(
+                        icon = Icons.Rounded.AccountCircle,
+                        label = stringResource(R.string.github_account_login_device),
+                        onClick = { deviceLogin = true },
                     )
                 }
-                AppOutlinedButton(onClick = {
-                    services.account.clear()
-                    Toast.makeText(context, resources.getString(R.string.github_account_logged_out_toast), Toast.LENGTH_SHORT).show()
-                }) { Text(stringResource(R.string.github_account_logout)) }
+                SourceActionRow(
+                    icon = Icons.Rounded.AccountCircle,
+                    label = stringResource(R.string.github_account_login_token),
+                    onClick = { pastingToken = true },
+                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AccountInitial(account.login)
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            account.login,
+                            style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, lineHeight = 18.2.sp, letterSpacing = 0.sp),
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            stringResource(R.string.github_account_logged_in),
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 16.7.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    AppOutlinedButton(onClick = {
+                        services.account.clear()
+                        Toast.makeText(context, resources.getString(R.string.github_account_logged_out_toast), Toast.LENGTH_SHORT).show()
+                    }) { Text(stringResource(R.string.github_account_logout)) }
+                }
             }
+        }
+        if (account == null) {
+            SettingsHintText(stringResource(R.string.github_account_logged_out))
         }
     }
     if (pastingToken) TokenLoginDialog(services = services, onDismiss = { pastingToken = false })
@@ -461,8 +517,9 @@ private fun TokenLoginDialog(services: MarketSourceServices, onDismiss: () -> Un
     var token by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
+        icon = { Icon(Icons.Rounded.Key, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.github_token_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -470,7 +527,7 @@ private fun TokenLoginDialog(services: MarketSourceServices, onDismiss: () -> Un
                 AppOutlinedButton(onClick = { context.openUrl(NEW_TOKEN_URL) }) {
                     Text(stringResource(R.string.github_token_open_page))
                 }
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = token,
                     onValueChange = { token = it.trim(); error = null },
                     modifier = Modifier.fillMaxWidth(),
@@ -484,7 +541,7 @@ private fun TokenLoginDialog(services: MarketSourceServices, onDismiss: () -> Un
             }
         },
         confirmButton = {
-            Button(
+            AppDialogPrimaryButton(
                 enabled = token.isNotBlank() && !busy,
                 onClick = {
                     val candidate = token.trim()
@@ -509,7 +566,7 @@ private fun TokenLoginDialog(services: MarketSourceServices, onDismiss: () -> Un
                 },
             ) { Text(stringResource(if (busy) R.string.github_login_verifying else R.string.github_token_confirm)) }
         },
-        dismissButton = { AppOutlinedButton(enabled = !busy, onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) } },
+        dismissButton = { AppDialogSecondaryButton(enabled = !busy, onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) } },
     )
 }
 
@@ -565,8 +622,9 @@ private fun DeviceLoginDialog(services: MarketSourceServices, onDismiss: () -> U
         }
         error = resources.getString(R.string.github_device_expired)
     }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.AccountCircle, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.github_device_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -599,24 +657,39 @@ private fun DeviceLoginDialog(services: MarketSourceServices, onDismiss: () -> U
         confirmButton = {
             val code = userCode
             if (code != null && error == null) {
-                Button(onClick = {
+                AppDialogPrimaryButton(onClick = {
                     context.copyText(code)
                     context.openUrl(verifyUrl)
                 }) { Text(stringResource(R.string.github_device_open)) }
             }
         },
-        dismissButton = { AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) } },
+        dismissButton = { AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) } },
     )
 }
 
+/** Full-width card row that adds or restores a source, styled like the rest of the card. */
 @Composable
-private fun SettingsCardSurface(content: @Composable () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(12.dp),
+private fun SourceActionRow(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.width(14.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp, lineHeight = 17.sp),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 

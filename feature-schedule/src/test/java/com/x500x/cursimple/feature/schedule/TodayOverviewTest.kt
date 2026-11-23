@@ -151,18 +151,21 @@ class TodayOverviewTest {
 
     @Test fun `free slots calculation handles empty day and partial gaps`() {
         val emptyState = overview(courses = emptyList())
-        assertEquals(1, emptyState.freeSlots.size)
+        assertEquals(3, emptyState.freeSlots.size)
         assertEquals(1, emptyState.freeSlots[0].startNode)
-        assertEquals(12, emptyState.freeSlots[0].endNode)
+        assertEquals(2, emptyState.freeSlots[0].endNode)
+        assertEquals("第1节", emptyState.freeSlots[0].label)
+        assertEquals("第3节", emptyState.freeSlots[1].label)
+        assertEquals("第5节", emptyState.freeSlots[2].label)
 
         val partialCourses = listOf(
             course("c1", node = 1), // node 1-2
             course("c2", node = 3), // node 3-4
         )
         val state = overview(courses = partialCourses)
-        // nodes 1-4 occupied, nodes 5-12 should be free
+        // The configured third slot is free while the first two slots are occupied.
         assertTrue(state.freeSlots.isNotEmpty())
-        assertTrue(state.freeSlots.any { it.startNode == 5 && it.endNode == 12 })
+        assertTrue(state.freeSlots.any { it.startNode == 5 && it.endNode == 6 })
     }
 
     @Test fun `makeup day detects swap when source day differs from target day`() {

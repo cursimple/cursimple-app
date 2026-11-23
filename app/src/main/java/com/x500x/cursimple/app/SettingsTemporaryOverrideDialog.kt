@@ -1,23 +1,27 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import com.x500x.cursimple.core.kernel.model.moveToNodeRange
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.ExpandLess
-import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.EventRepeat
@@ -25,9 +29,7 @@ import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
@@ -40,10 +42,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.x500x.cursimple.R
 import com.x500x.cursimple.core.kernel.model.CancelCoursePlan
 import com.x500x.cursimple.core.kernel.model.CourseItem
@@ -61,11 +65,19 @@ import com.x500x.cursimple.core.kernel.model.planRestoreCourse
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import com.x500x.cursimple.core.kernel.model.makeUpNodeRange
 import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
-import com.x500x.cursimple.core.kernel.model.weekdayLabel
+import com.x500x.cursimple.core.kernel.model.weekdayNameRes
 import com.x500x.cursimple.core.kernel.model.typedClock
 import java.time.LocalDate
 import java.util.UUID
 import com.x500x.cursimple.feature.schedule.CalendarMonthPicker
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogDangerButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.rounded.AccessTime
+import androidx.compose.material.icons.rounded.CalendarMonth
 
 /** Each rule tab owns its form and list. */
 private enum class TemporaryOverrideTab { MakeUp, CancelCourse }
@@ -185,35 +197,35 @@ internal fun TemporaryOverrideSettingsSection(
     )
 
     if (tab == TemporaryOverrideTab.MakeUp) {
-        SettingsActionRow(
-            icon = Icons.Rounded.EventRepeat,
-            title = stringResource(R.string.settings_override_target_makeup),
-            subtitle = makeUpTargetDate?.let(::formatLongDate)
-                ?: stringResource(R.string.settings_override_date_unset),
-            onClick = { pickDateFor = PICK_MAKEUP_TARGET },
-        )
-        SettingsActionRow(
-            icon = Icons.Rounded.Event,
-            title = stringResource(R.string.settings_override_source_day),
-            subtitle = makeUpSourceDate?.let(::formatLongDate)
-                ?: stringResource(R.string.settings_override_date_unset),
-            onClick = { pickDateFor = PICK_MAKEUP_SOURCE },
-        )
+        SettingsCard {
+            SettingsActionRow(
+                icon = Icons.Rounded.EventRepeat,
+                title = stringResource(R.string.settings_override_target_makeup),
+                subtitle = makeUpTargetDate?.let { formatLongDate(it) }
+                    ?: stringResource(R.string.settings_override_date_unset),
+                onClick = { pickDateFor = PICK_MAKEUP_TARGET },
+            )
+            SettingsActionRow(
+                icon = Icons.Rounded.Event,
+                title = stringResource(R.string.settings_override_source_day),
+                subtitle = makeUpSourceDate?.let { formatLongDate(it) }
+                    ?: stringResource(R.string.settings_override_date_unset),
+                onClick = { pickDateFor = PICK_MAKEUP_SOURCE },
+            )
+        }
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            AppFilterChip(
+            SettingsOptionChip(
+                text = stringResource(R.string.settings_override_scope_whole_day),
                 selected = makeUpScope == MakeUpScope.WholeDay,
                 onClick = { makeUpScope = MakeUpScope.WholeDay },
-                label = { Text(stringResource(R.string.settings_override_scope_whole_day)) },
-                modifier = Modifier.weight(1f),
             )
-            AppFilterChip(
+            SettingsOptionChip(
+                text = stringResource(R.string.settings_override_scope_nodes),
                 selected = makeUpScope == MakeUpScope.Nodes,
                 onClick = { makeUpScope = MakeUpScope.Nodes },
-                label = { Text(stringResource(R.string.settings_override_scope_nodes)) },
-                modifier = Modifier.weight(1f),
             )
         }
         if (makeUpScope == MakeUpScope.Nodes) {
@@ -232,12 +244,14 @@ internal fun TemporaryOverrideSettingsSection(
             isError = makeUpTargetDate != null && makeUpSourceDate != null && !makeUpUsable,
         )
         if (makeUpTargetDate != null && makeUpSourceDate != null && makeUpTargetDate != makeUpSourceDate) {
-            SettingsActionRow(
-                icon = Icons.Rounded.SwapHoriz,
-                title = stringResource(R.string.settings_override_open_swap_title),
-                subtitle = stringResource(R.string.settings_override_open_swap_subtitle),
-                onClick = { onOpenCourseSwap(makeUpTargetDate!!, makeUpSourceDate!!) },
-            )
+            SettingsCard {
+                SettingsActionRow(
+                    icon = Icons.Rounded.SwapHoriz,
+                    title = stringResource(R.string.settings_override_open_swap_title),
+                    subtitle = stringResource(R.string.settings_override_open_swap_subtitle),
+                    onClick = { onOpenCourseSwap(makeUpTargetDate!!, makeUpSourceDate!!) },
+                )
+            }
         }
         OverrideSubmitRow(
             editing = editingId != null,
@@ -261,13 +275,15 @@ internal fun TemporaryOverrideSettingsSection(
             onCancelEdit = { resetDraft() },
         )
     } else {
-        SettingsActionRow(
-            icon = Icons.Rounded.EventBusy,
-            title = stringResource(R.string.settings_override_target_cancel),
-            subtitle = cancelTargetDate?.let(::formatLongDate)
-                ?: stringResource(R.string.settings_override_date_unset),
-            onClick = { pickDateFor = PICK_CANCEL_TARGET },
-        )
+        SettingsCard {
+            SettingsActionRow(
+                icon = Icons.Rounded.EventBusy,
+                title = stringResource(R.string.settings_override_target_cancel),
+                subtitle = cancelTargetDate?.let { formatLongDate(it) }
+                    ?: stringResource(R.string.settings_override_date_unset),
+                onClick = { pickDateFor = PICK_CANCEL_TARGET },
+            )
+        }
         CancelDayCourseList(
             date = cancelTargetDate,
             courses = courses,
@@ -279,43 +295,35 @@ internal fun TemporaryOverrideSettingsSection(
         )
     }
 
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-    Text(
-        text = stringResource(R.string.settings_override_list_title, visibleRules.size),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    SettingsSectionHeader(stringResource(R.string.settings_override_list_title, visibleRules.size))
     if (visibleRules.isEmpty()) {
-        Text(
-            text = stringResource(R.string.settings_override_empty),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        SettingsHintText(stringResource(R.string.settings_override_empty))
     } else {
-        visibleRules.forEach { rule ->
+        SettingsCard {
+            visibleRules.forEach { rule ->
+                SettingsActionRow(
+                    icon = Icons.Rounded.Schedule,
+                    title = formatOverrideRange(rule),
+                    subtitle = formatOverrideSource(rule, courseTitleOf),
+                    onClick = { loadForEdit(rule) },
+                    trailing = {
+                        IconButton(onClick = { confirming = OverrideConfirm.Remove(rule.id) }) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = stringResource(R.string.settings_delete),
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    },
+                )
+            }
             SettingsActionRow(
-                icon = Icons.Rounded.Schedule,
-                title = formatOverrideRange(rule),
-                subtitle = formatOverrideSource(rule, courseTitleOf),
-                onClick = { loadForEdit(rule) },
-                trailing = {
-                    IconButton(onClick = { confirming = OverrideConfirm.Remove(rule.id) }) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = stringResource(R.string.settings_delete),
-                            tint = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                },
+                icon = Icons.Rounded.DeleteSweep,
+                title = stringResource(R.string.settings_clear_all),
+                subtitle = stringResource(R.string.settings_override_clear_body),
+                onClick = { confirming = OverrideConfirm.Clear },
             )
         }
-        SettingsActionRow(
-            icon = Icons.Rounded.DeleteSweep,
-            title = stringResource(R.string.settings_clear_all),
-            subtitle = stringResource(R.string.settings_override_clear_body),
-            onClick = { confirming = OverrideConfirm.Clear },
-        )
     }
 
     // List individual drag-based moves separately from day and period swaps.
@@ -382,7 +390,7 @@ private fun CancelDayCourseList(
 ) {
     val context = LocalContext.current
     if (date == null) {
-        FormHint(text = stringResource(R.string.settings_override_cancel_pick_date), isError = false)
+        SettingsHintText(stringResource(R.string.settings_override_cancel_pick_date))
         return
     }
     val dayCourses = remember(date, courses, overrides, holidayCalendar, termStartDate) {
@@ -396,55 +404,57 @@ private fun CancelDayCourseList(
         )
     }
     if (dayCourses.isEmpty()) {
-        FormHint(text = stringResource(R.string.settings_override_cancel_no_course, formatLongDate(date)), isError = false)
+        SettingsHintText(stringResource(R.string.settings_override_cancel_no_course, formatLongDate(date)))
         return
     }
-    dayCourses.forEach { course ->
-        val cancelled = isCourseTemporarilyCancelled(date, course, overrides)
-        // Legacy multi-day period rules must be removed as a whole.
-        val restorePlan = if (cancelled) {
-            planRestoreCourse(date, course, dayCourses, overrides, newId = { UUID.randomUUID().toString() })
-        } else {
-            null
-        }
-        // Prefer timing-profile names; internal period numbers may differ from visible labels.
-        val covering = timingProfile?.slotsCovering(course.time.startNode, course.time.endNode).orEmpty()
-        val period = context.slotLabelText(covering) ?: stringResource(
-            R.string.settings_override_cancel_course_nodes,
-            nodeSpanText(course.time.startNode, course.time.endNode),
-        )
-        val time = course.typedClock()?.let { (start, end) -> "$start–$end" }
-            ?: covering.takeIf { it.isNotEmpty() }?.let { "${it.first().value.startTime}–${it.last().value.endTime}" }
-        val detail = listOfNotNull(
-            period,
-            time,
-            course.location.takeIf { it.isNotBlank() },
-        ).joinToString(" · ")
-        val toggle: () -> Unit = {
-            when {
-                !cancelled -> onApply(planCancelCourse(date, course, newId = { UUID.randomUUID().toString() }))
-                restorePlan != null -> onApply(restorePlan)
+    SettingsCard {
+        dayCourses.forEach { course ->
+            val cancelled = isCourseTemporarilyCancelled(date, course, overrides)
+            // Legacy multi-day period rules must be removed as a whole.
+            val restorePlan = if (cancelled) {
+                planRestoreCourse(date, course, dayCourses, overrides, newId = { UUID.randomUUID().toString() })
+            } else {
+                null
             }
-        }
-        SettingsActionRow(
-            icon = if (cancelled) Icons.Rounded.EventBusy else Icons.Rounded.Schedule,
-            title = course.title,
-            subtitle = when {
-                !cancelled -> detail
-                restorePlan == null -> stringResource(R.string.settings_override_cancel_state_legacy, detail)
-                else -> stringResource(R.string.settings_override_cancel_state, detail)
-            },
-            onClick = toggle,
-            trailing = {
-                AppOutlinedButton(onClick = toggle, enabled = !cancelled || restorePlan != null) {
-                    Text(
-                        stringResource(
-                            if (cancelled) R.string.settings_override_cancel_restore else R.string.settings_override_cancel_action,
-                        ),
-                    )
+            // Prefer timing-profile names; internal period numbers may differ from visible labels.
+            val covering = timingProfile?.slotsCovering(course.time.startNode, course.time.endNode).orEmpty()
+            val period = context.slotLabelText(covering) ?: stringResource(
+                R.string.settings_override_cancel_course_nodes,
+                nodeSpanText(course.time.startNode, course.time.endNode),
+            )
+            val time = course.typedClock()?.let { (start, end) -> "$start–$end" }
+                ?: covering.takeIf { it.isNotEmpty() }?.let { "${it.first().value.startTime}–${it.last().value.endTime}" }
+            val detail = listOfNotNull(
+                period,
+                time,
+                course.location.takeIf { it.isNotBlank() },
+            ).joinToString(" · ")
+            val toggle: () -> Unit = {
+                when {
+                    !cancelled -> onApply(planCancelCourse(date, course, newId = { UUID.randomUUID().toString() }))
+                    restorePlan != null -> onApply(restorePlan)
                 }
-            },
-        )
+            }
+            SettingsActionRow(
+                icon = if (cancelled) Icons.Rounded.EventBusy else Icons.Rounded.Schedule,
+                title = course.title,
+                subtitle = when {
+                    !cancelled -> detail
+                    restorePlan == null -> stringResource(R.string.settings_override_cancel_state_legacy, detail)
+                    else -> stringResource(R.string.settings_override_cancel_state, detail)
+                },
+                onClick = toggle,
+                trailing = {
+                    AppOutlinedButton(onClick = toggle, enabled = !cancelled || restorePlan != null) {
+                        Text(
+                            stringResource(
+                                if (cancelled) R.string.settings_override_cancel_restore else R.string.settings_override_cancel_action,
+                            ),
+                        )
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -462,31 +472,28 @@ private fun MovedCoursesList(
         .toSortedMap(compareBy(nullsLast()) { it })
     var expanded by rememberSaveable { mutableStateOf<String?>(null) }
 
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-    Text(
-        text = stringResource(R.string.settings_override_moves_title, moves.size),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    byDay.forEach { (day, rules) ->
-        val key = day?.toString() ?: "invalid"
-        val open = expanded == key
-        SettingsActionRow(
-            icon = Icons.Rounded.SwapHoriz,
-            title = day?.let(::formatShortDate) ?: stringResource(R.string.settings_invalid_date),
-            subtitle = stringResource(R.string.settings_override_moves_day, rules.size),
-            onClick = { expanded = if (open) null else key },
-            trailing = {
-                Icon(
-                    imageVector = if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            },
-        )
-        if (open) {
-            rules.sortedBy { it.moveToStartNode ?: Int.MAX_VALUE }.forEach { rule ->
-                MovedCourseRow(rule = rule, courseTitleOf = courseTitleOf, onRemove = { onRemove(rule.id) })
+    SettingsSectionHeader(stringResource(R.string.settings_override_moves_title, moves.size))
+    SettingsCard {
+        byDay.forEach { (day, rules) ->
+            val key = day?.toString() ?: "invalid"
+            val open = expanded == key
+            SettingsActionRow(
+                icon = Icons.Rounded.SwapHoriz,
+                title = day?.let(::formatShortDate) ?: stringResource(R.string.settings_invalid_date),
+                subtitle = stringResource(R.string.settings_override_moves_day, rules.size),
+                onClick = { expanded = if (open) null else key },
+                trailing = {
+                    Icon(
+                        imageVector = if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                },
+            )
+            if (open) {
+                rules.sortedBy { it.moveToStartNode ?: Int.MAX_VALUE }.forEach { rule ->
+                    MovedCourseRow(rule = rule, courseTitleOf = courseTitleOf, onRemove = { onRemove(rule.id) })
+                }
             }
         }
     }
@@ -510,23 +517,27 @@ private fun MovedCourseRow(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 24.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-        shape = RoundedCornerShape(12.dp),
+            .padding(start = 24.dp, end = 14.dp, top = 2.dp, bottom = 6.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        shape = RoundedCornerShape(14.dp),
     ) {
         Row(
-            modifier = Modifier.padding(start = 14.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
+            modifier = Modifier.padding(start = 14.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = 13.5.sp,
+                        lineHeight = 17.5.sp,
+                        letterSpacing = 0.sp,
+                    ),
+                    fontWeight = FontWeight.Bold,
                 )
                 Text(
                     text = detail,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 17.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -547,25 +558,32 @@ private fun OverrideModeSwitch(
     selected: TemporaryOverrideTab,
     onSelect: (TemporaryOverrideTab) -> Unit,
 ) {
+    val cardShape = RoundedCornerShape(22.dp)
     Surface(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        shape = cardShape,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(modifier = Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             TemporaryOverrideTab.entries.forEach { mode ->
                 val active = mode == selected
-                Surface(
+                val segmentShape = RoundedCornerShape(18.dp)
+                Row(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable { onSelect(mode) },
-                    color = if (active) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        androidx.compose.ui.graphics.Color.Transparent
-                    },
-                    shape = RoundedCornerShape(10.dp),
+                        .clip(segmentShape)
+                        .background(
+                            if (active) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                            } else {
+                                androidx.compose.ui.graphics.Color.Transparent
+                            },
+                        )
+                        .selectable(selected = active, role = Role.RadioButton) {
+                            onSelect(mode)
+                        },
+                    horizontalArrangement = Arrangement.Center,
                 ) {
                     Text(
                         text = stringResource(
@@ -574,12 +592,12 @@ private fun OverrideModeSwitch(
                                 TemporaryOverrideTab.CancelCourse -> R.string.settings_override_mode_cancel
                             },
                         ),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                        modifier = Modifier.padding(vertical = 10.dp),
                         textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.5.sp, letterSpacing = 0.sp),
+                        fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
                         color = if (active) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
+                            MaterialTheme.colorScheme.primary
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         },
@@ -637,7 +655,7 @@ private fun NodeRangeFields(
 ) {
     val filled = startText.isNotBlank() || endText.isNotBlank()
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = startText,
             onValueChange = { onStartChange(it.filter(Char::isDigit).take(2)) },
             label = { Text(startLabel) },
@@ -646,7 +664,7 @@ private fun NodeRangeFields(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.weight(1f),
         )
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = endText,
             onValueChange = { onEndChange(it.filter(Char::isDigit).take(2)) },
             label = { Text(endLabel) },
@@ -661,9 +679,11 @@ private fun NodeRangeFields(
 @Composable
 private fun FormHint(text: String?, isError: Boolean) {
     if (text.isNullOrBlank()) return
+    // Same explanatory-note metrics as the settings hint, with an error variant.
     Text(
         text = text,
-        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.padding(horizontal = 6.dp),
+        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 17.25.sp),
         color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
@@ -719,15 +739,27 @@ private fun OverrideConfirmDialog(
             R.string.settings_override_discard_action,
         )
     }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        tone = if (pending == OverrideConfirm.DiscardDraft) AppDialogTone.Warning else AppDialogTone.Danger,
+        icon = {
+            Icon(
+                when (pending) {
+                    OverrideConfirm.DiscardDraft -> Icons.Rounded.Edit
+                    OverrideConfirm.Clear -> Icons.Rounded.DeleteSweep
+                    is OverrideConfirm.Remove -> Icons.Rounded.DeleteOutline
+                },
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+            )
+        },
         title = { Text(stringResource(titleRes)) },
         text = { Text(stringResource(bodyRes)) },
         confirmButton = {
-            AppOutlinedButton(onClick = onConfirm) { Text(stringResource(actionRes)) }
+            AppDialogDangerButton(onClick = onConfirm) { Text(stringResource(actionRes)) }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }
@@ -756,8 +788,9 @@ internal fun SettingsDatePickerDialog(
     // Use custom weekday labels; narrow system names can be ambiguous in some locales.
     val fallback = com.x500x.cursimple.core.kernel.time.BeijingTime.today()
     var selected by remember(initial) { mutableStateOf(initial ?: fallback) }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = null, modifier = Modifier.size(22.dp)) },
         text = {
             CalendarMonthPicker(
                 selected = selected,
@@ -765,12 +798,12 @@ internal fun SettingsDatePickerDialog(
             )
         },
         confirmButton = {
-            AppOutlinedButton(onClick = { onConfirm(selected) }) {
+            AppDialogPrimaryButton(onClick = { onConfirm(selected) }) {
                 Text(stringResource(R.string.settings_confirm))
             }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }
@@ -849,5 +882,7 @@ internal fun nodeSpanText(start: Int, end: Int): String =
 internal fun formatShortDate(date: LocalDate): String =
     "${date.monthValue}/${date.dayOfMonth}"
 
+/** "MM/DD plus localized weekday", e.g. 11/18 Wed. */
+@Composable
 internal fun formatLongDate(date: LocalDate): String =
-    "${formatShortDate(date)} ${weekdayLabel(date.dayOfWeek.value)}"
+    "${formatShortDate(date)} ${stringResource(weekdayNameRes(date.dayOfWeek.value))}"

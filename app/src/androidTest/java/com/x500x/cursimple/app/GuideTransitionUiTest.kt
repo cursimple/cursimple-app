@@ -12,38 +12,68 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
 import androidx.test.platform.app.InstrumentationRegistry
 import com.x500x.cursimple.R
-import com.x500x.cursimple.app.guide.FirstRunGuideOverlay
-import com.x500x.cursimple.app.guide.GuideStep
+import com.x500x.cursimple.app.guide.FirstRunGuideDialog
+import com.x500x.cursimple.app.guide.FirstRunPermissionsPage
 import com.x500x.cursimple.app.navigation.AnimatedPage
 import com.x500x.cursimple.app.theme.ClassScheduleTheme
 import com.x500x.cursimple.core.data.ThemeMode
+import com.x500x.cursimple.core.data.ClassNoticePreferences
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
-/** Guide steps and the pages they open change with a transition instead of swapping in one frame. */
 class GuideTransitionUiTest {
     @get:Rule val compose = createComposeRule()
     private fun text(id: Int) = InstrumentationRegistry.getInstrumentation().targetContext.getString(id)
 
-    @Test fun nextStepCrossfadesTheCard() {
-        val steps = listOf(
-            GuideStep(R.string.guide_week_title, R.string.guide_week_body, null),
-            GuideStep(R.string.guide_grid_title, R.string.guide_grid_body, null),
-        )
-        compose.setContent { ClassScheduleTheme(ThemeMode.Light) { FirstRunGuideOverlay(steps = steps, onFinish = {}) } }
-        compose.mainClock.autoAdvance = false
+    @Test fun animatedPagesCanBeSwipedAndSkippedWithoutOpeningAnotherScreen() {
+        var visible by mutableStateOf(true)
+        compose.setContent {
+            ClassScheduleTheme(ThemeMode.Light) {
+                Text("Underlying page", Modifier.testTag("underlying"))
+                if (visible) {
+                    FirstRunGuideDialog(onFinish = { visible = false })
+                }
+            }
+        }
+        compose.onNodeWithTag("first-run-animation-0").assertIsDisplayed()
+        compose.onNodeWithTag("first-run-pages").performTouchInput { swipeLeft() }
+        compose.onNodeWithTag("first-run-animation-1").assertIsDisplayed()
         compose.onNodeWithText(text(R.string.guide_next)).performClick()
-        compose.mainClock.advanceTimeBy(80)
-        compose.onNodeWithText(text(R.string.guide_week_title)).assertExists()
-        compose.onNodeWithText(text(R.string.guide_grid_title)).assertExists()
-        compose.mainClock.autoAdvance = true
-        compose.waitForIdle()
-        compose.onNodeWithText(text(R.string.guide_week_title)).assertDoesNotExist()
-        compose.onNodeWithText(text(R.string.guide_grid_title)).assertIsDisplayed()
+        compose.onNodeWithTag("first-run-animation-2").assertIsDisplayed()
+        compose.onNodeWithText(text(R.string.guide_previous)).performClick()
+        compose.onNodeWithTag("first-run-animation-1").assertIsDisplayed()
+        compose.onNodeWithText(text(R.string.guide_skip)).performClick()
+        compose.onNodeWithTag("first-run-guide").assertDoesNotExist()
+        compose.onNodeWithTag("underlying").assertIsDisplayed()
+    }
+
+    @Test fun permissionsCanBeReviewedBeforeWatchingTheDemos() {
+        var permissionsReviewed by mutableStateOf(false)
+        compose.setContent {
+            ClassScheduleTheme(ThemeMode.Light) {
+                if (permissionsReviewed) {
+                    FirstRunGuideDialog(onFinish = {})
+                } else {
+                    FirstRunPermissionsPage(
+                        classNotice = ClassNoticePreferences(),
+                        alarmKeepAliveEnabled = false,
+                        onAlarmKeepAliveEnabledChange = {},
+                        onContinue = { permissionsReviewed = true },
+                    )
+                }
+            }
+        }
+        compose.onNodeWithTag("permission-overview").assertIsDisplayed()
+        compose.onNodeWithTag("first-run-guide").assertDoesNotExist()
+        compose.onNodeWithText(text(R.string.guide_continue_to_demo)).performClick()
+        compose.onNodeWithTag("first-run-permissions").assertDoesNotExist()
+        compose.onNodeWithTag("first-run-animation-0").assertIsDisplayed()
     }
 
     @Test fun pagesSlideInAndBackOut() {

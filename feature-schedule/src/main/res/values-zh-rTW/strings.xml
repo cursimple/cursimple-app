@@ -150,7 +150,7 @@
     <string name="schedule_reminder_rule_action_label">動作</string>
     <string name="schedule_reminder_rule_delete_condition">刪除條件</string>
     <string name="schedule_reminder_rule_delete_action">刪除動作</string>
-    <string name="schedule_reminder_rule_no_label">無可選 label</string>
+    <string name="schedule_reminder_rule_no_label">無標籤</string>
     <string name="schedule_reminder_rule_course_label">節次</string>
     <string name="schedule_reminder_presence_exists">有課</string>
     <string name="schedule_reminder_presence_absent">沒課</string>
@@ -345,6 +345,8 @@
     </plurals>
     <string name="schedule_library_empty">這學期還沒有課程呢，等課表來敲門～</string>
     <string name="schedule_library_no_match">沒有匹配的課程</string>
+    <string name="schedule_library_event_no_match">沒有匹配的事務</string>
+    <string name="schedule_library_event_source_no_match">沒有符合所選來源的事務</string>
     <string name="schedule_library_variants_expand">展開各週安排</string>
     <string name="schedule_library_variants_collapse">收起</string>
     <string name="schedule_library_variants_hint">其餘各行和「主安排」不同的地方已標色，點一行可以直接修改</string>
@@ -358,7 +360,7 @@
     <string name="schedule_library_add">新增課程</string>
     <string name="schedule_library_plugin_editable_hint">外掛同步的課程也能改，改完會轉為手動課程，下次同步不再覆蓋</string>
     <string name="schedule_library_delete_title">刪除這門課？</string>
-    <string name="schedule_library_delete_body">%1$s 會從課表中移除，它的單課鬧鐘也會一併刪掉。</string>
+    <string name="schedule_library_delete_body">%1$s 會從課表中移除，它的單課鬧鐘也會一併刪掉。刪除後可以在「管理列表」右上角的回收桶裡還原。</string>
     <string name="schedule_library_delete_confirm">刪除</string>
     <string name="schedule_library_restore_title">還原為外掛資料？</string>
     <string name="schedule_library_restore_body">%1$s 的手動修改會丟掉，恢復成外掛同步下發的那一份。</string>
@@ -455,8 +457,8 @@
     <string name="schedule_conflict_warning_separator">；</string>
     <string name="schedule_conflict_warning_overflow">等 %1$d 門</string>
     <string name="schedule_holiday_unnamed">放假</string>
-    <string name="schedule_hint_needs_sync">還沒有同步到課表，可以去外掛頁同步，或點空格子直接加課。</string>
-    <string name="schedule_hint_no_courses">課表還空空的呢，點一下空格子，就能加上第一門課囉</string>
+    <string name="schedule_hint_needs_sync">還沒同步到課表：點右上角「+」→「從教務系統匯入」，或點空格子手動加課。</string>
+    <string name="schedule_hint_no_courses">課表還空空的呢。點右上角「+」→「從教務系統匯入」，一鍵帶入整學期課表；也可以點空格子手動加課。</string>
     <string name="schedule_hint_no_course_this_week">這一週沒有課程安排，可以切換其他週，或點空格子加課。</string>
     <string name="schedule_empty_holiday_subtitle">這一天是假日，不安排課程，也不會發出課程鬧鐘。</string>
     <string name="schedule_empty_not_started_title">還沒開學，先再睡一會兒吧～</string>
@@ -693,7 +695,6 @@
     <string name="schedule_day_sheet_current_source">目前：按 %1$d月%2$d日 %3$s 的課上</string>
     <string name="schedule_day_sheet_current_today">目前：今天</string>
     <string name="schedule_overlap_pick_title">這一格有 %1$d 門課</string>
-    <string name="schedule_overlap_pick_body">選擇要編輯的那一門。</string>
     <string name="schedule_same_slot_prev">上一門</string>
     <string name="schedule_same_slot_next">下一門</string>
     <string name="schedule_same_slot_position">第 %1$d / %2$d 門</string>
@@ -738,9 +739,16 @@
     <string name="schedule_overflow_in_minutes">%1$d 分鐘後開始</string>
     <string name="schedule_overflow_in_hours">%1$d 小時 %2$d 分鐘後開始</string>
     <string name="schedule_overflow_finished">已結束</string>
+    <string name="schedule_overflow_this_week">本週上課</string>
+    <plurals name="schedule_overflow_runs_weeks">
+        <item quantity="other">第 %1$s 週上課</item>
+    </plurals>
     <string name="schedule_event_group_close">關閉</string>
     <plurals name="schedule_course_more_description">
         <item quantity="other">這裡有 %1$d 門課程，點開查看全部</item>
+    </plurals>
+    <plurals name="schedule_course_more_count">
+        <item quantity="other">%1$d 門</item>
     </plurals>
     <plurals name="schedule_event_group_count">
         <item quantity="other">%1$d 項</item>
@@ -961,6 +969,8 @@
     <string name="schedule_course_session_progress">上課次數 %1$d/%2$d</string>
     <string name="schedule_course_session_not_scheduled">本次不計 · 共 %1$d 次</string>
     <string name="schedule_course_session_needs_start">設定學期開始日期後顯示上課次數</string>
+    <string name="schedule_course_end_near_badge">剩 1 週</string>
+    <string name="schedule_course_end_final_badge">最後一週</string>
     <string name="schedule_today_makeup_notice">補課調休：今日依 %1$s 課表上課</string>
     <string name="schedule_today_free_slots_title">今日自習與空閒時段</string>
     <string name="schedule_today_free_all_day">全天無課，整天皆為自由自習時間</string>
@@ -984,4 +994,47 @@
     <string name="school_portal_import_done">已匯入課表。</string>
     <string name="school_portal_plugin_no_portal">這個外掛沒有提供可用的教務系統位址。</string>
     <string name="stats_week_detail">第 %1$d 週：%2$d 節課</string>
+    <string name="stats_early_morning">早八</string>
+    <string name="stats_evening">晚間課</string>
+    <string name="stats_peak_week">課程最多週</string>
+    <string name="stats_peak_day">課程最多日</string>
+    <string name="stats_count_sessions">%1$d 節</string>
+    <string name="stats_week_value">第 %1$d 週，共 %2$d 節</string>
+    <string name="stats_none">暫無</string>
+    <string name="stats_monday">週一，共 %1$d 節</string>
+    <string name="stats_tuesday">週二，共 %1$d 節</string>
+    <string name="stats_wednesday">週三，共 %1$d 節</string>
+    <string name="stats_thursday">週四，共 %1$d 節</string>
+    <string name="stats_friday">週五，共 %1$d 節</string>
+    <string name="stats_saturday">週六，共 %1$d 節</string>
+    <string name="stats_sunday">週日，共 %1$d 節</string>
+    <string name="stats_peak_week_detail">課程最多的一週</string>
+    <string name="stats_peak_day_detail">課程最多的一天</string>
+    <string name="stats_early_morning_detail">早八課程</string>
+    <string name="stats_evening_detail">晚間課程</string>
+    <string name="schedule_course_session_label">上課次數</string>
+    <string name="schedule_course_end_final">最後一週</string>
+    <string name="schedule_course_end_near">倒數第二週</string>
+    <string name="schedule_library_bin_open">回收桶（%1$d）</string>
+    <string name="schedule_library_bin_title">回收桶（%1$d）</string>
+    <string name="schedule_library_bin_empty">回收桶是空的</string>
+    <string name="schedule_library_bin_plugin_item">來自外掛的課程</string>
+    <string name="schedule_library_bin_restore">還原</string>
+    <string name="schedule_library_bin_restore_title">還原這門課？</string>
+    <string name="schedule_library_bin_restore_body">「%1$s」會回到課表原來的位置。</string>
+    <string name="schedule_library_bin_clear">清空</string>
+    <string name="schedule_library_bin_clear_title">清空回收桶？</string>
+    <string name="schedule_library_bin_clear_body">回收桶裡的課程會被徹底刪除，無法還原。</string>
+    <string name="schedule_library_bin_clear_confirm">清空</string>
+    <string name="schedule_library_bin_detail_time">時間：%1$s</string>
+    <string name="schedule_library_bin_detail_period">第 %1$d-%2$d 節</string>
+    <string name="schedule_library_bin_detail_weeks">週次：%1$s</string>
+    <string name="schedule_library_bin_detail_location">地點：%1$s</string>
+    <string name="schedule_library_bin_detail_teacher">老師：%1$s</string>
+    <string name="schedule_library_bin_detail_weeks_unknown">未設定週次</string>
+    <string name="schedule_library_bin_detail_weekday">星期：%1$s</string>
+    <string name="schedule_library_bin_detail_period_line">節次：%1$s</string>
+    <string name="schedule_library_bin_detail_clock">上課時間：%1$s</string>
+    <string name="schedule_library_bin_tag_location">地點 %1$s</string>
+    <string name="schedule_library_bin_tag_teacher">老師 %1$s</string>
 </resources>

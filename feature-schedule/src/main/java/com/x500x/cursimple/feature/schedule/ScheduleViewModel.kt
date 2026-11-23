@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.x500x.cursimple.core.data.AppLocale
 import com.x500x.cursimple.core.data.ManualCourseRepository
+import com.x500x.cursimple.core.data.event.ScheduleEventLibrary
 import com.x500x.cursimple.core.data.event.ScheduleEventRepository
 import com.x500x.cursimple.core.data.memo.MemoRepository
 import com.x500x.cursimple.core.kernel.model.MemoNote
@@ -27,7 +28,7 @@ import com.x500x.cursimple.core.kernel.model.asExternalImport
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.findSlot
 import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
-import com.x500x.cursimple.core.kernel.model.weekdayLabel
+import com.x500x.cursimple.core.kernel.model.weekdayNameRes
 import com.x500x.cursimple.core.plugin.PluginManager
 import com.x500x.cursimple.core.plugin.manifest.PluginComponentRequirement
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
@@ -104,12 +105,16 @@ data class ScheduleUiState(
     val messages: List<String> = emptyList(),
     val missingComponents: List<PluginComponentRequirement> = emptyList(),
     val manualCourses: List<CourseItem> = emptyList(),
+    /** Deleted courses kept for recovery, newest first. */
+    val deletedCourses: List<com.x500x.cursimple.core.data.DeletedCourse> = emptyList(),
     val courseNotes: CourseNoteIndex = CourseNoteIndex(),
     val events: List<ScheduleEvent> = emptyList(),
     val memos: List<MemoNote> = emptyList(),
     val attendance: com.x500x.cursimple.core.data.attendance.AttendanceData = com.x500x.cursimple.core.data.attendance.AttendanceData(),
     val syncCompletedCount: Int = 0,
     val pendingImport: PendingScheduleImport? = null,
+    val eventLibrary: ScheduleEventLibrary = ScheduleEventLibrary(),
+    val eventLibraryReordering: Boolean = false,
 )
 
 /**
@@ -146,6 +151,8 @@ class ScheduleViewModel(
     private val memoRepository: MemoRepository? = null,
     private val attendanceRepository: com.x500x.cursimple.core.data.attendance.AttendanceRepository? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** Records that the session proved valid, so the plugin home need not ask for a second sign-in. */
+    private val onSyncSucceeded: (String) -> Unit = {},
 ) : ViewModel() {
     private val application: Context = appContext.applicationContext
 
@@ -183,6 +190,11 @@ class ScheduleViewModel(
 
     init {
         viewModelScope.launch {
+            manualCourseRepository.deletedCoursesFlow.collect { deleted ->
+                _uiState.update { it.copy(deletedCourses = deleted) }
+            }
+        }
+        viewModelScope.launch {
             manualCourseRepository.manualCoursesFlow.collect { courses ->
                 _uiState.update { it.copy(manualCourses = courses) }
                 refreshCourseNoteIndex()
@@ -201,7 +213,9 @@ class ScheduleViewModel(
         }
         scheduleEventRepository?.let { repository ->
             viewModelScope.launch {
-                repository.eventsFlow.collect { events -> _uiState.update { it.copy(events = events) } }
+                repository.libraryFlow.collect { library ->
+                    _uiState.update { it.copy(events = library.events, eventLibrary = library) }
+                }
             }
         }
         courseNoteRepository?.let { repository ->
@@ -517,14 +531,47 @@ class ScheduleViewModel(
         viewModelScope.launch(ioDispatcher) { repository.remove(eventId) }
     }
 
-    fun addManualCourse(course: CourseItem) {
+    internal fun removeLibraryEvents(termId: String, eventIds: Set<String>) {
+        val repository = scheduleEventRepository ?: return
         viewModelScope.launch {
-            manualCourseRepository.addCourse(course)
+            try {
+                withContext(ioDispatcher) { repository.removeFromLibrary(termId, eventIds) }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                _uiState.update { it.copy(statusMessage = text(R.string.library_management_delete_failed)) }
+            }
+        }
+    }
+
+    internal fun reorderLibraryEvents(termId: String, orderedIds: List<String>) {
+        val repository = scheduleEventRepository ?: return
+        if (_uiState.value.eventLibraryReordering) return
+        _uiState.update { it.copy(eventLibraryReordering = true) }
+        viewModelScope.launch {
+            try {
+                withContext(ioDispatcher) { repository.reorderLibrary(termId, orderedIds) }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                _uiState.update { it.copy(statusMessage = text(R.string.library_management_reorder_failed)) }
+            } finally {
+                _uiState.update { it.copy(eventLibraryReordering = false) }
+            }
+        }
+    }
+
+    fun addManualCourse(course: CourseItem) = addManualCourses(listOf(course))
+
+    fun addManualCourses(courses: List<CourseItem>) {
+        if (courses.isEmpty()) return
+        viewModelScope.launch {
+            manualCourseRepository.addCourses(courses)
             val dispatchSummary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = text(R.string.schedule_status_course_added, course.title),
+                        successMessage = text(R.string.schedule_status_course_added, courses.first().title),
                         summary = dispatchSummary,
                     ),
                 )
@@ -539,7 +586,7 @@ class ScheduleViewModel(
     fun moveManualCourse(courseId: String, time: CourseTimeSlot) {
         viewModelScope.launch {
             applyManualCourseTime(courseId, time) {
-                text(R.string.schedule_status_course_moved, weekdayLabel(time.dayOfWeek), time.startNode)
+                text(R.string.schedule_status_course_moved, text(weekdayNameRes(time.dayOfWeek)), time.startNode)
             }
         }
     }
@@ -640,6 +687,14 @@ class ScheduleViewModel(
      * Delete manual records directly; plugin removal persists a hidden tombstone for reversible
      * masking.
      */
+    fun restoreDeletedCourse(courseId: String) {
+        viewModelScope.launch(ioDispatcher) { manualCourseRepository.restoreCourse(courseId) }
+    }
+
+    fun clearDeletedCourses() {
+        viewModelScope.launch(ioDispatcher) { manualCourseRepository.clearDeletedCourses() }
+    }
+
     fun removeManualCourse(courseId: String) {
         viewModelScope.launch {
             val manual = manualCourseRepository.manualCoursesFlow.first()
@@ -660,6 +715,29 @@ class ScheduleViewModel(
                         summary = dispatchSummary,
                     ),
                 )
+            }
+        }
+    }
+
+    /** Hide synced originals even when they have a manual edit. */
+    internal fun removeLibraryCourses(termId: String, courseIds: Set<String>) {
+        val originals = _uiState.value.schedule.allCoursesWith(emptyList()).filter { it.id in courseIds }
+        viewModelScope.launch {
+            try {
+                withContext(ioDispatcher) { manualCourseRepository.removeFromLibrary(termId, courseIds, originals) }
+                val dispatchSummary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
+                _uiState.update {
+                    it.copy(
+                        statusMessage = systemAlarmSyncMessage(
+                            successMessage = text(R.string.schedule_status_manual_course_removed),
+                            summary = dispatchSummary,
+                        ),
+                    )
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                _uiState.update { it.copy(statusMessage = text(R.string.library_management_delete_failed)) }
             }
         }
     }
@@ -1516,6 +1594,7 @@ class ScheduleViewModel(
                     }
                     return
                 }
+                onSyncSucceeded(_uiState.value.pluginId)
                 PluginLogger.info(
                     "plugin.schedule.result.success",
                     mapOf(
@@ -2090,6 +2169,7 @@ class ScheduleViewModelFactory(
     private val scheduleEventRepository: ScheduleEventRepository? = null,
     private val memoRepository: MemoRepository? = null,
     private val attendanceRepository: com.x500x.cursimple.core.data.attendance.AttendanceRepository? = null,
+    private val onSyncSucceeded: (String) -> Unit = {},
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ScheduleViewModel::class.java)) {
@@ -2111,6 +2191,7 @@ class ScheduleViewModelFactory(
                 scheduleEventRepository = scheduleEventRepository,
                 memoRepository = memoRepository,
                 attendanceRepository = attendanceRepository,
+                onSyncSucceeded = onSyncSucceeded,
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="schedule_course_by_weekday">By weekday</string>
+    <string name="schedule_course_by_date">By date</string>
+    <string name="schedule_course_date_needs_term">Set the term start date in Manage terms to determine the teaching week.</string>
+    <string name="schedule_course_date_outside_term">Choose a date within this term.</string>
+    <string name="schedule_course_pick_dates">Select dates</string>
+    <string name="schedule_course_pick_weekdays">Choose one or more weekdays</string>
+    <plurals name="schedule_course_selected_dates">
+        <item quantity="one">%1$d day selected</item>
+        <item quantity="other">%1$d days selected</item>
+    </plurals>
+</resources>

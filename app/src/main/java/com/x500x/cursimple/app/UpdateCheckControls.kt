@@ -92,6 +92,11 @@ import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import com.x500x.cursimple.app.update.AppReleaseSummary
 import androidx.compose.foundation.layout.height
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.Restore
 
 /** Drawer update dialog shares the About page's check and download controls. */
 
@@ -241,8 +246,9 @@ fun UpdateCheckDialog(
     onUpdateNoticeCleared: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.update_check_title)) },
         text = {
             Column(
@@ -265,7 +271,7 @@ fun UpdateCheckDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
+            AppDialogPrimaryButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
         },
     )
 }
@@ -655,8 +661,9 @@ fun ReleaseAnnouncementGate(
         )
         return
     }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = { visible = false },
+        icon = { Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.update_announcement_title, releaseVersionName())) },
         text = {
             when (val state = notes) {
@@ -688,7 +695,7 @@ fun ReleaseAnnouncementGate(
             }
         },
         confirmButton = {
-            Button(onClick = { visible = false }) {
+            AppDialogPrimaryButton(onClick = { visible = false }) {
                 Text(stringResource(R.string.update_announcement_dismiss))
             }
         },
@@ -718,8 +725,10 @@ private fun UpdateRollbackDialog(
     onDownload: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        tone = AppDialogTone.Warning,
+        icon = { Icon(Icons.Rounded.Restore, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.update_rollback_title, info.versionName)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -742,7 +751,7 @@ private fun UpdateRollbackDialog(
             }
         },
         confirmButton = {
-            Button(onClick = onDownload, enabled = !downloading) {
+            AppDialogPrimaryButton(onClick = onDownload, enabled = !downloading) {
                 Text(
                     when {
                         downloading -> stringResource(R.string.update_dialog_downloading)
@@ -753,13 +762,13 @@ private fun UpdateRollbackDialog(
             }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }
 
 @Composable
-private fun UpdateAvailableDialog(
+internal fun UpdateAvailableDialog(
     info: AppUpdateInfo,
     downloading: Boolean,
     downloadProgress: AppUpdateDownloadProgress? = null,
@@ -768,8 +777,9 @@ private fun UpdateAvailableDialog(
     onIgnore: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.update_dialog_title, info.versionName)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -798,7 +808,7 @@ private fun UpdateAvailableDialog(
             }
         },
         confirmButton = {
-            Button(
+            AppDialogPrimaryButton(
                 onClick = onUpdate,
                 enabled = !downloading,
             ) {
@@ -812,7 +822,7 @@ private fun UpdateAvailableDialog(
             }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) {
+            AppDialogSecondaryButton(onClick = onDismiss) {
                 Text(stringResource(R.string.update_dialog_later))
             }
         },

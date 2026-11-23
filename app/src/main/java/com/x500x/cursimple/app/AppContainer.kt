@@ -197,9 +197,25 @@ class AppContainer(
         scheduleStore.migrateLegacyScheduleIfNeeded(activeTermId)
         manualStore.migrateLegacyManualIfNeeded(activeTermId)
         scheduleEventStore.migrateLegacyEventsIfNeeded(activeTermId)
+        clearStaleAutomaticTermStart(activeTermId)
     }
 
     private suspend fun awaitBootstrap() = bootstrapJob.join()
+
+    private suspend fun clearStaleAutomaticTermStart(activeTermId: String) {
+        if (activeTermId.isBlank()) return
+        val preferences = userPreferencesRepository.preferencesFlow.first()
+        if (preferences.termStartUserDecided) return
+        val stored = termProfileRepository.termsFlow.first()
+            .firstOrNull { it.id == activeTermId }
+            ?.termStartDate
+            ?.let(::parseIsoDate)
+            ?: return
+        val today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Shanghai"))
+        if (resolveCanonicalTermStart(false, stored, null, today) != null) return
+        termProfileRepository.setTermStartDate(activeTermId, null)
+        userPreferencesRepository.setTermStartDate(null)
+    }
 
     /** One term's courses and timetable, read by term id so any term can be copied or summarized. */
     suspend fun readTermSnapshot(termId: String): TermSnapshot? {
@@ -260,6 +276,16 @@ class AppContainer(
         val imageRefs = com.x500x.cursimple.core.data.memo.memoNotesInBackup(payload.store(AppBackupStores.MEMOS))
             .flatMap { com.x500x.cursimple.core.kernel.model.MemoImageRef.ids(it.body) }.toSet()
         require(payload.memoImages.map { it.id }.toSet().containsAll(imageRefs)) { "note_images_missing" }
+        val previous = exportAppBackup()
+        runBackupRestoreTransaction(
+            snapshot = { previous },
+            apply = { incoming -> restoreAppBackupPayload(incoming) },
+            rollback = { backup -> restoreAppBackupPayload(backup) },
+            incoming = payload,
+        )
+    }
+
+    private suspend fun restoreAppBackupPayload(payload: AppBackupPayload) {
         com.x500x.cursimple.core.data.memo.MemoImageStore(app).install(payload.memoImages)
         payload.store(AppBackupStores.USER_PREFERENCES)
             ?.let { (userPreferencesRepository as DataStoreUserPreferencesRepository).restoreBackupSnapshot(it) }
@@ -343,15 +369,30 @@ class AppContainer(
 
     suspend fun refreshWidgets(timingProfile: TermTimingProfile? = null) {
         awaitBootstrap()
-        // User-managed timing profiles take priority over plugin sync.
+        // User-managed timing profiles take priority over plugin sync, but the bundled fallback is not a user
+        // choice: it has no labels and only became "manual" as a side effect, so a plugin that ships the school's
+        // period table must win over it.
         val manuallyEdited = widgetPreferencesRepository.timingProfileManuallyEditedFlow.first()
-        val effectiveProfile = if (manuallyEdited) {
-            widgetPreferencesRepository.timingProfileFlow.first() ?: timingProfile
-        } else {
-            if (timingProfile != null) {
-                widgetPreferencesRepository.saveTimingProfile(timingProfile)
+        val stored = widgetPreferencesRepository.timingProfileFlow.first()
+        val effectiveProfile = if (timingProfile != null) {
+            // The school's own period table wins. A hand-made one is not discarded: it is kept as a separate
+            // profile first, so it can be switched back to from 节次上课时间.
+            val replacedManual = manuallyEdited && stored != null && stored.slotTimes.isNotEmpty() &&
+                stored.slotTimes != timingProfile.slotTimes
+            if (replacedManual) {
+                runCatching {
+                    widgetPreferencesRepository.createTimingProfile(
+                        app.getString(R.string.timing_profile_manual_backup),
+                        stored.slotTimes,
+                    )
+                }
             }
+            widgetPreferencesRepository.saveTimingProfile(timingProfile)
             timingProfile
+        } else if (manuallyEdited) {
+            stored
+        } else {
+            null
         }
         ScheduleWidgetUpdater.refreshAll(app)
         runCatching { ClassNoticeGateway.reschedule(app) }
@@ -557,16 +598,25 @@ class AppContainer(
             return null
         }
         awaitBootstrap()
+        // A calendar-only import must not erase the user's existing period times.
+        val profile = if (timingProfile.slotTimes.isEmpty()) {
+            widgetPreferencesRepository.timingProfileFlow.first()
+                ?.copy(termStartDate = timingProfile.termStartDate) ?: timingProfile
+        } else timingProfile
         val activeTermId = termProfileRepository.activeTermId()
         val activeTerm = termProfileRepository.termsFlow.first()
             .firstOrNull { it.id == activeTermId }
         val activeTermStart = activeTerm?.termStartDate?.let(::parseIsoDate)
-        val pluginTermStart = runCatching { timingProfile.termStartLocalDate() }.getOrNull()
+        val pluginTermStart = runCatching { profile.termStartLocalDate() }.getOrNull()
         val userDecided = userPreferencesRepository.preferencesFlow.first().termStartUserDecided
         val canonicalTermStart = resolveCanonicalTermStart(
             userDecided = userDecided,
             termStart = activeTermStart,
             pluginTermStart = pluginTermStart,
+            today = java.time.LocalDate.now(
+                runCatching { java.time.ZoneId.of(profile.timezone) }
+                    .getOrDefault(java.time.ZoneId.systemDefault()),
+            ),
         )
 
         if (canonicalTermStart != null) {
@@ -578,14 +628,18 @@ class AppContainer(
                 userPreferencesRepository.setTermStartDate(canonicalTermStart)
             }
             val canonicalIso = canonicalTermStart.toString()
-            return if (timingProfile.termStartDate == canonicalIso) {
-                timingProfile
+            return if (profile.termStartDate == canonicalIso) {
+                profile
             } else {
-                timingProfile.copy(termStartDate = canonicalIso)
+                profile.copy(termStartDate = canonicalIso)
             }
         }
 
-        return timingProfile
+        if (!userDecided && activeTermStart != null && canonicalTermStart == null) {
+            termProfileRepository.setTermStartDate(activeTermId, null)
+            userPreferencesRepository.setTermStartDate(null)
+        }
+        return profile.copy(termStartDate = "")
     }
 
     private companion object {

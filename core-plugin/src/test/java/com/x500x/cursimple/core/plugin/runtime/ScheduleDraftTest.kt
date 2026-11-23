@@ -11,6 +11,18 @@ import org.junit.Test
 
 class ScheduleDraftTest {
     @Test
+    fun `import date replaces the static timing date only with valid evidence`() {
+        val timing = com.x500x.cursimple.core.kernel.model.TermTimingProfile(
+            termStartDate = "2026-02-23", slotTimes = emptyList(),
+        )
+        assertEquals("2026-09-07", ScheduleDraft("t", termStartDate = "2026-09-07")
+            .resolveTimingProfile(timing)?.termStartDate)
+        assertEquals("2026-02-23", ScheduleDraft("t", termStartDate = "2026-02-30")
+            .resolveTimingProfile(timing)?.termStartDate)
+        assertEquals(timing, ScheduleDraft("t").resolveTimingProfile(timing))
+    }
+
+    @Test
     fun `web draft cannot claim another importer`() {
         val draft = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }.decodeFromString<ScheduleDraft>(
             """{"termId":"term","courses":[],"sourcePluginId":"yangtzeu-eams-js-v1"}""",

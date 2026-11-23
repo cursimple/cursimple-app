@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_management_select">选择</string>
+    <string name="library_management_clear">退出多选</string>
+    <string name="library_management_count">已选 %1$d 项</string>
+    <string name="library_management_select_all">全选</string>
+    <string name="library_management_delete_selected">删除所选</string>
+    <string name="library_management_move_up">上移</string>
+    <string name="library_management_move_down">下移</string>
+    <string name="library_management_delete_failed">未完成删除，请重试。</string>
+    <string name="library_management_reorder_failed">未能保存事务顺序，请重试。</string>
+    <string name="library_management_event_source_plugin">插件事务</string>
+    <string name="library_management_event_source_user">自己新建</string>
+    <string name="library_management_event_source_all">全选</string>
+    <string name="library_management_event_source_clear">清空</string>
+    <string name="library_management_event_source_clear_content_description">清空已选来源</string>
+    <plurals name="library_management_delete_courses">
+        <item quantity="other">删除所选的 %1$d 门课程？同步课程可在已删除课程中恢复。</item>
+    </plurals>
+    <plurals name="library_management_delete_events">
+        <item quantity="other">删除所选的 %1$d 项事务？重复事务的所有日期也会一起删除。</item>
+    </plurals>
+</resources>

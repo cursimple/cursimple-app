@@ -9,6 +9,13 @@ class StatusBarChipSupportTest {
         listOf(24, 29, 35).forEach { assertEquals(Level.Unsupported, StatusBarChipSupport.decide(it)) }
         listOf(36, 37).forEach { assertEquals(Level.PlatformDecides, StatusBarChipSupport.decide(it)) }
     }
+    @Test fun missingReadingsDoNotOverrideAnExplicitGrantOrBecomeAGrant() {
+        assertEquals(true, resolveIslandPermission(listOf(false, true, null)))
+        assertEquals(false, resolveIslandPermission(listOf(false, false)))
+        assertNull(resolveIslandPermission(listOf(false, null)))
+        assertNull(resolveIslandPermission(emptyList()))
+    }
+
     @Test fun oldClassTransitionsCannotChangeTheNextClassNotification() {
         assertTrue(matchesCourseNotice("Math", 100, "Math", 100))
         assertFalse(matchesCourseNotice("Math", 100, "Math", 200))

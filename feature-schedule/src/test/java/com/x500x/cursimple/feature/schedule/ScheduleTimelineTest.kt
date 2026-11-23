@@ -148,6 +148,21 @@ class ScheduleTimelineTest {
     }
 
     @Test
+    fun courseKeepsThePrimaryLaneWhenItOverlapsAnEvent() {
+        val lanes = assignLanes(
+            listOf(
+                LaneItem("course", 1f, 3f, 0, priority = 0f),
+                LaneItem("event-card", 1f, 3f, 1, priority = -100_000f),
+                LaneItem("event-dots", 1f, 3f, 1, priority = -99_999f),
+            ),
+        )
+
+        assertEquals(LanePosition(0, 3), lanes["course"])
+        assertEquals(LanePosition(1, 3), lanes["event-card"])
+        assertEquals(LanePosition(2, 3), lanes["event-dots"])
+    }
+
+    @Test
     fun lanes_reuseFreedLaneInsideACluster() {
         val lanes = assignLanes(
             listOf(
@@ -264,7 +279,35 @@ class ScheduleTimelineTest {
     }
 
     @Test
-    fun collapsing_threeAtOnceKeepsTwoNearestAndFoldsTheRest() {
+    fun overlappingEventsUseSideBySideLanes() {
+        val result = assignLanesCollapsing(
+            listOf(
+                LaneItem("event-a", 2f, 4f, 1),
+                LaneItem("event-b", 2.5f, 4.5f, 1),
+            ),
+        )
+
+        assertEquals(LanePosition(0, 2), result.positions["event-a"])
+        assertEquals(LanePosition(1, 2), result.positions["event-b"])
+        assertTrue(result.overflows.isEmpty())
+    }
+
+    @Test
+    fun threeOverlappingEventsKeepOneAndFoldTheRest() {
+        val result = assignLanesCollapsing(
+            listOf(
+                LaneItem("event-a", 2f, 4f, 1, priority = 0f),
+                LaneItem("event-b", 2.5f, 4.5f, 1, priority = 1f),
+                LaneItem("event-c", 3f, 5f, 1, priority = 2f),
+            ),
+        )
+
+        assertEquals(LanePosition(0, MAX_DAY_LANES), result.positions["event-a"])
+        assertEquals(setOf("event-b", "event-c"), result.overflows.single().hidden.toSet())
+    }
+
+    @Test
+    fun collapsing_threeAtOnceKeepsTheNearestOnTheLeftAndFoldsTheRestIntoTheRightLane() {
         val result = assignLanesCollapsing(
             listOf(
                 LaneItem("early", 0f, 3f, 0, priority = 5f),
@@ -272,20 +315,20 @@ class ScheduleTimelineTest {
                 LaneItem("late", 2f, 4f, 0, priority = 9f),
             ),
         )
-        // Nearest on the left, next nearest on the right, the last one behind the chip below it.
+        // The nearest course owns the left lane; the other two sit behind a chip that fills the right lane.
         assertEquals(LanePosition(0, MAX_DAY_LANES), result.positions["now"])
-        assertEquals(LanePosition(1, MAX_DAY_LANES), result.positions["early"])
-        assertEquals(2, result.positions.size)
+        assertEquals(1, result.positions.size)
         val chip = result.overflows.single()
-        assertEquals(listOf("late"), chip.hidden)
+        assertEquals(listOf("early", "late"), chip.hidden)
+        assertEquals(LanePosition(1, MAX_DAY_LANES), chip.position)
+        assertEquals(0f, chip.top)
         assertEquals(4f, chip.bottom)
-        assertEquals(3.5f, chip.top)
         assertTrue(result.trimmedBottoms.isEmpty())
     }
 
     @Test
-    fun collapsing_rightCardIsCutShortToMakeRoomForTheChip() {
-        // "a" and "d" do not overlap, so both stay in the left lane; "b" takes the right lane, "c" folds.
+    fun collapsing_leftLaneStillTakesCoursesThatDoNotTouchEachOther() {
+        // "a" and "d" do not overlap, so both stay on the left; "b" and "c" fold into the right-hand chip.
         val result = assignLanesCollapsing(
             listOf(
                 LaneItem("a", 0f, 2f, 0, priority = 0f),
@@ -296,19 +339,21 @@ class ScheduleTimelineTest {
         )
         assertEquals(LanePosition(0, MAX_DAY_LANES), result.positions["a"])
         assertEquals(LanePosition(0, MAX_DAY_LANES), result.positions["d"])
-        assertEquals(LanePosition(1, MAX_DAY_LANES), result.positions["b"])
-        assertEquals(listOf("c"), result.overflows.single().hidden)
-        assertEquals(3.5f, result.trimmedBottoms["b"])
+        assertEquals(setOf("b", "c"), result.overflows.single().hidden.toSet())
+        assertTrue(result.trimmedBottoms.isEmpty())
     }
 
     @Test
-    fun collapsing_rightCardTooShortForTheChipFoldsInstead() {
+    fun collapsing_identicalTripletKeepsOneCardAndAChipOverTheSameSpan() {
         val result = assignLanesCollapsing(
             listOf(LaneItem("x1", 0f, 1f, 0), LaneItem("x2", 0f, 1f, 0), LaneItem("x3", 0f, 1f, 0), LaneItem("y", 5f, 6f, 0)),
         )
         assertEquals(LanePosition(0, 2), result.positions["x1"])
         assertEquals(LanePosition(0, 1), result.positions["y"])
-        assertEquals(setOf("x2", "x3"), result.overflows.single().hidden.toSet())
+        val chip = result.overflows.single()
+        assertEquals(setOf("x2", "x3"), chip.hidden.toSet())
+        assertEquals(0f, chip.top)
+        assertEquals(1f, chip.bottom)
     }
 
     @Test
@@ -340,17 +385,17 @@ class ScheduleTimelineTest {
     }
 
     @Test
-    fun collapsing_wideGridKeepsThreeLanesAndFoldsTheFourth() {
+    fun collapsing_wideGridKeepsTwoCardLanesAndAChipLane() {
         val result = assignLanesCollapsing(
             listOf(
                 LaneItem("a", 0f, 4f, 0), LaneItem("b", 0f, 4f, 0), LaneItem("c", 0f, 4f, 0), LaneItem("d", 0f, 4f, 0),
             ),
             maxLanes = 3,
         )
-        assertEquals(setOf(0, 1, 2), result.positions.values.map { it.lane }.toSet())
+        assertEquals(setOf(0, 1), result.positions.values.map { it.lane }.toSet())
         assertTrue(result.positions.values.all { it.laneCount == 3 })
         assertEquals(LanePosition(2, 3), result.overflows.single().position)
-        assertEquals(listOf("d"), result.overflows.single().hidden)
+        assertEquals(listOf("c", "d"), result.overflows.single().hidden)
     }
 
     @Test
@@ -371,5 +416,54 @@ class ScheduleTimelineTest {
         // Another day has no clock, so the earliest start wins; inactive courses always go last.
         assertTrue(lanePriority(1f, 2f, null) < lanePriority(2f, 3f, null))
         assertTrue(lanePriority(9f, 10f, 3f) < lanePriority(2f, 4f, 3f, inactive = true))
+    }
+
+    @Test
+    fun collapsing_oneLeftAndTwoStackedOnTheRightNeedNoChip() {
+        val result = assignLanesCollapsing(
+            listOf(LaneItem("long", 0f, 4f, 0), LaneItem("top", 0f, 2f, 0), LaneItem("bottom", 2f, 4f, 0)),
+        )
+        assertEquals(LanePosition(0, 2), result.positions["long"])
+        assertEquals(LanePosition(1, 2), result.positions["top"])
+        assertEquals(LanePosition(1, 2), result.positions["bottom"])
+        assertTrue(result.overflows.isEmpty())
+    }
+
+    @Test
+    fun collapsing_onlyTheTripleStretchFoldsAndTheCardBeforeItStaysVisible() {
+        // c, d and the long left card run together only from 1.5 on: that stretch folds, the early b stays.
+        val result = assignLanesCollapsing(
+            listOf(
+                LaneItem("a", 0f, 4f, 0, priority = 0f),
+                LaneItem("b", 0f, 1f, 0, priority = 1f),
+                LaneItem("c", 1f, 2f, 0, priority = 2f),
+                LaneItem("d", 1.5f, 4f, 0, priority = 3f),
+            ),
+        )
+        assertEquals(LanePosition(0, 2), result.positions["a"])
+        assertEquals(LanePosition(1, 2), result.positions["b"])
+        val chip = result.overflows.single()
+        assertEquals(setOf("c", "d"), chip.hidden.toSet())
+        assertEquals(1f, chip.top)
+        assertEquals(4f, chip.bottom)
+        assertEquals(LanePosition(1, 2), chip.position)
+    }
+
+    @Test
+    fun blankRect_beneathACardInItsLaneAcceptsATap() {
+        val bounds = GridRect(1f, 100f, 99f, 160f)
+        // Left lane card fills the whole period, right lane card only its top half.
+        val cards = listOf(GridRect(1f, 100f, 49f, 160f), GridRect(51f, 100f, 99f, 130f))
+        assertNull(findBlankRect(20f, 120f, bounds, cards, minSize = 20f))
+        val blank = findBlankRect(70f, 150f, bounds, cards, minSize = 20f)
+        assertEquals(GridRect(49f, 130f, 99f, 160f), blank)
+    }
+
+    @Test
+    fun blankRect_tooThinASliverIsIgnored() {
+        val bounds = GridRect(0f, 0f, 100f, 60f)
+        val cards = listOf(GridRect(0f, 0f, 100f, 50f))
+        assertNull(findBlankRect(50f, 55f, bounds, cards, minSize = 20f))
+        assertEquals(bounds, findBlankRect(50f, 30f, bounds, emptyList(), minSize = 20f))
     }
 }

@@ -29,4 +29,15 @@ class WebLoginCredentialsTest {
         val script = webLoginAssistScript("cas.example.edu.cn", saved = null)
         assertTrue(script.contains("window.${WebLoginAssist.BRIDGE_NAME}.onLoginSubmit("))
     }
+
+    @org.junit.Test
+    fun autoSubmitIsOffUnlessAskedAndClaimedOncePerSheet() {
+        val saved = WebLoginCredential(host = "cas.example.edu.cn", username = "u", password = "p")
+        val off = webLoginAssistScript("cas.example.edu.cn", saved)
+        val on = webLoginAssistScript("cas.example.edu.cn", saved, autoSubmit = true)
+        org.junit.Assert.assertTrue(off.contains("if (false && user"))
+        org.junit.Assert.assertTrue(on.contains("if (true && user"))
+        // The page must ask the host before pressing, so one sheet presses at most once.
+        org.junit.Assert.assertTrue(on.contains("claimAutoSubmit()"))
+    }
 }

@@ -8,7 +8,19 @@ import kotlinx.coroutines.flow.Flow
 
 enum class WidgetBackgroundMode { Theme, Image }
 
-enum class WidgetThemeMode { System, Light, Dark }
+enum class WidgetThemeMode {
+    System,
+    Light,
+    Dark;
+
+    companion object {
+        fun followingApp(mode: com.x500x.cursimple.core.data.ThemeMode): WidgetThemeMode = when (mode) {
+            com.x500x.cursimple.core.data.ThemeMode.System -> System
+            com.x500x.cursimple.core.data.ThemeMode.Light -> Light
+            com.x500x.cursimple.core.data.ThemeMode.Dark -> Dark
+        }
+    }
+}
 
 data class WidgetThemePreferences(
     val themeAccent: ThemeAccent = ThemeAccent.Green,
@@ -39,6 +51,12 @@ fun WidgetThemePreferences.resolveAccent(
     appCustomColorArgb: Int = customColorArgb,
 ): WidgetThemePreferences =
     if (followsAppThemeAccent) copy(themeAccent = appThemeAccent, customColorArgb = appCustomColorArgb) else this
+
+fun WidgetThemePreferences.resolveThemeMode(
+    appThemeMode: com.x500x.cursimple.core.data.ThemeMode,
+): WidgetThemePreferences = if (widgetThemeMode == WidgetThemeMode.System) {
+    copy(widgetThemeMode = WidgetThemeMode.followingApp(appThemeMode))
+} else this
 
 interface WidgetPreferencesRepository {
     val widgetDayOffsetFlow: Flow<Int>

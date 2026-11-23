@@ -44,22 +44,16 @@ data class PluginManifest(
     }
 }
 
-/** A schedule plugin owns the queries and section labels; the host renders and stores results. */
+/**
+ * The plugin owns its home page. [entry] is its data script (checkLogin and sync), [page] is the HTML
+ * page the host shows; the host only stores and relays what the page asks for.
+ */
 @Serializable
 data class PluginHomeSpec(
     val entry: String,
+    val page: String,
     val runUrl: String,
     val loginUrl: String,
-    val sections: List<PluginHomeSectionSpec>,
-    val loginHelp: Map<String, String> = emptyMap(),
-)
-
-@Serializable
-data class PluginHomeSectionSpec(
-    val id: String,
-    val title: String,
-    val titles: Map<String, String> = emptyMap(),
-    val url: String? = null,
 )
 
 /**

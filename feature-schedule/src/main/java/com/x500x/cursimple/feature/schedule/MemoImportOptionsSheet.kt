@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import com.x500x.cursimple.feature.plugin.ui.AppModalBottomSheet
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
@@ -78,13 +80,13 @@ internal fun MemoImportOptionsSheet(onCode: (String) -> Unit, onFile: () -> Unit
         }
         return
     }
-    ModalBottomSheet(onDismissRequest = { if (!reading) onDismiss() },
+    AppModalBottomSheet(onDismissRequest = { if (!reading) onDismiss() },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         modifier = Modifier.testTag("memo-import-options")) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)
             .padding(bottom = 16.dp).navigationBarsPadding().imePadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.memo_import_action), style = MaterialTheme.typography.titleLarge)
-            OutlinedTextField(text, { if (it.length <= MemoShareCode.MAX_CHARS * 2) { text = it; failure = null } },
+            AppOutlinedTextField(text, { if (it.length <= MemoShareCode.MAX_CHARS * 2) { text = it; failure = null } },
                 label = { Text(stringResource(R.string.memo_code_input_label)) }, minLines = 3, maxLines = 5,
                 enabled = !reading, modifier = Modifier.fillMaxWidth().testTag("memo-import-code-input"))
             Button(onClick = { accept(text) }, enabled = text.isNotBlank() && !reading,

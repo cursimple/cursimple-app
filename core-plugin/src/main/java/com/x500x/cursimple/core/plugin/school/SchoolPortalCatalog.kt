@@ -21,8 +21,18 @@ data class SchoolPortalEntry(
     @SerialName("pluginId") val pluginId: String? = null,
     @SerialName("tiers") val tiers: List<String> = emptyList(),
     @SerialName("timingProfile") val timingProfile: TermTimingProfile? = null,
+    @SerialName("pinyin") val pinyin: String? = null,
+    @SerialName("initials") val initials: String? = null,
 ) {
     val usesPlugin: Boolean get() = !pluginRepo.isNullOrBlank()
+
+    /** Shelf letter: the pinyin start, or '#' when the name has no Latin pinyin. */
+    val initial: Char
+        get() = pinyin?.firstOrNull()?.uppercaseChar()?.takeIf { it in 'A'..'Z' } ?: '#'
+
+    /** Sort key inside a shelf; names and pinyin share one alphabet. */
+    val sortKey: String
+        get() = pinyin?.takeIf { it.isNotBlank() } ?: name.lowercase()
 }
 
 object SchoolPortalCatalog {
@@ -38,12 +48,29 @@ object SchoolPortalCatalog {
     fun load(context: Context): List<SchoolPortalEntry> =
         context.assets.open(ASSET_PATH).bufferedReader().use { parse(it.readText()) }
 
-    /** Case-insensitive substring match on the school name; blank query returns everything. */
+    /**
+     * Case-insensitive match on the school name, its full pinyin or its syllable initials;
+     * a blank query returns everything unchanged.
+     */
     fun search(entries: List<SchoolPortalEntry>, query: String): List<SchoolPortalEntry> {
-        val needle = query.trim().lowercase()
-        if (needle.isEmpty()) return entries
-        return entries.filter { it.name.lowercase().contains(needle) }
+        val compact = query.lowercase().filterNot { it.isWhitespace() }
+        if (compact.isEmpty()) return entries
+        val isPinyinQuery = compact.all { it in 'a'..'z' || it in '0'..'9' }
+        return entries.filter { entry ->
+            entry.name.lowercase().filterNot { it.isWhitespace() }.contains(compact) ||
+                (isPinyinQuery && (entry.pinyin?.contains(compact) == true || entry.initials?.contains(compact) == true))
+        }
     }
+
+    /** Alphabetical order: A–Z shelves first, '#' last, pinyin inside each shelf. */
+    fun sortedForDisplay(entries: List<SchoolPortalEntry>): List<SchoolPortalEntry> =
+        entries.sortedWith(
+            compareBy<SchoolPortalEntry>({ it.initial == '#' }, { it.initial }, { it.sortKey }, { it.name }),
+        )
+
+    /** Sorted entries grouped by shelf letter, ready for sticky headers and the index bar. */
+    fun sections(entries: List<SchoolPortalEntry>): List<Pair<Char, List<SchoolPortalEntry>>> =
+        sortedForDisplay(entries).groupBy { it.initial }.toList()
 
     /**
      * Hosts a portal session may visit: the portal host plus its school domain, so single sign-on

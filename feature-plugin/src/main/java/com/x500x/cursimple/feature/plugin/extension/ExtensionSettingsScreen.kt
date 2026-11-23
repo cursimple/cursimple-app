@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.plugin.extension
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -37,8 +38,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,6 +53,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
@@ -83,6 +83,15 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import java.time.Instant
 import java.time.format.DateTimeFormatter
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppDialogDangerButton
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppRadioRow
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Tune
 
 /** App-layer facade for sync, package reads, reminder reconciliation and navigation. */
 interface ExtensionHostActions {
@@ -460,7 +469,7 @@ fun ExtensionSettingsScreen(
                     )
                     Spacer(modifier = Modifier.padding(top = 8.dp))
                     TextButton(onClick = { showRemoveConfirm = true }) {
-                        Text(stringResource(R.string.extension_action_remove), color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.extension_action_remove))
                     }
                 }
             }
@@ -508,12 +517,14 @@ fun ExtensionSettingsScreen(
     }
 
     if (showLogoutConfirm) {
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { showLogoutConfirm = false },
+            tone = AppDialogTone.Danger,
+            icon = { Icon(Icons.Rounded.AccountCircle, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.extension_logout_confirm_title)) },
             text = { Text(stringResource(R.string.extension_logout_confirm_body, title)) },
             confirmButton = {
-                TextButton(onClick = {
+                AppDialogDangerButton(onClick = {
                     showLogoutConfirm = false
                     scope.launch {
                         clearExtensionCookies(record.allowedHosts)
@@ -522,17 +533,19 @@ fun ExtensionSettingsScreen(
                     }
                 }) { Text(stringResource(R.string.extension_action_logout)) }
             },
-            dismissButton = { TextButton(onClick = { showLogoutConfirm = false }) { Text(stringResource(android.R.string.cancel)) } },
+            dismissButton = { AppDialogSecondaryButton(onClick = { showLogoutConfirm = false }) { Text(stringResource(android.R.string.cancel)) } },
         )
     }
 
     if (showRemoveConfirm) {
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { showRemoveConfirm = false },
+            tone = AppDialogTone.Danger,
+            icon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.extension_remove_confirm_title, record.name)) },
             text = { Text(stringResource(R.string.extension_remove_confirm_body)) },
             confirmButton = {
-                TextButton(onClick = {
+                AppDialogDangerButton(onClick = {
                     showRemoveConfirm = false
                     scope.launch {
                         clearExtensionCookies(record.allowedHosts)
@@ -540,9 +553,9 @@ fun ExtensionSettingsScreen(
                         actions.onDataChanged(record.pluginId)
                         onRemove()
                     }
-                }) { Text(stringResource(R.string.extension_action_remove), color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.extension_action_remove)) }
             },
-            dismissButton = { TextButton(onClick = { showRemoveConfirm = false }) { Text(stringResource(android.R.string.cancel)) } },
+            dismissButton = { AppDialogSecondaryButton(onClick = { showRemoveConfirm = false }) { Text(stringResource(android.R.string.cancel)) } },
         )
     }
 }
@@ -606,7 +619,9 @@ private fun AccountBlock(data: ExtensionData, title: String) {
 @Composable
 private fun syncStatusText(data: ExtensionData): String {
     val last = data.lastSyncAt ?: return stringResource(R.string.extension_sync_never)
-    val text = Instant.ofEpochMilli(last).atZone(BeijingTime.zone).format(DateTimeFormatter.ofPattern("M月d日 HH:mm"))
+    val locale = LocalConfiguration.current.locales[0]
+    val pattern = android.text.format.DateFormat.getBestDateTimePattern(locale, "MMMMdHHmm")
+    val text = Instant.ofEpochMilli(last).atZone(BeijingTime.zone).format(DateTimeFormatter.ofPattern(pattern, locale))
     return pluralStringResource(R.plurals.extension_sync_status, data.items.size, text, data.items.size)
 }
 
@@ -688,29 +703,28 @@ internal fun <T> ChoiceRow(
         Icon(Icons.Rounded.ChevronRight, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     if (open) {
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { open = false },
+            icon = { Icon(Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(title) },
             text = {
-                Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                Column(
+                    modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     choices.forEach { choice ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable {
+                        AppRadioRow(
+                            title = label(choice),
+                            selected = choice == value,
+                            onClick = {
                                 open = false
                                 onSelect(choice)
-                            }.padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RadioButton(selected = choice == value, onClick = {
-                                open = false
-                                onSelect(choice)
-                            })
-                            Text(label(choice))
-                        }
+                            },
+                        )
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { open = false }) { Text(stringResource(android.R.string.cancel)) } },
+            confirmButton = { AppDialogPrimaryButton(onClick = { open = false }) { Text(stringResource(android.R.string.cancel)) } },
         )
     }
 }
@@ -739,7 +753,7 @@ private fun PluginSettingRow(setting: PluginExtensionSetting, value: JsonElement
 
         PluginExtensionSetting.TYPE_NUMBER -> {
             var text by remember(value) { mutableStateOf(primitive?.doubleOrNull?.let(::formatNumber).orEmpty()) }
-            OutlinedTextField(
+            AppOutlinedTextField(
                 value = text,
                 onValueChange = { input ->
                     text = input
@@ -758,7 +772,7 @@ private fun PluginSettingRow(setting: PluginExtensionSetting, value: JsonElement
 
         else -> {
             var text by remember(value) { mutableStateOf(primitive?.contentOrNull.orEmpty()) }
-            OutlinedTextField(
+            AppOutlinedTextField(
                 value = text,
                 onValueChange = { input ->
                     text = input.take(500)

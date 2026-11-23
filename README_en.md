@@ -14,7 +14,7 @@ An open-source, free Android timetable app without ads. Import courses with scho
 [![License](https://img.shields.io/github/license/cursimple/cursimple-app)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-7.0%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com)
 
-[Website](https://cursimple.github.io/cursimple-app/) · [Download](https://github.com/cursimple/cursimple-app/releases) · [Plugin catalog](https://cursimple.github.io/cursimple-plugins/) · [Component catalog](https://cursimple.github.io/cursimple-components/) · [简体中文](README.md)
+[Website](https://cursimple.github.io/) · [Download](https://github.com/cursimple/cursimple-app/releases) · [Plugin catalog](https://cursimple.github.io/cursimple-plugins/) · [Component catalog](https://cursimple.github.io/cursimple-components/) · [简体中文](README.md)
 
 </div>
 
@@ -32,7 +32,7 @@ Home screen widgets display courses, notes or component content. Components are 
 
 ## Download and get started
 
-Choose an APK from [Releases](https://github.com/cursimple/cursimple-app/releases) or the [website download section](https://cursimple.github.io/cursimple-app/#download). Enable the beta update channel to receive test releases. The channel and GitHub Pre-release flag determine whether a build is a beta.
+Choose an APK from [Releases](https://github.com/cursimple/cursimple-app/releases) or the [website download section](https://cursimple.github.io/#download). Enable the beta update channel to receive test releases. The channel and GitHub Pre-release flag determine whether a build is a beta.
 
 | APK | Device |
 |---|---|

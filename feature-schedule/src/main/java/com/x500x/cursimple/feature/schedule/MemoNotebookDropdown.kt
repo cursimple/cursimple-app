@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -71,6 +72,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -150,7 +152,7 @@ internal fun MemoNotebookDropdown(
     ) {
         Surface(
             shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            color = MaterialTheme.colorScheme.surface,
             border = androidx.compose.foundation.BorderStroke(
                 if (expanded) 1.5.dp else 1.dp,
                 if (expanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
@@ -174,7 +176,9 @@ internal fun MemoNotebookDropdown(
                 ),
         ) {
             Row(
-                modifier = Modifier.padding(start = 16.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+                modifier = Modifier
+                    .heightIn(min = 46.dp)
+                    .padding(start = 16.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (expanded) {
@@ -189,7 +193,7 @@ internal fun MemoNotebookDropdown(
                         value = query,
                         onValueChange = { query = it },
                         singleLine = true,
-                        textStyle = MaterialTheme.typography.titleMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+                        textStyle = MaterialTheme.typography.titleSmall.copy(color = MaterialTheme.colorScheme.onSurface),
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         modifier = Modifier
                             .weight(1f)
@@ -199,7 +203,7 @@ internal fun MemoNotebookDropdown(
                                 if (query.isEmpty()) {
                                     Text(
                                         text = stringResource(R.string.memo_notebook_search),
-                                        style = MaterialTheme.typography.titleMedium,
+                                        style = MaterialTheme.typography.titleSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
@@ -222,8 +226,8 @@ internal fun MemoNotebookDropdown(
                     Spacer(Modifier.width(12.dp))
                     Text(
                         text = stringResource(R.string.memo_notebook_all),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 0.sp),
+                        fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f),
                     )
                     CountBadge(allCount, highlighted = true)
@@ -233,8 +237,8 @@ internal fun MemoNotebookDropdown(
                     Column(Modifier.weight(1f)) {
                         Text(
                             text = selected.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 0.sp),
+                            fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -263,7 +267,11 @@ internal fun MemoNotebookDropdown(
                 } else {
                     // The whole collapsed anchor owns expansion; the arrow must not toggle again.
                     Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.ExpandMore, contentDescription = stringResource(R.string.memo_notebook_pick))
+                        Icon(
+                            Icons.Rounded.ExpandMore,
+                            contentDescription = stringResource(R.string.memo_notebook_pick),
+                            modifier = Modifier.size(18.dp),
+                        )
                     }
                 }
             }
@@ -482,13 +490,17 @@ private fun CountBadge(count: Int, highlighted: Boolean) {
     if (count <= 0) return
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
+            .heightIn(min = 22.dp)
+            .widthIn(min = 22.dp)
+            .clip(RoundedCornerShape(11.dp))
             .background(if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer)
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+            .padding(horizontal = 6.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = count.toString(),
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, lineHeight = 15.sp),
+            fontWeight = FontWeight.Bold,
             color = if (highlighted) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
         )
     }

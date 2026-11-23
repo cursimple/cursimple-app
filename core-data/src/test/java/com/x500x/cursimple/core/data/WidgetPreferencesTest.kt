@@ -20,7 +20,12 @@ class WidgetPreferencesTest {
     }
 
     @Test
-    fun `widgets show events until the user turns them off`() {
+    fun `grid lines are off until the user asks for them`() {
+        assertEquals(0f, com.x500x.cursimple.core.data.ScheduleCardStylePreferences().gridBorderWidthDp)
+    }
+
+    @Test
+    fun `widgets show events by default`() {
         assertEquals(true, WidgetThemePreferences().showEvents)
     }
 

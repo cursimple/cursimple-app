@@ -556,7 +556,14 @@ class WidgetQaTest {
             com.x500x.cursimple.core.kernel.time.BeijingTime.setForcedNow(now)
             val (id, view) = bind(com.x500x.cursimple.feature.widget.CourseCapsuleWidgetReceiver::class.java, 100, 80)
             refresh { com.x500x.cursimple.feature.widget.CourseCapsuleWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
-            capture(view, 100, 80, "widget-capsule-compact-urgent.png")
+            compose.waitUntil(10_000) {
+                var iconReady = false
+                instrumentation.runOnMainSync {
+                    iconReady = view.findViewById<View>(WidgetR.id.capsule_notification_icon)?.visibility == View.VISIBLE
+                }
+                iconReady
+            }
+            capture(view, 100, 80, "widget-capsule-icon-urgent.png")
             instrumentation.runOnMainSync {
                 val title = view.findViewById<TextView>(WidgetR.id.capsule_text)
                 val detail = view.findViewById<TextView>(WidgetR.id.capsule_detail)
@@ -564,10 +571,15 @@ class WidgetQaTest {
                 assertEquals("程序设计", title.text.toString())
                 assertTrue(detail.text.toString().startsWith("11:35"))
                 assertTrue("Course time must occupy its own visible line", detail.height > 0 && detail.bottom <= view.height)
+                assertEquals(AppLocale.wrap(context).getString(WidgetR.string.widget_countdown_minutes, 5), tag.text.toString())
+                assertEquals(View.VISIBLE, view.findViewById<View>(WidgetR.id.capsule_notification_icon).visibility)
                 assertEquals(0xFFBA1A1A.toInt(), tag.currentTextColor)
                 val background = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
-                tag.background.setBounds(0, 0, 4, 4)
-                tag.background.draw(Canvas(background))
+                val badge = view.findViewById<View>(WidgetR.id.capsule_badge)
+                val bounds = android.graphics.Rect(badge.background.bounds)
+                badge.background.setBounds(0, 0, 4, 4)
+                badge.background.draw(Canvas(background))
+                badge.background.bounds = bounds
                 assertEquals(0xFFFBE3E3.toInt(), background.getPixel(2, 2))
                 background.recycle()
             }
@@ -580,11 +592,13 @@ class WidgetQaTest {
                 val tag = view.findViewById<TextView>(WidgetR.id.capsule_tag)
                 assertTrue(tag.text.contains(AppLocale.wrap(context).getString(WidgetR.string.widget_status_live)))
                 assertTrue("Urgent colors must reset", tag.currentTextColor != 0xFFBA1A1A.toInt())
+                assertEquals(View.GONE, view.findViewById<View>(WidgetR.id.capsule_notification_icon).visibility)
                 val background = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
-                val bounds = android.graphics.Rect(tag.background.bounds)
-                tag.background.setBounds(0, 0, 4, 4)
-                tag.background.draw(Canvas(background))
-                tag.background.bounds = bounds
+                val badge = view.findViewById<View>(WidgetR.id.capsule_badge)
+                val bounds = android.graphics.Rect(badge.background.bounds)
+                badge.background.setBounds(0, 0, 4, 4)
+                badge.background.draw(Canvas(background))
+                badge.background.bounds = bounds
                 val contrast = androidx.core.graphics.ColorUtils.calculateContrast(tag.currentTextColor, background.getPixel(2, 2))
                 background.recycle()
                 assertTrue("Live badge must remain readable: $contrast", contrast >= 4.5)
@@ -707,6 +721,32 @@ class WidgetQaTest {
             fixtures.forEach { events.remove(it.id) }
             widgetPreferences.setWidgetShowEvents(true)
             seed()
+        }
+    }
+
+    @Test fun captureReleaseWidgets() = runBlocking {
+        Thread.sleep(2000)
+        val reminderRepo = (context.applicationContext as ClassScheduleApplication).appContainer.reminderRepository
+        fun rule(id: String, day: Int, from: Int, to: Int) = com.x500x.cursimple.core.reminder.model.ReminderRule(
+            ruleId = id, pluginId = "qa", scopeType = com.x500x.cursimple.core.reminder.model.ReminderScopeType.FirstCourseOfPeriod,
+            displayName = "课程提醒", advanceMinutes = 10,
+            firstCourseCandidate = com.x500x.cursimple.core.reminder.model.FirstCourseCandidateScope(
+                daysOfWeek = listOf(day), nodeRange = com.x500x.cursimple.core.reminder.model.ReminderNodeRange(from, to)),
+            actions = listOf(com.x500x.cursimple.core.reminder.model.ReminderAction(
+                type = com.x500x.cursimple.core.reminder.model.ReminderActionType.RemindFirstCandidate)),
+            createdAt = "2026-09-15T00:00:00Z", updatedAt = "2026-09-15T00:00:00Z")
+        try {
+            reminderRepo.saveReminderRule(rule("release-widget-1", 2, 5, 7))
+            reminderRepo.saveReminderRule(rule("release-widget-2", 3, 3, 4))
+            // Sizes are the smallest at which each widget shows complete rows.
+            val (nextId, next) = bind(com.x500x.cursimple.feature.widget.NextCourseGlanceWidgetReceiver::class.java, 330, 150)
+            refresh { com.x500x.cursimple.feature.widget.NextCourseGlanceWidgetReceiver.updateWidgets(context, intArrayOf(nextId)) }
+            capture(next, 330, 150, "release-widget-next.png")
+            val (remindId, remind) = bind(com.x500x.cursimple.feature.widget.ReminderGlanceWidgetReceiver::class.java, 330, 130)
+            refresh { com.x500x.cursimple.feature.widget.ReminderGlanceWidgetReceiver.updateWidgets(context, intArrayOf(remindId)) }
+            capture(remind, 330, 130, "release-widget-reminder.png")
+        } finally {
+            reminderRepo.getReminderRules().filter { it.ruleId.startsWith("release-widget-") }.forEach { reminderRepo.removeReminderRule(it.ruleId) }
         }
     }
 

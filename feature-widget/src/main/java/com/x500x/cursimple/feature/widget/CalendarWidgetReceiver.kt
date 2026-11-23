@@ -309,6 +309,11 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
                 if (mark == "●") text.setSpan(RelativeSizeSpan(0.7f), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 text.append(" ").append(context.getString(label))
             }
+            for (final in listOf(true, false)) {
+                if (if (final) !legend.endFinal else !legend.endNear) continue
+                if (text.isNotEmpty()) text.append(if (!compact && items.size % 2 == 0 && text.none { it == '\n' }) "\n" else "  ")
+                text.appendEndWarningEntry(context, final)
+            }
             return text
         }
 
@@ -333,6 +338,11 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
                 legendClass = context.getString(R.string.widget_calendar_legend_class),
                 legendExam = context.getString(R.string.widget_calendar_legend_exam),
                 legendEvent = context.getString(R.string.widget_calendar_legend_event),
+                endWarningNear = context.getString(R.string.widget_course_end_near),
+                endWarningFinal = context.getString(R.string.widget_course_end_final),
+                endWarningWeeksLeft = { weeks ->
+                    context.resources.getQuantityString(R.plurals.widget_course_end_weeks_left, weeks, weeks)
+                },
                 emptyMessage = empty,
             )
         }

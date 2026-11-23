@@ -61,6 +61,8 @@ fun CalendarMonthPicker(
     weekStartDayOfWeek: Int = 1,
     title: (@Composable () -> Unit)? = null,
     headline: (@Composable () -> Unit)? = null,
+    isDateSelected: (LocalDate) -> Boolean = { it == selected },
+    isDateEnabled: (LocalDate) -> Boolean = { true },
 ) {
     // Paging months does not change the selected date.
     val originMonth = rememberSaveable { YearMonth.from(selected).toString() }
@@ -192,10 +194,12 @@ fun CalendarMonthPicker(
                 cells.chunked(7).forEach { week ->
                     Row(modifier = Modifier.fillMaxWidth()) {
                         week.forEach { date ->
+                            val available = date?.let(isDateEnabled) == true
                             DayCell(
                                 date = date,
-                                selected = date == selected,
-                                enabled = !pager.isScrollInProgress,
+                                selected = date?.let(isDateSelected) == true,
+                                enabled = !pager.isScrollInProgress && available,
+                                available = available,
                                 onClick = { date?.let(onSelect) },
                                 modifier = Modifier.weight(1f),
                             )
@@ -212,6 +216,7 @@ private fun DayCell(
     date: LocalDate?,
     selected: Boolean,
     enabled: Boolean,
+    available: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -237,7 +242,7 @@ private fun DayCell(
                 color = if (selected) {
                     MaterialTheme.colorScheme.onPrimary
                 } else {
-                    MaterialTheme.colorScheme.onSurface
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = if (available) 1f else 0.38f)
                 },
                 maxLines = 1,
             )

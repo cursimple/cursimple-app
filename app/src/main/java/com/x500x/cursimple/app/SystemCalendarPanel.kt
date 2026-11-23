@@ -79,6 +79,13 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogDangerButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.ui.draw.clip
 
 /**
  * Calendar export: write to the system calendar or share an .ics file. Exported event IDs are
@@ -217,35 +224,33 @@ internal fun SystemCalendarExportDialog(
     }
 
     if (pendingClear) {
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { pendingClear = false },
+            tone = AppDialogTone.Danger,
             shape = RoundedCornerShape(24.dp),
+            icon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.calendar_clear_confirm_title)) },
             text = {
                 Text(stringResource(R.string.calendar_clear_confirm_body))
             },
             confirmButton = {
-                Button(
+                AppDialogDangerButton(
                     onClick = {
                         pendingClear = false
                         runClear()
                     },
                     modifier = Modifier.heightIn(min = 48.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError,
-                    ),
                 ) { Text(stringResource(R.string.calendar_clear_confirm_btn)) }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = { pendingClear = false }) {
+                AppDialogSecondaryButton(onClick = { pendingClear = false }) {
                     Text(stringResource(R.string.settings_cancel))
                 }
             },
         )
     }
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
         shape = RoundedCornerShape(28.dp),
         title = {
@@ -253,27 +258,22 @@ internal fun SystemCalendarExportDialog(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(36.dp),
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Rounded.EventAvailable,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Rounded.EventAvailable,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = stringResource(R.string.ie_calendar_row_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
+                    Text(text = stringResource(R.string.ie_calendar_row_title))
                     Text(
                         text = stringResource(R.string.ie_calendar_row_body),
                         style = MaterialTheme.typography.bodySmall,
@@ -584,7 +584,7 @@ internal fun SystemCalendarExportDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(enabled = !busy, onClick = onDismiss) { Text(stringResource(R.string.ie_close)) }
+            AppDialogPrimaryButton(enabled = !busy, onClick = onDismiss) { Text(stringResource(R.string.ie_close)) }
         },
     )
 }

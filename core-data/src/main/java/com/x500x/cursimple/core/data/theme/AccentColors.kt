@@ -13,10 +13,10 @@ object AccentColors {
 
     /** Built-in accent references for older systems without runtime tinting. */
     fun presetPrimary(accent: ThemeAccent): Int = when (accent) {
-        ThemeAccent.Green -> 0xFF3FA277.toInt()
-        ThemeAccent.Blue -> 0xFF3F6FB5.toInt()
-        ThemeAccent.Purple -> 0xFF7259B5.toInt()
-        ThemeAccent.Orange -> 0xFFD0763B.toInt()
+        ThemeAccent.Green -> 0xFF26805A.toInt()
+        ThemeAccent.Blue -> 0xFF2563A8.toInt()
+        ThemeAccent.Purple -> 0xFF7A4FC4.toInt()
+        ThemeAccent.Orange -> 0xFFC2410C.toInt()
         ThemeAccent.Pink -> 0xFFC25B7D.toInt()
         ThemeAccent.Custom -> DEFAULT_CUSTOM_ARGB
     }

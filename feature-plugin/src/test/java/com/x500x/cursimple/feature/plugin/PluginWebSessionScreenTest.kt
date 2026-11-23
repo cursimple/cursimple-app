@@ -18,18 +18,18 @@ import org.junit.Test
 
 class PluginWebSessionScreenTest {
     @Test
-    fun `Yangtze workbench guidance applies to general import and plugin sessions`() {
+    fun `Yangtze workbench guidance applies to general import only`() {
         val url = "https://atrust.yangtzeu.edu.cn:4443/portal/#/app_center"
-        for (pluginId in listOf("builtin.school-portal", "yangtzeu")) {
-            val request = webRequest().copy(pluginId = pluginId, allowedHosts = listOf("yangtzeu.edu.cn"))
-            assertEquals(R.string.plugin_web_yangtze_workbench_hint, schoolPortalGuidance(request, url))
-            assertEquals(R.string.plugin_web_yangtze_workbench_hint, schoolPortalGuidance(request, "$url/?tab=all"))
-        }
+        val request = webRequest().copy(pluginId = "builtin.school-portal", allowedHosts = listOf("yangtzeu.edu.cn"))
+        assertEquals(R.string.plugin_web_yangtze_workbench_hint, schoolPortalGuidance(request, url))
+        assertEquals(R.string.plugin_web_yangtze_workbench_hint, schoolPortalGuidance(request, "$url/?tab=all"))
+        // A plugin's own script enters the academic system from the workbench, so no tap is asked for.
+        assertNull(schoolPortalGuidance(request.copy(pluginId = "yangtzeu"), url))
     }
 
     @Test
     fun `workbench guidance ignores login routes query targets and unrelated hosts`() {
-        val request = webRequest().copy(allowedHosts = listOf("yangtzeu.edu.cn", "example.edu"))
+        val request = webRequest().copy(pluginId = "builtin.school-portal", allowedHosts = listOf("yangtzeu.edu.cn", "example.edu"))
         listOf(
             "https://atrust.yangtzeu.edu.cn:4443/",
             "https://atrust.yangtzeu.edu.cn:4443/portal/#/login",

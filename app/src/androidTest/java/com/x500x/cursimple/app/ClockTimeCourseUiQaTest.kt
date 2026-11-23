@@ -17,6 +17,7 @@ import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.ScheduleEvent
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.feature.schedule.ScheduleScreen
+import com.x500x.cursimple.feature.schedule.AddCourseDialog
 import com.x500x.cursimple.feature.schedule.ScheduleUiState
 import com.x500x.cursimple.feature.schedule.ScheduleViewMode
 import org.junit.Assert.*
@@ -117,6 +118,112 @@ class ClockTimeCourseUiQaTest {
             val result = requireNotNull(added)
             assertNotNull(result.reminderStartTime)
             assertNotNull(result.reminderEndTime)
+        }
+    }
+
+    @Test fun courseFormSavesSelectedDateAndNamedPeriod() {
+        assumeTrue(args.getString("clockTimeQa") == "true")
+        val termStart = LocalDate.of(2026, 9, 7)
+        val targetDate = termStart.plusDays(9)
+        val laterWednesday = LocalDate.of(2026, 10, 7)
+        val friday = LocalDate.of(2026, 10, 2)
+        var added = emptyList<CourseItem>()
+        compose.setContent {
+            val dark = args.getString("qaDark") == "true"
+            ClassScheduleTheme(
+                themeMode = if (dark) ThemeMode.Dark else ThemeMode.Light,
+                themeAccent = if (dark) ThemeAccent.Blue else ThemeAccent.Green,
+            ) {
+                AddCourseDialog(
+                    onDismiss = {},
+                    onConfirm = { error("Expected one batch") },
+                    onConfirmBatch = { added = it },
+                    termStartDate = termStart,
+                    maxWeekCount = 18,
+                    defaultDate = targetDate.minusDays(1),
+                    slotTimes = listOf(
+                        ClassSlotTime(1, 2, "08:00", "09:40", "Morning lab"),
+                        ClassSlotTime(3, 4, "10:10", "11:50", "Studio block"),
+                    ),
+                )
+            }
+        }
+        compose.onNode(hasSetTextAction() and hasText(text(ScheduleR.string.schedule_course_name_label)))
+            .performScrollTo().performTextReplacement("One-day course")
+        compose.onNodeWithTag("course-by-date").performScrollTo().performClick()
+        compose.onNode(hasClickAction() and hasText(text(ScheduleR.string.schedule_course_pick_dates)))
+            .performScrollTo().performClick()
+        compose.onNodeWithTag("calendar-day-$targetDate").performClick()
+        compose.onNodeWithTag("calendar-day-$targetDate").assertIsSelected()
+        compose.onNodeWithTag("calendar-next-month").performClick()
+        compose.onNodeWithTag("calendar-day-$laterWednesday").performClick()
+        compose.onNodeWithTag("calendar-day-$friday").performClick()
+        compose.onNodeWithTag("calendar-day-$laterWednesday").assertIsSelected()
+        compose.onNodeWithTag("calendar-day-$friday").assertIsSelected()
+        save("course-date-picker")
+        compose.onNodeWithTag("calendar-prev-month").performClick()
+        compose.onNodeWithTag("calendar-day-$targetDate").assertIsSelected()
+        compose.onAllNodes(hasClickAction() and hasText(text(ScheduleR.string.schedule_action_save))).onLast().performClick()
+        compose.onNodeWithTag("calendar-month-picker").assertDoesNotExist()
+        compose.onNode(hasClickAction() and hasText(text(ScheduleR.string.schedule_node_start_label)))
+            .performScrollTo().performClick()
+        save("course-named-period-picker")
+        compose.onNode(hasClickAction() and hasText("Studio block")).performClick()
+        compose.onNode(hasClickAction() and hasText(text(ScheduleR.string.schedule_action_save))).performClick()
+        compose.runOnIdle {
+            assertEquals(2, added.map { it.id }.distinct().size)
+            assertEquals(
+                mapOf(CourseTimeSlot(3, 3, 4) to listOf(2, 5), CourseTimeSlot(5, 3, 4) to listOf(4)),
+                added.associate { it.time to it.weeks },
+            )
+        }
+    }
+
+    @Test fun quickAddCanChooseADifferentDateAndPeriod() {
+        assumeTrue(args.getString("clockTimeQa") == "true")
+        var added: CourseItem? = null
+        val targetDate = monday.plusDays(8)
+        show(ScheduleViewMode.Week, onAdd = { added = it })
+        node(regular.title).performTouchInput { longClick() }
+        compose.onNodeWithText(text(ScheduleR.string.schedule_course_action_add_at_position))
+            .performScrollTo().performClick()
+        compose.onNode(hasSetTextAction() and hasText(text(ScheduleR.string.schedule_course_name_label)))
+            .performScrollTo().performTextReplacement("Quick one-day course")
+        compose.onNodeWithTag("course-by-date").performScrollTo().performClick()
+        compose.onNode(hasClickAction() and hasText(text(ScheduleR.string.schedule_course_pick_dates)))
+            .performScrollTo().performClick()
+        compose.onNodeWithTag("calendar-day-$targetDate").performClick()
+        compose.onAllNodes(hasClickAction() and hasText(text(ScheduleR.string.schedule_action_save))).onLast().performClick()
+        compose.onNode(hasClickAction() and hasText(text(ScheduleR.string.schedule_node_start_label)))
+            .performScrollTo().performClick()
+        compose.onNode(hasClickAction() and hasText("5–6")).performClick()
+        compose.onNode(hasClickAction() and hasText(text(ScheduleR.string.schedule_action_save))).performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(2), requireNotNull(added).weeks)
+            assertEquals(CourseTimeSlot(2, 5, 6), requireNotNull(added).time)
+        }
+    }
+
+    @Test fun quickAddRepeatsOnAllSelectedWeekdays() {
+        assumeTrue(args.getString("clockTimeQa") == "true")
+        val added = mutableListOf<CourseItem>()
+        show(ScheduleViewMode.Week, onAdd = { added.add(it) })
+        node(regular.title).performTouchInput { longClick() }
+        compose.onNodeWithText(text(ScheduleR.string.schedule_course_action_add_at_position))
+            .performScrollTo().performClick()
+        compose.onNode(hasSetTextAction() and hasText(text(ScheduleR.string.schedule_course_name_label)))
+            .performScrollTo().performTextReplacement("Repeat on two days")
+        compose.onNodeWithTag("course-weeks-fill-term").performScrollTo().performClick()
+        compose.onNode(hasSetTextAction() and hasText(text(ScheduleR.string.schedule_week_end_label)))
+            .performScrollTo().performTextReplacement("4")
+        compose.onNodeWithTag("course-day-3").performScrollTo().performClick().assertIsOn()
+        compose.onNodeWithTag("course-day-5").performScrollTo().performClick().assertIsOn()
+        compose.onNodeWithTag("course-day-3").performClick().assertIsOff()
+        compose.onNodeWithTag("course-day-1").assertIsOn()
+        compose.onNode(hasClickAction() and hasText(text(ScheduleR.string.schedule_action_save))).performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(1, 5), added.map { it.time.dayOfWeek })
+            assertEquals(listOf((1..4).toList(), (1..4).toList()), added.map { it.weeks })
         }
     }
 

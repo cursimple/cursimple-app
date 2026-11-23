@@ -137,6 +137,9 @@
         <activity android:name=".app.MemoTodoQuickEditActivity" android:exported="false"
             android:excludeFromRecents="true" android:taskAffinity="${applicationId}.widget.quickedit"
             android:theme="@style/Theme.CurSimple.WidgetQuickEdit" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".app.WidgetDatePickerActivity" android:exported="false"
+            android:excludeFromRecents="true" android:taskAffinity="${applicationId}.widget.datepicker"
+            android:theme="@style/Theme.CurSimple.WidgetCourseDetail" />
         <activity android:name=".app.WidgetCourseDetailActivity" android:exported="false"
             android:excludeFromRecents="true" android:taskAffinity="${applicationId}.widget.coursedetail"
             android:theme="@style/Theme.CurSimple.WidgetCourseDetail" />

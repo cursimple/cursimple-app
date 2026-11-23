@@ -2,6 +2,7 @@ package com.x500x.cursimple.feature.schedule
 
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
+import com.x500x.cursimple.core.kernel.model.CourseDetailField
 import com.x500x.cursimple.core.plugin.ui.CourseBadgeRule
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -57,5 +58,14 @@ class CourseBadgeTest {
             schoolName = "",
         )
         assertEquals(listOf("示例大学"), badges)
+    }
+
+    @Test
+    fun `来源学期只在详情显示，不占用课表卡片副标题`() {
+        val sourceCourse = course.copy(
+            details = listOf(CourseDetailField("来源学期", "辅修")),
+        )
+
+        assertEquals(emptyList<String>(), badgesForCourse(sourceCourse, rules = emptyList()))
     }
 }

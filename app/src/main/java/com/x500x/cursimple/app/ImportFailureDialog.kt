@@ -24,6 +24,14 @@ import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.R
 import com.x500x.cursimple.app.util.ImportDiagnosis
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.rounded.ErrorOutline
 
 /** Says why an import failed and what to try, with the raw message one tap from the clipboard. */
 @Composable
@@ -31,9 +39,11 @@ fun ImportFailureDialog(diagnosis: ImportDiagnosis, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val reason = stringResource(diagnosis.reason)
     val hint = stringResource(diagnosis.hint)
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        tone = AppDialogTone.Danger,
         modifier = Modifier.testTag("import-failure-dialog"),
+        icon = { Icon(Icons.Rounded.ErrorOutline, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.import_diag_title)) },
         text = {
             Column(
@@ -67,13 +77,13 @@ fun ImportFailureDialog(diagnosis: ImportDiagnosis, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = onDismiss, modifier = Modifier.testTag("import-failure-close")) {
+            AppDialogPrimaryButton(onClick = onDismiss, modifier = Modifier.testTag("import-failure-close")) {
                 Text(stringResource(R.string.import_diag_close))
             }
         },
         dismissButton = {
             if (diagnosis.detail.isNotBlank()) {
-                AppOutlinedButton(
+                AppDialogSecondaryButton(
                     onClick = { copyImportDetails(context, "$reason\n${diagnosis.detail}") },
                     modifier = Modifier.testTag("import-failure-copy"),
                 ) { Text(stringResource(R.string.import_diag_copy)) }

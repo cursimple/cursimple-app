@@ -6,7 +6,6 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
-import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.x500x.cursimple.core.plugin.logging.PluginLogger
@@ -29,6 +28,7 @@ internal class LegacySiteCompat(
     private val context: Context,
     private val allowedHosts: List<String>,
     private val userAgent: () -> String,
+    private val openConnection: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection },
 ) {
 
     /** Install document-start compatibility scripts when WebView supports them. */
@@ -62,7 +62,7 @@ internal class LegacySiteCompat(
         if (!isDocumentNavigation(request.method, request.isForMainFrame, request.acceptHeader())) return null
 
         val cookieManager = CookieManager.getInstance()
-        val connection = runCatching { URL(url).openConnection() as HttpURLConnection }.getOrNull()
+        val connection = runCatching { openConnection(URL(url)) }.getOrNull()
             ?: return null
         return runCatching<WebResourceResponse?> {
             connection.connectTimeout = CONNECT_TIMEOUT_MS
@@ -185,23 +185,6 @@ internal class LegacySiteCompat(
         private const val JQUERY_ASSET = "webcompat/jquery-3.7.1.min.js"
         private const val JQUERY_MIGRATE_ASSET = "webcompat/jquery-migrate-3.6.0.min.js"
     }
-}
-
-/**
- * WebView tags every request with `X-Requested-With: <app package>`. Legacy academic servers read that
- * header as an AJAX call and answer with a bare fragment (no head, no scripts), which renders as a blank
- * page. Chrome never sends it, so stop sending it. Returns false when this WebView cannot do that, in
- * which case [LegacySiteCompat.interceptDocument] still proxies documents without the header.
- */
-internal fun WebView.suppressRequestedWithHeader(): Boolean {
-    if (!WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST)) return false
-    return runCatching { WebSettingsCompat.setRequestedWithHeaderOriginAllowList(settings, emptySet()) }
-        .onFailure { error ->
-            PluginLogger.error(
-                "plugin.web_compat.requested_with_failed",
-                mapOf("error" to (error.message ?: error.javaClass.simpleName)),
-            )
-        }.isSuccess
 }
 
 internal const val MAX_LEGACY_DOCUMENT_BYTES = 8 * 1024 * 1024L

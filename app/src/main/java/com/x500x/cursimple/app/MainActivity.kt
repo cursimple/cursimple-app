@@ -1,5 +1,7 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.home.PluginSyncStamp
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import com.x500x.cursimple.feature.plugin.ui.rememberAppHaptics
 
@@ -25,8 +27,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -34,6 +34,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
@@ -41,6 +42,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -61,6 +63,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.EventAvailable
+import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Apps
@@ -97,15 +101,26 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material.icons.rounded.Style
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.Widgets
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.automirrored.outlined.ListAlt
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
-import androidx.compose.material3.ModalBottomSheet
+import com.x500x.cursimple.feature.plugin.ui.AppModalBottomSheet
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.graphics.Color
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ripple
 import androidx.compose.material3.Surface
@@ -113,6 +128,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -126,10 +142,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import com.x500x.cursimple.feature.schedule.CalendarMonthPicker
 import com.x500x.cursimple.R
 import androidx.compose.ui.draw.clip
@@ -137,18 +156,16 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.luminance
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.x500x.cursimple.app.guide.FirstRunGuideOverlay
-import com.x500x.cursimple.app.guide.GuideDestination
-import com.x500x.cursimple.app.guide.GuideAnchor
-import com.x500x.cursimple.app.guide.LocalGuideAnchors
-import com.x500x.cursimple.app.guide.guideAnchor
-import com.x500x.cursimple.app.guide.rememberGuideAnchorBounds
-import com.x500x.cursimple.app.guide.firstRunGuideSteps
+import com.x500x.cursimple.app.guide.FirstRunGuideDialog
+import com.x500x.cursimple.app.guide.FirstRunPermissionsPage
 import com.x500x.cursimple.app.guide.shouldShowFirstRunGuide
+import com.x500x.cursimple.app.guide.shouldReviewFirstRunPermissions
 import com.x500x.cursimple.app.theme.ClassScheduleTheme
 import com.x500x.cursimple.app.ai.AiImportConfig
 import com.x500x.cursimple.app.ai.AiScheduleImportClient
@@ -163,6 +180,9 @@ import com.x500x.cursimple.core.data.AppLanguage
 import com.x500x.cursimple.core.data.AppLocale
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.kernel.model.allCoursesWith
+import com.x500x.cursimple.core.kernel.model.courseWeekPreview
+import com.x500x.cursimple.core.kernel.time.WeekStartDay
+import com.x500x.cursimple.core.kernel.time.displayWeekStartOf
 import com.x500x.cursimple.feature.schedule.CourseSwapScreen
 import com.x500x.cursimple.core.kernel.model.isCurrentTermWeek
 import com.x500x.cursimple.core.kernel.model.termWeekLabel
@@ -193,6 +213,7 @@ import kotlinx.coroutines.flow.first
 import com.x500x.cursimple.app.navigation.toDestination
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.MoreHoriz
 import com.x500x.cursimple.app.navigation.toAppScreen
 import com.x500x.cursimple.app.navigation.declaredLayoutShells
@@ -204,6 +225,14 @@ import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogDangerButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.material.icons.rounded.WarningAmber
 
 class MainActivity : ComponentActivity() {
 
@@ -280,41 +309,31 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    if (prefs.loaded) {
+                    if (prefs.loaded && !prefs.disclaimerAccepted) {
                         OnboardingGate(
-                            disclaimerAccepted = prefs.disclaimerAccepted,
-                            notificationPermissionAskedBefore = prefs.notificationPermissionStartupAsked,
                             onAccept = { prefsViewModel.setDisclaimerAccepted(true) },
                             onReject = { finishAndRemoveTask() },
-                            onNotificationAsked = { prefsViewModel.markNotificationPermissionStartupAsked() },
-                        )
-                    }
-                    if (prefs.loaded && prefs.disclaimerAccepted) {
-                        IslandStartupPrompt(
-                            classNotice = prefs.classNotice,
-                            notificationPermissionAsked = prefs.notificationPermissionStartupAsked,
-                            promptShown = prefs.islandStartupPromptShown,
-                            onShown = { prefsViewModel.markIslandStartupPromptShown() },
                         )
                     }
                     if (prefs.loaded && prefs.disclaimerAccepted) {
                     val appZone = remember { BeijingTime.zone }
                     val embeddedPageGestures = remember { com.x500x.cursimple.feature.plugin.ui.EmbeddedPageGestures() }
-                    val guideAnchors = rememberGuideAnchorBounds()
                     val reusableCourses by rememberCourseReuseCatalog(container.termProfileRepository)
                     val timetableRowDefinitions by rememberPluginTimetableRowDefinitions(container.pluginManager)
                     androidx.compose.runtime.CompositionLocalProvider(
                         LocalAppZone provides appZone,
-                        LocalGuideAnchors provides guideAnchors,
                         com.x500x.cursimple.feature.schedule.LocalCourseReuseCatalog provides reusableCourses,
                         com.x500x.cursimple.feature.schedule.LocalPluginTimetableRowPreferences provides prefs.pluginTimetableRowVisibility,
                         com.x500x.cursimple.feature.schedule.LocalPluginTimetableRowDefinitions provides timetableRowDefinitions,
                         com.x500x.cursimple.feature.plugin.ui.LocalEmbeddedPageGestures provides embeddedPageGestures,
                     ) {
                     var currentScreen by rememberSaveable { mutableStateOf(AppScreen.Schedule) }
+                    val firstRunSession = rememberSaveable { !prefs.firstRunGuideCompleted }
+                    var replayFirstRunGuide by rememberSaveable { mutableStateOf(false) }
                     var memoSearchOpen by rememberSaveable { mutableStateOf(false) }
                     var memoShareOpen by remember { mutableStateOf(false) }
                     var settingsTopBar by remember { mutableStateOf<SettingsTopBar?>(null) }
+                    var pluginTopBar by remember { mutableStateOf<com.x500x.cursimple.feature.plugin.PluginTopBar?>(null) }
                     var currentExtension by rememberSaveable { mutableStateOf<String?>(null) }
                     var linkedExtensionContent by remember {
                         mutableStateOf<Triple<com.x500x.cursimple.core.plugin.install.InstalledPluginRecord, com.x500x.cursimple.feature.plugin.extension.ExtensionFeedItem, com.x500x.cursimple.core.kernel.model.ScheduleEvent>?>(null)
@@ -505,6 +524,8 @@ class MainActivity : ComponentActivity() {
                     var openSettingsDestination by rememberSaveable { mutableStateOf<SettingsDestinationKey?>(null) }
                     var settingsReturnTarget by rememberSaveable { mutableStateOf<SettingsReturnTargetKey?>(null) }
                     var showAddMenu by remember { mutableStateOf(false) }
+                    var showScheduleEvents by rememberSaveable { mutableStateOf(false) }
+                    var endLegend by remember { mutableStateOf(false to false) }
                     val scheduleViewModel: ScheduleViewModel = viewModel(
                         factory = ScheduleViewModelFactory(
                             appContext = applicationContext,
@@ -520,6 +541,7 @@ class MainActivity : ComponentActivity() {
                                 container.normalizeTimingProfileForActiveTerm(profile)
                             },
                             onSyncCompleted = { profile -> container.refreshWidgets(profile) },
+                            onSyncSucceeded = { pluginId -> PluginSyncStamp.record(this@MainActivity, pluginId) },
                             onSchoolTimingImported = { name, profile ->
                                 container.widgetPreferencesRepository.selectImportedTimingProfile(name, profile)
                             },
@@ -595,6 +617,14 @@ class MainActivity : ComponentActivity() {
                         currentScreen.toDestination()?.let { it !in barItems } == true
                     val drawerGesturesEnabled = barItems == null && !scheduleState.isSyncing && scheduleState.pendingWebSession == null &&
                         (drawerState.isOpen || (currentExtension == null && !embeddedPageGestures.ownsContentGestures))
+                    // Turning gestures off mid-drag can cancel the drawer's settle and leave a partial
+                    // offset that shifts the whole content pane right with the panel itself hidden.
+                    // Settle back to closed so the pane cannot stay misaligned.
+                    androidx.compose.runtime.LaunchedEffect(drawerGesturesEnabled) {
+                        if (!drawerGesturesEnabled && drawerState.currentValue == DrawerValue.Closed) {
+                            drawerState.close()
+                        }
+                    }
                     var showDatePicker by rememberSaveable { mutableStateOf(false) }
                     var showCurrentWeekDialog by rememberSaveable { mutableStateOf(false) }
                     var pendingCurrentWeek by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -611,7 +641,7 @@ class MainActivity : ComponentActivity() {
                             showTermStartReminder = false
                             autoPromptedThisSession = false
                         }
-                        if (prefs.loaded && prefs.disclaimerAccepted && prefs.termStartDate == null &&
+                        if (!firstRunSession && prefs.termStartDate == null &&
                             !autoPromptedThisSession && !blocked
                         ) {
                             autoPromptedThisSession = true
@@ -619,20 +649,22 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     if (showTermStartReminder) {
-                        androidx.compose.material3.AlertDialog(
+                        AppAlertDialog(
                             onDismissRequest = { showTermStartReminder = false },
+                            tone = AppDialogTone.Warning,
+                            icon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = null, modifier = Modifier.size(22.dp)) },
                             title = { Text(stringResource(R.string.main_term_start_missing_title)) },
                             text = {
                                 Text(stringResource(R.string.main_term_start_missing_body))
                             },
                             confirmButton = {
-                                AppOutlinedButton(onClick = {
+                                AppDialogPrimaryButton(onClick = {
                                     showTermStartReminder = false
                                     showDatePicker = true
                                 }) { Text(stringResource(R.string.main_go_to_settings)) }
                             },
                             dismissButton = {
-                                AppOutlinedButton(onClick = { showTermStartReminder = false }) {
+                                AppDialogSecondaryButton(onClick = { showTermStartReminder = false }) {
                                     Text(stringResource(R.string.main_later))
                                 }
                             },
@@ -643,16 +675,18 @@ class MainActivity : ComponentActivity() {
                     var showForceStopPrompt by remember {
                         mutableStateOf(com.x500x.cursimple.app.reminder.ForceStopMonitor.promptPending(appContext))
                     }
-                    if (showForceStopPrompt) {
-                        androidx.compose.material3.AlertDialog(
+                    if (!firstRunSession && showForceStopPrompt) {
+                        AppAlertDialog(
+                            tone = AppDialogTone.Warning,
                             onDismissRequest = {
                                 showForceStopPrompt = false
                                 com.x500x.cursimple.app.reminder.ForceStopMonitor.markPrompted(appContext)
                             },
+                            icon = { Icon(Icons.Rounded.WarningAmber, contentDescription = null, modifier = Modifier.size(22.dp)) },
                             title = { Text(stringResource(R.string.force_stop_prompt_title)) },
                             text = { Text(stringResource(R.string.force_stop_prompt_body)) },
                             confirmButton = {
-                                androidx.compose.material3.Button(onClick = {
+                                AppDialogPrimaryButton(onClick = {
                                     showForceStopPrompt = false
                                     com.x500x.cursimple.app.reminder.ForceStopMonitor.markPrompted(appContext)
                                     currentScreen = AppScreen.Settings
@@ -661,7 +695,7 @@ class MainActivity : ComponentActivity() {
                                 }) { Text(stringResource(R.string.main_go_to_settings)) }
                             },
                             dismissButton = {
-                                AppOutlinedButton(onClick = {
+                                AppDialogSecondaryButton(onClick = {
                                     showForceStopPrompt = false
                                     com.x500x.cursimple.app.reminder.ForceStopMonitor.markPrompted(appContext)
                                 }) { Text(stringResource(R.string.main_later)) }
@@ -691,12 +725,14 @@ class MainActivity : ComponentActivity() {
                             onDismiss = { showUpdateCheckDialog = false },
                         )
                     }
-                    ReleaseAnnouncementGate(
-                        lastSeenVersionCode = prefs.lastSeenVersionCode,
-                        onSeen = prefsViewModel::setLastSeenVersionCode,
-                        announcementAutoPlayEnabled = prefs.announcementAutoPlayEnabled,
-                        onDialogVisibleChange = { announcementVisible = it },
-                    )
+                    if (prefs.firstRunGuideCompleted) {
+                        ReleaseAnnouncementGate(
+                            lastSeenVersionCode = prefs.lastSeenVersionCode,
+                            onSeen = prefsViewModel::setLastSeenVersionCode,
+                            announcementAutoPlayEnabled = prefs.announcementAutoPlayEnabled,
+                            onDialogVisibleChange = { announcementVisible = it },
+                        )
+                    }
                     var showThemeSheet by rememberSaveable { mutableStateOf(false) }
                     var showThemeAccentDialog by rememberSaveable { mutableStateOf(false) }
                     var drawerAppearance by rememberSaveable { mutableStateOf<DrawerAppearance?>(null) }
@@ -846,10 +882,16 @@ class MainActivity : ComponentActivity() {
                             dayOffset = ChronoUnit.DAYS.between(today, target).toInt()
                         }
                     }
-                    val currentWeekIndex = resolveWeekIndexForDate(effectiveTermStart, today)
-                    val dayWeekIndex = resolveWeekIndexForDate(
+                    val weekPreview = remember(effectiveTermStart, scheduleState.schedule, scheduleState.manualCourses) {
+                        if (effectiveTermStart != null) null
+                        else courseWeekPreview(scheduleState.schedule.allCoursesWith(scheduleState.manualCourses))
+                    }
+                    val selectedDayDate = today.plusDays(dayOffset.toLong())
+                    val currentWeekIndex = weekPreview?.firstCourseWeek ?: resolveWeekIndexForDate(effectiveTermStart, today)
+                    val dayWeekIndex = weekPreview?.sourceWeekForPageDate(today, selectedDayDate, prefs.scheduleDisplay.weekStartDay)
+                        ?: resolveWeekIndexForDate(
                         effectiveTermStart,
-                        today.plusDays(dayOffset.toLong()),
+                        selectedDayDate,
                     )
                     val displayedWeekIndex = when (scheduleViewMode) {
                         ScheduleViewMode.Week -> currentWeekIndex + weekOffset
@@ -873,6 +915,11 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     val weekPickerTotalWeeks = derivedWeeks + activeTermExtraWeeks
+                    LaunchedEffect(weekPreview, weekPickerTotalWeeks, scheduleState.initialized) {
+                        if (weekPreview != null && scheduleState.initialized) {
+                            weekOffset = weekOffset.coerceIn(0, (weekPickerTotalWeeks - currentWeekIndex).coerceAtLeast(0))
+                        }
+                    }
                     // Use an atomic repository update; UI values can lag repeated taps.
                     val addWeek: () -> Unit = {
                         scope.launch { container.termProfileRepository.adjustActiveTermExtraWeekCount(1) }
@@ -959,7 +1006,6 @@ class MainActivity : ComponentActivity() {
                                         ),
                                         meBadge = updateBadgeVisible || pluginUpdateBadgeVisible,
                                         size = prefs.bottomBarSize,
-                                        modifier = Modifier.guideAnchor(GuideAnchor.Navigation),
                                         onSelect = { tab ->
                                             haptics.click()
                                             currentExtension = null
@@ -976,7 +1022,6 @@ class MainActivity : ComponentActivity() {
                                     title = {
                                         if (onScheduleScreen) {
                                             Column(
-                                                modifier = Modifier.guideAnchor(GuideAnchor.WeekTitle),
                                                 horizontalAlignment = Alignment.CenterHorizontally,
                                             ) {
                                                 val isCurrentWeek = isCurrentTermWeek(
@@ -984,22 +1029,11 @@ class MainActivity : ComponentActivity() {
                                                     displayedWeekIndex = displayedWeekIndex,
                                                     currentWeekIndex = currentWeekIndex,
                                                 )
-                                                val pillBgColor by animateColorAsState(
-                                                    targetValue = if (isCurrentWeek) MaterialTheme.colorScheme.primaryContainer
-                                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                                                    animationSpec = tween(200, easing = FastOutSlowInEasing),
-                                                    label = "WeekPillBg",
-                                                )
-                                                val pillBorderColor by animateColorAsState(
-                                                    targetValue = if (isCurrentWeek) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-                                                    else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                                                    animationSpec = tween(200, easing = FastOutSlowInEasing),
-                                                    label = "WeekPillBorder",
-                                                )
                                                 Surface(
-                                                    color = pillBgColor,
+                                                    color = MaterialTheme.colorScheme.surface,
                                                     shape = CircleShape,
-                                                    border = BorderStroke(1.dp, pillBorderColor),
+                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                                    shadowElevation = 1.dp,
                                                     modifier = Modifier
                                                         .clip(CircleShape)
                                                         .combinedClickable(
@@ -1020,34 +1054,36 @@ class MainActivity : ComponentActivity() {
                                                         verticalAlignment = Alignment.CenterVertically,
                                                         modifier = Modifier
                                                             .clip(CircleShape)
-                                                            .padding(
-                                                            horizontal = 14.dp,
-                                                            vertical = 4.dp,
-                                                        ),
+                                                            .heightIn(min = 38.dp)
+                                                            .padding(start = 16.dp, end = 8.dp),
                                                     ) {
                                                         AppAtomicText(
-                                                            // Missing term dates use week one; the warning icon provides the date hint.
                                                             text = LocalContext.current.termWeekText(
-                                                                if (effectiveTermStart == null) termWeekLabel(displayedWeekIndex)
+                                                                if (weekPreview != null) termWeekLabel(weekPreview.displayWeek(displayedWeekIndex))
                                                                 else termWeekLabel(effectiveTermStart, displayedWeekIndex),
                                                             ),
-                                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                                                            color = if (isCurrentWeek) MaterialTheme.colorScheme.onPrimaryContainer
-                                                            else MaterialTheme.colorScheme.onSurface,
+                                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                                fontSize = 15.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                            ),
+                                                            color = MaterialTheme.colorScheme.onSurface,
                                                         )
                                                         if (isCurrentWeek) {
                                                             Spacer(Modifier.width(6.dp))
                                                             Surface(
                                                                 color = MaterialTheme.colorScheme.primary,
-                                                                shape = RoundedCornerShape(50),
+                                                                shape = RoundedCornerShape(9.dp),
                                                             ) {
                                                                 AppAtomicText(
                                                                     text = stringResource(R.string.main_this_week),
-                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                                        fontSize = 10.sp,
+                                                                        fontWeight = FontWeight.Bold,
+                                                                    ),
                                                                     color = MaterialTheme.colorScheme.onPrimary,
                                                                     modifier = Modifier.padding(
-                                                                        horizontal = 6.dp,
-                                                                        vertical = 1.dp,
+                                                                        horizontal = 8.dp,
+                                                                        vertical = 2.dp,
                                                                     ),
                                                                 )
                                                             }
@@ -1056,40 +1092,63 @@ class MainActivity : ComponentActivity() {
                                                         Icon(
                                                             imageVector = Icons.Rounded.ArrowDropDown,
                                                             contentDescription = stringResource(R.string.main_switch_week),
-                                                            tint = if (isCurrentWeek) MaterialTheme.colorScheme.onPrimaryContainer
-                                                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                            modifier = Modifier.size(20.dp),
+                                                            tint = MaterialTheme.colorScheme.onSurface,
+                                                            modifier = Modifier.size(26.dp),
                                                         )
                                                     }
                                                 }
-                                                val termLabel = formatTermLabel(effectiveTermStart)
-                                                if (termLabel.isNotBlank()) {
-                                                    Text(
-                                                        text = termLabel,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                val termLabel = if (weekPreview != null) stringResource(R.string.main_drawer_term_start_unset)
+                                                    else formatTermLabel(effectiveTermStart)
+                                                val (legendFinal, legendNear) = endLegend
+                                                if (termLabel.isNotBlank() || legendFinal || legendNear) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                                                         modifier = Modifier.padding(top = 2.dp),
-                                                    )
+                                                    ) {
+                                                        if (termLabel.isNotBlank()) {
+                                                            Text(
+                                                                text = termLabel,
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                maxLines = 1,
+                                                            )
+                                                        }
+                                                        if (legendFinal) EndWarningLegendEntry(final = true)
+                                                        if (legendNear) EndWarningLegendEntry(final = false)
+                                                    }
                                                 }
                                             }
                                         } else {
                                             Text(
                                                 text = currentExtension?.let { extensionTitles[it] }
                                                     ?: settingsTopBar?.title?.takeIf { currentScreen == AppScreen.Settings }
+                                                    ?: pluginTopBar?.title?.takeIf { currentScreen == AppScreen.Plugins }
                                                     ?: stringResource(currentScreen.labelRes),
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.SemiBold,
+                                                style = MaterialTheme.typography.titleMedium.copy(
+                                                    fontSize = 16.sp,
+                                                    letterSpacing = 0.5.sp,
+                                                ),
+                                                fontWeight = FontWeight.Bold,
                                             )
                                         }
                                     },
                                     navigationIcon = {
                                         val settingsBack = settingsTopBar?.onBack
                                             ?.takeIf { currentExtension == null && currentScreen == AppScreen.Settings }
+                                        val pluginBack = pluginTopBar?.onBack
+                                            ?.takeIf { currentExtension == null && currentScreen == AppScreen.Plugins }
                                         if (settingsBack != null) {
                                             AppToolbarIconButton(
                                                 icon = Icons.AutoMirrored.Rounded.ArrowBack,
                                                 contentDescription = stringResource(R.string.settings_back),
                                                 onClick = settingsBack,
+                                            )
+                                        } else if (pluginBack != null) {
+                                            AppToolbarIconButton(
+                                                icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                                                contentDescription = stringResource(R.string.settings_back),
+                                                onClick = pluginBack,
                                             )
                                         } else if (barItems != null) {
                                             if (currentExtension != null || underMe) {
@@ -1108,7 +1167,6 @@ class MainActivity : ComponentActivity() {
                                         } else Row(verticalAlignment = Alignment.CenterVertically) {
                                             IconButton(
                                                 onClick = { scope.launch { drawerState.open() } },
-                                                modifier = Modifier.guideAnchor(GuideAnchor.Navigation),
                                             ) {
                                                 Box {
                                                     Icon(
@@ -1183,7 +1241,7 @@ class MainActivity : ComponentActivity() {
                                                     icon = Icons.Rounded.Add,
                                                     contentDescription = stringResource(R.string.main_add_to_schedule),
                                                     onClick = { showAddMenu = true },
-                                                    modifier = Modifier.guideAnchor(GuideAnchor.Add),
+                                                    highlighted = true,
                                                 )
                                                 DropdownMenu(
                                                     expanded = showAddMenu,
@@ -1269,6 +1327,18 @@ class MainActivity : ComponentActivity() {
                                                             subScreen = MainActivity.SubScreen.ImportExport
                                                         },
                                                     )
+                                                    if (scheduleState.events.isNotEmpty()) {
+                                                        DropdownMenuItem(
+                                                            text = { Text(stringResource(if (showScheduleEvents) R.string.main_hide_schedule_events else R.string.main_show_schedule_events)) },
+                                                            leadingIcon = {
+                                                                Icon(Icons.Rounded.Event, contentDescription = null)
+                                                            },
+                                                            onClick = {
+                                                                showScheduleEvents = !showScheduleEvents
+                                                                showAddMenu = false
+                                                            },
+                                                        )
+                                                    }
                                                 }
 
                                             }
@@ -1330,7 +1400,7 @@ class MainActivity : ComponentActivity() {
                                     AppScreen.Me -> com.x500x.cursimple.app.navigation.MeScreen(
                                         overflow = com.x500x.cursimple.core.data.navigation.bottomBarOverflow(barItems.orEmpty()),
                                         weekLabel = LocalContext.current.termWeekText(
-                                            if (effectiveTermStart == null) termWeekLabel(currentWeekIndex)
+                                            if (weekPreview != null) termWeekLabel(weekPreview.displayWeek(currentWeekIndex))
                                             else termWeekLabel(effectiveTermStart, currentWeekIndex),
                                         ),
                                         termLabel = formatTermLabel(effectiveTermStart),
@@ -1375,7 +1445,7 @@ class MainActivity : ComponentActivity() {
                                         overrideTermStart = prefs.termStartDate,
                                         weekOffset = weekOffset,
                                         // Bound backward navigation by the current pre-term week or week one.
-                                        minWeekOffset = (1 - currentWeekIndex).coerceAtMost(0),
+                                        minWeekOffset = if (weekPreview != null) 0 else (1 - currentWeekIndex).coerceAtMost(0),
                                         maxWeekOffset = weekPickerTotalWeeks - currentWeekIndex,
                                         termWeekCount = weekPickerTotalWeeks,
                                         onAddWeek = addWeek,
@@ -1412,10 +1482,15 @@ class MainActivity : ComponentActivity() {
                                             prefsViewModel.removeHolidayCalendarEntry(date.toString())
                                         },
                                         onSetCustomCourseColor = prefsViewModel::setCustomCourseColor,
+                                        showEvents = showScheduleEvents,
+                                        onShowEventsChange = { showScheduleEvents = it },
+                                        onEndWarningLegendChange = { final, near -> endLegend = final to near },
                                         modifier = Modifier.fillMaxSize(),
                                     )
 
-                                    AppScreen.Plugins -> PluginMarketRoute(
+                                    AppScreen.Plugins -> CompositionLocalProvider(
+                                        com.x500x.cursimple.feature.plugin.LocalPluginHostTopBar provides true,
+                                    ) { PluginMarketRoute(
                                         pluginMarketViewModel = pluginMarketViewModel,
                                         pluginSources = prefs.pluginSources,
                                         componentSources = prefs.componentSources,
@@ -1435,7 +1510,8 @@ class MainActivity : ComponentActivity() {
                                         onExtensionOpenConsumed = { openExtensionSettings = null },
                                         openExtensionsTab = openMarketExtensionsTab,
                                         onExtensionsTabConsumed = { openMarketExtensionsTab = false },
-                                    )
+                                        onTopBarChange = { pluginTopBar = it },
+                                    ) }
 
                                     AppScreen.Courses -> CourseLibraryRoute(
                                         viewModel = scheduleViewModel,
@@ -1616,6 +1692,7 @@ class MainActivity : ComponentActivity() {
                                         onSchedulePinchZoomEnabledChange =
                                             prefsViewModel::setSchedulePinchZoomEnabled,
                                         onTodayOverviewEnabledChange = prefsViewModel::setTodayOverviewEnabled,
+                                        onCourseEndWarningEnabledChange = prefsViewModel::setCourseEndWarningEnabled,
                                         onCourseSessionCountIncludeHolidaysChange = prefsViewModel::setCourseSessionCountIncludeHolidays,
                                         onScheduleWeekendVisibleChange = prefsViewModel::setScheduleWeekendVisible,
                                         onScheduleRowFitModeChange = prefsViewModel::setScheduleRowFitMode,
@@ -1626,6 +1703,8 @@ class MainActivity : ComponentActivity() {
                                         onTotalScheduleDisplayChange = prefsViewModel::setTotalScheduleDisplayEnabled,
                                         onScheduleTimelineIndicatorEnabledChange = prefsViewModel::setTimelineIndicatorEnabled,
                                         onScheduleGridDashedLinesEnabledChange = prefsViewModel::setGridDashedLinesEnabled,
+                                        onInactiveCourseDisplayModeChange = prefsViewModel::setInactiveCourseDisplayMode,
+                                        onDayViewEventsEnabledChange = prefsViewModel::setDayViewEventsEnabled,
                                         onScheduleTimeColumnWidthDpChange = prefsViewModel::setTimeColumnWidthDp,
                                         onAlarmRingDurationSecondsChange = prefsViewModel::setAlarmRingDurationSeconds,
                                         onAlarmRepeatIntervalSecondsChange = prefsViewModel::setAlarmRepeatIntervalSeconds,
@@ -1657,8 +1736,6 @@ class MainActivity : ComponentActivity() {
                                             widgetPrefsViewModel::setWidgetFrostedGlassEnabled,
                                         onWidgetThemeModeChange =
                                             widgetPrefsViewModel::setWidgetThemeMode,
-                                        vendorPermissionAcks = prefs.vendorPermissionAcks,
-                                        onVendorPermissionAckChange = prefsViewModel::setVendorPermissionAck,
                                         onWidgetOpenAppOnDoubleClickChange =
                                             widgetPrefsViewModel::setWidgetOpenAppOnDoubleClickEnabled,
                                         onWidgetShowEventsChange = widgetPrefsViewModel::setWidgetShowEvents,
@@ -1673,6 +1750,8 @@ class MainActivity : ComponentActivity() {
                                         onBottomBarSizeChange = prefsViewModel::setBottomBarSize,
                                         onPrivateFilesProviderEnabledChange =
                                             prefsViewModel::setPrivateFilesProviderEnabled,
+                                        onCreateAppBackup = container::exportAppBackup,
+                                        onRestoreAppBackup = container::restoreAppBackup,
                                         onWebDavSettingsChange = prefsViewModel::setWebDavSettings,
                                         onTestWebDavSettings = { config ->
                                             withContext(Dispatchers.IO) {
@@ -1684,11 +1763,7 @@ class MainActivity : ComponentActivity() {
                                         onSetDebugForcedDateTime = prefsViewModel::setDebugForcedDateTime,
                                         onResetScheduleAppearanceAndDisplay =
                                             prefsViewModel::resetScheduleAppearanceAndDisplay,
-                                        onReplayFirstRunGuide = {
-                                            currentScreen = AppScreen.Schedule
-                                            subScreen = null
-                                            prefsViewModel.setFirstRunGuideCompleted(false)
-                                        },
+                                        onReplayFirstRunGuide = { replayFirstRunGuide = true },
                                         onResetAllSettings = {
                                             prefsViewModel.resetAllSettings()
                                             widgetPrefsViewModel.resetWidgetThemePreferences()
@@ -2074,6 +2149,11 @@ class MainActivity : ComponentActivity() {
                         DrawerAppearanceChooser(
                             kind = kind,
                             onDismiss = { drawerAppearance = null },
+                            themeMode = prefs.themeMode,
+                            onThemeMode = prefsViewModel::setThemeMode,
+                            themeAccent = prefs.themeAccent,
+                            themeCustomArgb = prefs.themeCustomColorArgb,
+                            onThemeAccent = prefsViewModel::setThemeAccent,
                             onThemeColor = {
                                 drawerAppearance = null
                                 showThemeAccentDialog = true
@@ -2140,18 +2220,20 @@ class MainActivity : ComponentActivity() {
                     }
 
                     if (showClearTermStartConfirm) {
-                        androidx.compose.material3.AlertDialog(
+                        AppAlertDialog(
                             onDismissRequest = { showClearTermStartConfirm = false },
+                            tone = AppDialogTone.Danger,
+                            icon = { Icon(Icons.Rounded.EventBusy, contentDescription = null, modifier = Modifier.size(22.dp)) },
                             title = { Text(stringResource(R.string.main_clear_term_start_title)) },
                             text = { Text(stringResource(R.string.main_clear_term_start_body)) },
                             confirmButton = {
-                                AppOutlinedButton(onClick = {
+                                AppDialogDangerButton(onClick = {
                                     setActiveTermStartDate(null)
                                     showClearTermStartConfirm = false
                                 }) { Text(stringResource(R.string.main_clear)) }
                             },
                             dismissButton = {
-                                AppOutlinedButton(onClick = { showClearTermStartConfirm = false }) { Text(stringResource(R.string.main_cancel)) }
+                                AppDialogSecondaryButton(onClick = { showClearTermStartConfirm = false }) { Text(stringResource(R.string.main_cancel)) }
                             },
                         )
                     }
@@ -2165,11 +2247,16 @@ class MainActivity : ComponentActivity() {
                                 scheduleViewModel.addManualCourse(course)
                                 showAddCourseDialog = false
                             },
+                            onConfirmBatch = { courses ->
+                                scheduleViewModel.addManualCourses(courses)
+                                showAddCourseDialog = false
+                            },
                             onConfirmEvent = { event ->
                                 scheduleViewModel.saveEvent(event)
                                 showAddCourseDialog = false
                             },
                             initialScheduleType = addCourseInitialType,
+                            defaultDate = today,
                             termStartDate = effectiveTermStart,
                             maxWeekCount = weekPickerTotalWeeks,
                             slotTimes = scheduleState.timingProfile?.slotTimes.orEmpty(),
@@ -2179,6 +2266,7 @@ class MainActivity : ComponentActivity() {
                     if (showWeekMenu) {
                         WeekPickerSheet(
                             termStart = effectiveTermStart,
+                            preview = weekPreview,
                             currentWeek = currentWeekIndex,
                             selectedWeek = displayedWeekIndex,
                             totalWeeks = weekPickerTotalWeeks,
@@ -2193,6 +2281,7 @@ class MainActivity : ComponentActivity() {
                                         selectedWeek = week,
                                         termStart = effectiveTermStart,
                                         currentWeek = currentWeekIndex,
+                                        previewWeekStart = prefs.scheduleDisplay.weekStartDay,
                                     )
                                 } else {
                                     weekOffset = week - currentWeekIndex
@@ -2209,8 +2298,9 @@ class MainActivity : ComponentActivity() {
 
                     pendingCurrentWeek?.let { week ->
                         val derivedStart = deriveTermStartForCurrentWeek(today = today, currentWeek = week)
-                        androidx.compose.material3.AlertDialog(
+                        AppAlertDialog(
                             onDismissRequest = { pendingCurrentWeek = null },
+                            icon = { Icon(Icons.Rounded.EventAvailable, contentDescription = null, modifier = Modifier.size(22.dp)) },
                             title = { Text(stringResource(R.string.main_set_current_week_confirm_title, week)) },
                             text = {
                                 Text(
@@ -2221,7 +2311,7 @@ class MainActivity : ComponentActivity() {
                                 )
                             },
                             confirmButton = {
-                                AppOutlinedButton(onClick = {
+                                AppDialogPrimaryButton(onClick = {
                                     setActiveTermStartDate(derivedStart)
                                     weekOffset = 0
                                     dayOffset = 0
@@ -2229,7 +2319,7 @@ class MainActivity : ComponentActivity() {
                                 }) { Text(stringResource(R.string.main_set_current_week_confirm_action)) }
                             },
                             dismissButton = {
-                                AppOutlinedButton(onClick = { pendingCurrentWeek = null }) {
+                                AppDialogSecondaryButton(onClick = { pendingCurrentWeek = null }) {
                                     Text(stringResource(R.string.main_cancel))
                                 }
                             },
@@ -2277,45 +2367,34 @@ class MainActivity : ComponentActivity() {
                     }
 
                     if (
-                        shouldShowFirstRunGuide(
+                        replayFirstRunGuide || shouldShowFirstRunGuide(
                             loaded = prefs.loaded,
                             disclaimerAccepted = prefs.disclaimerAccepted,
                             guideCompleted = prefs.firstRunGuideCompleted,
                             blockingDialogVisible = showTermStartReminder || showDatePicker ||
-                                announcementVisible,
+                                announcementVisible || (!firstRunSession && showForceStopPrompt),
                         )
                     ) {
-                        FirstRunGuideOverlay(
-                            steps = firstRunGuideSteps(bottomBar = barItems != null),
-                            onNavigate = { destination ->
-                                when (destination) {
-                                    GuideDestination.Schedule -> {
-                                        currentScreen = AppScreen.Schedule
-                                        subScreen = null
-                                    }
-
-                                    GuideDestination.SchoolImport -> {
-                                        currentScreen = AppScreen.Schedule
-                                        subScreen = MainActivity.SubScreen.SchoolImport
-                                    }
-
-                                    GuideDestination.Courses -> {
-                                        currentScreen = AppScreen.Courses
-                                        subScreen = null
-                                    }
-
-                                    GuideDestination.Plugins -> {
-                                        currentScreen = AppScreen.Plugins
-                                        subScreen = null
-                                    }
-                                }
-                            },
-                            onFinish = {
-                                currentScreen = AppScreen.Schedule
-                                subScreen = null
+                        fun closeGuide() {
+                            replayFirstRunGuide = false
+                            if (!prefs.firstRunGuideCompleted) {
                                 prefsViewModel.setFirstRunGuideCompleted(true)
-                            },
-                        )
+                            }
+                        }
+                        if (!replayFirstRunGuide && shouldReviewFirstRunPermissions(
+                                guideCompleted = prefs.firstRunGuideCompleted,
+                                permissionsReviewed = prefs.firstRunPermissionsReviewed,
+                            )
+                        ) {
+                            FirstRunPermissionsPage(
+                                classNotice = prefs.classNotice,
+                                alarmKeepAliveEnabled = prefs.alarmKeepAliveEnabled,
+                                onAlarmKeepAliveEnabledChange = prefsViewModel::setAlarmKeepAliveEnabled,
+                                onContinue = prefsViewModel::markFirstRunPermissionsReviewed,
+                            )
+                        } else {
+                            FirstRunGuideDialog(onFinish = ::closeGuide)
+                        }
                     }
                     }
                     }
@@ -2340,20 +2419,22 @@ class MainActivity : ComponentActivity() {
     enum class AppScreen(
         val labelRes: Int,
         val icon: ImageVector,
+        /** Line icon for unselected navigation rows; [icon] marks the selected one. */
+        val outlinedIcon: ImageVector,
     ) {
-        Schedule(R.string.screen_schedule, Icons.AutoMirrored.Rounded.MenuBook),
-        Courses(R.string.screen_courses, Icons.AutoMirrored.Rounded.ListAlt),
-        Memos(R.string.screen_memos, Icons.Rounded.EditNote),
-        Plugins(R.string.screen_plugins, Icons.Rounded.Extension),
-        Reminders(R.string.screen_reminders, Icons.Rounded.Notifications),
-        Settings(R.string.screen_settings, Icons.Rounded.Settings),
-        About(R.string.screen_about, Icons.Rounded.Info),
+        Schedule(R.string.screen_schedule, Icons.AutoMirrored.Rounded.MenuBook, Icons.AutoMirrored.Outlined.MenuBook),
+        Courses(R.string.screen_courses, Icons.AutoMirrored.Rounded.ListAlt, Icons.AutoMirrored.Outlined.ListAlt),
+        Memos(R.string.screen_memos, Icons.Rounded.EditNote, Icons.Outlined.EditNote),
+        Plugins(R.string.screen_plugins, Icons.Rounded.Extension, Icons.Outlined.Extension),
+        Reminders(R.string.screen_reminders, Icons.Rounded.Notifications, Icons.Outlined.Notifications),
+        Settings(R.string.screen_settings, Icons.Rounded.Settings, Icons.Outlined.Settings),
+        About(R.string.screen_about, Icons.Rounded.Info, Icons.Outlined.Info),
 
         /** Bottom bar shell only. */
-        Me(R.string.nav_me, Icons.Rounded.AccountCircle),
+        Me(R.string.nav_me, Icons.Rounded.AccountCircle, Icons.Outlined.AccountCircle),
 
         /** Bottom bar shell only. */
-        ComponentsHub(R.string.nav_components, Icons.Rounded.Widgets);
+        ComponentsHub(R.string.nav_components, Icons.Rounded.Widgets, Icons.Outlined.Widgets);
 
         fun navigationRank(): Int = when (this) {
             Schedule -> 0
@@ -2400,52 +2481,81 @@ private fun AppDrawer(
     ModalDrawerSheet(
         // Cap at the Material drawer width so landscape does not stretch rows across the screen.
         modifier = Modifier.width(minOf(LocalConfiguration.current.screenWidthDp * 0.72f, 360f).dp),
+        drawerShape = RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp),
         drawerContainerColor = MaterialTheme.colorScheme.surface,
     ) {
         val scrollState = rememberScrollState()
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.statusBars)
+                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Vertical)),
+        ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
                 .verticalScroll(scrollState)
-                .padding(start = 14.dp, end = 24.dp, top = 12.dp, bottom = 12.dp),
+                .padding(start = 14.dp, end = 20.dp, top = 16.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
                 text = stringResource(R.string.main_app_name),
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontSize = 19.sp,
+                    letterSpacing = 1.sp,
+                ),
                 fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 10.dp),
             )
-            Text(
-                text = when {
-                    termStartDate == null -> stringResource(R.string.main_drawer_term_start_unset)
-                    currentWeekIndex >= 1 ->
-                        stringResource(R.string.main_drawer_current_week, currentWeekIndex)
-                    else ->
-                        pluralStringResource(R.plurals.main_drawer_before_term, 1 - currentWeekIndex, 1 - currentWeekIndex)
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(
+                modifier = Modifier.padding(start = 10.dp, top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (termStartDate != null && currentWeekIndex >= 1) {
+                    Surface(color = MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(9.dp)) {
+                        Text(
+                            text = stringResource(R.string.main_this_week),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                            ),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+                Text(
+                    text = when {
+                        termStartDate == null -> stringResource(R.string.main_drawer_term_start_unset)
+                        currentWeekIndex >= 1 ->
+                            stringResource(R.string.main_drawer_current_week, currentWeekIndex)
+                        else ->
+                            pluralStringResource(R.plurals.main_drawer_before_term, 1 - currentWeekIndex, 1 - currentWeekIndex)
+                    },
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             val badgeFor = { screen: MainActivity.AppScreen ->
                 (updateBadgeVisible && screen == MainActivity.AppScreen.About) ||
                     (pluginUpdateBadgeVisible && screen == MainActivity.AppScreen.Plugins)
             }
             drawerLayout.visible.map { it.toAppScreen() }.forEach { screen ->
+                val selected = screen == currentScreen && currentExtension == null
                 NavigationDrawerItem(
                     label = {
                         Text(
                             text = stringResource(screen.labelRes),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                         )
                     },
                     icon = {
                         Icon(
-                            imageVector = screen.icon,
+                            imageVector = if (selected) screen.icon else screen.outlinedIcon,
                             contentDescription = null,
                             modifier = Modifier.size(20.dp),
                         )
@@ -2453,12 +2563,17 @@ private fun AppDrawer(
                     badge = if (badgeFor(screen)) {
                         { UpdateBadgeDot() }
                     } else null,
-                    selected = screen == currentScreen && currentExtension == null,
+                    selected = selected,
                     onClick = { onSelectScreen(screen) },
                     modifier = Modifier.height(44.dp),
+                    shape = RoundedCornerShape(22.dp),
                     colors = NavigationDrawerItemDefaults.colors(
                         selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        unselectedContainerColor = MaterialTheme.colorScheme.surface,
+                        unselectedContainerColor = Color.Transparent,
+                        selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
                 )
             }
@@ -2468,9 +2583,14 @@ private fun AppDrawer(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(4.dp))
                 sidebarExtensionPreview(extensionEntries, currentExtension).forEach { (pluginId, title) ->
+                    val selected = pluginId == currentExtension
                     NavigationDrawerItem(
                         label = {
-                            Text(text = title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            )
                         },
                         icon = {
                             Icon(
@@ -2479,12 +2599,17 @@ private fun AppDrawer(
                                 modifier = Modifier.size(20.dp),
                             )
                         },
-                        selected = pluginId == currentExtension,
+                        selected = selected,
                         onClick = { onSelectExtension(pluginId) },
                         modifier = Modifier.height(44.dp),
+                        shape = RoundedCornerShape(22.dp),
                         colors = NavigationDrawerItemDefaults.colors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            unselectedContainerColor = MaterialTheme.colorScheme.surface,
+                            unselectedContainerColor = Color.Transparent,
+                            selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         ),
                     )
                 }
@@ -2511,43 +2636,47 @@ private fun AppDrawer(
             Spacer(modifier = Modifier.height(8.dp))
 
             if (drawerLayout.shortcutsVisible) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    DrawerAppearanceShortcut(
-                        icon = Icons.Rounded.Style,
-                        label = stringResource(R.string.main_drawer_theme_shortcut),
-                        onClick = onPickThemeAccent,
-                        modifier = Modifier.weight(1f),
-                    )
-                    DrawerAppearanceShortcut(
-                        icon = Icons.Rounded.Wallpaper,
-                        label = stringResource(R.string.main_drawer_background_shortcut),
-                        onClick = onPickScheduleBackground,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    DrawerAppearanceShortcut(
-                        icon = Icons.Rounded.SwapHoriz,
-                        label = stringResource(R.string.main_drawer_overrides_shortcut),
-                        onClick = onOpenTemporaryOverrides,
-                        modifier = Modifier.weight(1f),
-                    )
-                    DrawerAppearanceShortcut(
-                        icon = Icons.Rounded.SystemUpdate,
-                        label = stringResource(R.string.main_drawer_update_shortcut),
-                        onClick = onOpenUpdateCheck,
-                        badge = updateBadgeVisible,
-                        modifier = Modifier.weight(1f),
-                    )
+                val shortcuts = listOf(
+                    DrawerShortcut(Icons.Rounded.Style, R.string.main_drawer_theme_shortcut, onPickThemeAccent, false),
+                    DrawerShortcut(Icons.Rounded.Wallpaper, R.string.main_drawer_background_shortcut, onPickScheduleBackground, false),
+                    DrawerShortcut(Icons.Rounded.SwapHoriz, R.string.main_drawer_overrides_shortcut, onOpenTemporaryOverrides, false),
+                    DrawerShortcut(Icons.Rounded.SystemUpdate, R.string.main_drawer_update_shortcut, onOpenUpdateCheck, updateBadgeVisible),
+                )
+                // Two columns match the design; narrow drawers or large text fall back to full-width chips so labels stay whole.
+                val twoColumns = (DRAWER_SHORTCUT_ROW_WIDTH_DP * LocalDensity.current.fontScale).dp
+                BoxWithConstraints {
+                    val available = maxWidth
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (available >= twoColumns) {
+                            shortcuts.chunked(2).forEach { pair ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    pair.forEach { shortcut ->
+                                        DrawerAppearanceShortcut(
+                                            icon = shortcut.icon,
+                                            label = stringResource(shortcut.labelRes),
+                                            onClick = shortcut.onClick,
+                                            badge = shortcut.badge,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                    }
+                                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                                }
+                            }
+                        } else {
+                            shortcuts.forEach { shortcut ->
+                                DrawerAppearanceShortcut(
+                                    icon = shortcut.icon,
+                                    label = stringResource(shortcut.labelRes),
+                                    onClick = shortcut.onClick,
+                                    badge = shortcut.badge,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -2591,6 +2720,8 @@ private fun AppDrawer(
                 )
             }
 
+        }
+            // Pinned to the drawer foot, like the reference; the rows above scroll on their own.
             Text(
                 text = stringResource(R.string.main_drawer_version, appVersionName),
                 style = MaterialTheme.typography.labelSmall,
@@ -2600,6 +2731,7 @@ private fun AppDrawer(
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
                 modifier = Modifier
+                    .padding(start = 20.dp, bottom = 20.dp)
                     .clip(RoundedCornerShape(6.dp))
                     .clickable(onClick = onOpenUpdateCheck)
                     .padding(horizontal = 4.dp, vertical = 2.dp),
@@ -2626,7 +2758,7 @@ private fun DrawerMoreSheet(
 ) {
     // Open fully so the last row is never left under the half-expanded edge or the gesture bar.
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    AppModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -2646,7 +2778,7 @@ private fun DrawerMoreSheet(
             screens.forEach { screen ->
                 NavigationDrawerItem(
                     label = { Text(stringResource(screen.labelRes), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium) },
-                    icon = { Icon(screen.icon, contentDescription = null, modifier = Modifier.size(22.dp)) },
+                    icon = { Icon(screen.outlinedIcon, contentDescription = null, modifier = Modifier.size(22.dp)) },
                     badge = if (badgeFor(screen)) {
                         { UpdateBadgeDot() }
                     } else null,
@@ -2692,28 +2824,53 @@ private fun DrawerAppearanceShortcut(
     modifier: Modifier = Modifier,
     badge: Boolean = false,
 ) {
-    AppOutlinedButton(
+    Surface(
         onClick = onClick,
-        modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+        modifier = modifier.height(44.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
-        Box {
-            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(16.dp))
-            if (badge) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = 3.dp, y = (-2).dp)
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.error),
-                )
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Box {
+                Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(17.dp))
+                if (badge) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 3.dp, y = (-2).dp)
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error),
+                    )
+                }
             }
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(text = label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
     }
 }
+
+/** Drawer appearance shortcut rendered as a filled chip. */
+private data class DrawerShortcut(
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val labelRes: Int,
+    val onClick: () -> Unit,
+    val badge: Boolean,
+)
+
+/** Narrowest row that still fits two chips with their labels at 1× font scale. */
+private const val DRAWER_SHORTCUT_ROW_WIDTH_DP = 250f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -2726,16 +2883,17 @@ private fun TermStartDatePicker(
     val zone = LocalAppZone.current
     var selectedDate by remember(initial) { mutableStateOf(initial ?: LocalDate.now(zone)) }
     // AlertDialog permits the custom calendar height without DatePickerDialog clipping.
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            AppOutlinedButton(onClick = { onConfirm(selectedDate) }) {
+            AppDialogPrimaryButton(onClick = { onConfirm(selectedDate) }) {
                 Text(stringResource(R.string.main_confirm))
             }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.main_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.main_cancel)) }
         },
+        icon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = null, modifier = Modifier.size(22.dp)) },
         text = {
         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
         if (showHint) {
@@ -2798,8 +2956,9 @@ private fun CurrentWeekDialog(
     var weekText by rememberSaveable(initialWeek) { mutableStateOf(initialWeek.coerceAtLeast(1).toString()) }
     val parsedWeek = weekText.toIntOrNull()
     val weekValid = parsedWeek != null && parsedWeek >= 1
-    androidx.compose.material3.AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.EventAvailable, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.main_set_current_week_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -2808,7 +2967,7 @@ private fun CurrentWeekDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = weekText,
                     onValueChange = { weekText = it.filter(Char::isDigit).take(3) },
                     label = { Text(stringResource(R.string.main_current_week_label)) },
@@ -2824,13 +2983,13 @@ private fun CurrentWeekDialog(
             }
         },
         confirmButton = {
-            Button(
+            AppDialogPrimaryButton(
                 onClick = { parsedWeek?.let(onConfirm) },
                 enabled = weekValid,
             ) { Text(stringResource(R.string.main_set)) }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.main_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.main_cancel)) }
         },
     )
 }
@@ -2841,37 +3000,29 @@ private fun ThemeModeDialog(
     onDismiss: () -> Unit,
     onSelect: (ThemeMode) -> Unit,
 ) {
-    androidx.compose.material3.AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Palette, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.main_appearance)) },
         text = {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 ThemeMode.entries.forEach { mode ->
                     val label = when (mode) {
                         ThemeMode.System -> stringResource(R.string.main_theme_system)
                         ThemeMode.Light -> stringResource(R.string.main_theme_light)
                         ThemeMode.Dark -> stringResource(R.string.main_theme_dark)
                     }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { onSelect(mode) }
-                            .padding(horizontal = 8.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        androidx.compose.material3.RadioButton(
-                            selected = mode == current,
-                            onClick = { onSelect(mode) },
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(label, style = MaterialTheme.typography.bodyLarge)
-                    }
+                    SettingsRadioRow(
+                        title = label,
+                        subtitle = null,
+                        selected = mode == current,
+                        onSelect = { onSelect(mode) },
+                    )
                 }
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.main_close)) }
+            AppDialogPrimaryButton(onClick = onDismiss) { Text(stringResource(R.string.main_close)) }
         },
     )
 }
@@ -2883,10 +3034,10 @@ private data class ThemeAccentOption(
 )
 
 private val themeAccentOptions = listOf(
-    ThemeAccentOption(ThemeAccent.Green, R.string.main_accent_green, androidx.compose.ui.graphics.Color(0xFF3FA277)),
-    ThemeAccentOption(ThemeAccent.Blue, R.string.main_accent_blue, androidx.compose.ui.graphics.Color(0xFF3F6FB5)),
-    ThemeAccentOption(ThemeAccent.Purple, R.string.main_accent_purple, androidx.compose.ui.graphics.Color(0xFF7259B5)),
-    ThemeAccentOption(ThemeAccent.Orange, R.string.main_accent_orange, androidx.compose.ui.graphics.Color(0xFFD0763B)),
+    ThemeAccentOption(ThemeAccent.Green, R.string.main_accent_green, androidx.compose.ui.graphics.Color(0xFF26805A)),
+    ThemeAccentOption(ThemeAccent.Blue, R.string.main_accent_blue, androidx.compose.ui.graphics.Color(0xFF2563A8)),
+    ThemeAccentOption(ThemeAccent.Purple, R.string.main_accent_purple, androidx.compose.ui.graphics.Color(0xFF7A4FC4)),
+    ThemeAccentOption(ThemeAccent.Orange, R.string.main_accent_orange, androidx.compose.ui.graphics.Color(0xFFC2410C)),
     ThemeAccentOption(ThemeAccent.Pink, R.string.main_accent_pink, androidx.compose.ui.graphics.Color(0xFFC25B7D)),
 )
 
@@ -2905,32 +3056,24 @@ private fun AppLanguageDialog(
     onDismiss: () -> Unit,
     onSelect: (AppLanguage) -> Unit,
 ) {
-    androidx.compose.material3.AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Translate, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.main_language)) },
         text = {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 AppLanguage.entries.forEach { language ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { onSelect(language) }
-                            .padding(horizontal = 8.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        androidx.compose.material3.RadioButton(
-                            selected = language == current,
-                            onClick = { onSelect(language) },
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(appLanguageLabel(language), style = MaterialTheme.typography.bodyLarge)
-                    }
+                    SettingsRadioRow(
+                        title = appLanguageLabel(language),
+                        subtitle = null,
+                        selected = language == current,
+                        onSelect = { onSelect(language) },
+                    )
                 }
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.main_cancel)) }
+            AppDialogPrimaryButton(onClick = onDismiss) { Text(stringResource(R.string.main_cancel)) }
         },
     )
 }
@@ -2946,93 +3089,40 @@ private fun ThemeAccentDialog(
     onSelectFollowApp: (() -> Unit)? = null,
 ) {
     var pickingCustom by rememberSaveable { mutableStateOf(false) }
-    androidx.compose.material3.AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Palette, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.main_theme)) },
         text = {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (onSelectFollowApp != null) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { onSelectFollowApp() }
-                            .padding(horizontal = 8.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        androidx.compose.material3.RadioButton(
-                            selected = followAppSelected,
-                            onClick = onSelectFollowApp,
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = stringResource(R.string.settings_accent_follow_app),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
+                    SettingsRadioRow(
+                        title = stringResource(R.string.settings_accent_follow_app),
+                        subtitle = null,
+                        selected = followAppSelected,
+                        onSelect = { onSelectFollowApp() },
+                    )
                 }
                 themeAccentOptions.forEach { option ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { onSelect(option.accent) }
-                            .padding(horizontal = 8.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        androidx.compose.material3.RadioButton(
-                            selected = option.accent == current && !followAppSelected,
-                            onClick = { onSelect(option.accent) },
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .size(20.dp)
-                                .clip(CircleShape)
-                                .background(option.swatch),
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(stringResource(option.labelRes), style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { pickingCustom = true }
-                        .padding(horizontal = 8.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    androidx.compose.material3.RadioButton(
-                        selected = current == ThemeAccent.Custom && !followAppSelected,
-                        onClick = { pickingCustom = true },
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clip(CircleShape)
-                            .background(androidx.compose.ui.graphics.Color(customArgb)),
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.main_accent_custom), style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            text = formatRgbHex(customArgb),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    androidx.compose.material3.Icon(
-                        imageVector = androidx.compose.material.icons.Icons.Rounded.Palette,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    SettingsRadioRow(
+                        title = stringResource(option.labelRes),
+                        subtitle = null,
+                        selected = option.accent == current && !followAppSelected,
+                        onSelect = { onSelect(option.accent) },
+                        trailing = { AccentSwatch(option.swatch) },
                     )
                 }
+                SettingsRadioRow(
+                    title = stringResource(R.string.main_accent_custom),
+                    subtitle = formatRgbHex(customArgb),
+                    selected = current == ThemeAccent.Custom && !followAppSelected,
+                    onSelect = { pickingCustom = true },
+                    trailing = { AccentSwatch(androidx.compose.ui.graphics.Color(customArgb)) },
+                )
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.main_close)) }
+            AppDialogPrimaryButton(onClick = onDismiss) { Text(stringResource(R.string.main_close)) }
         },
     )
     if (pickingCustom) {
@@ -3045,6 +3135,22 @@ private fun ThemeAccentDialog(
             },
         )
     }
+}
+
+/** Small round colour preview at the end of an accent option row. */
+@Composable
+private fun AccentSwatch(color: androidx.compose.ui.graphics.Color) {
+    Box(
+        modifier = Modifier
+            .size(18.dp)
+            .clip(CircleShape)
+            .background(color)
+            .border(
+                0.5.dp,
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f),
+                CircleShape,
+            ),
+    )
 }
 
 @Composable
@@ -3065,19 +3171,21 @@ internal fun resolveDayOffsetForSelectedWeek(
     selectedWeek: Int,
     termStart: LocalDate?,
     currentWeek: Int,
+    previewWeekStart: WeekStartDay = WeekStartDay.Monday,
 ): Int {
     val currentTargetDate = today.plusDays(currentDayOffset.toLong())
+    if (termStart == null) {
+        val currentPageStart = displayWeekStartOf(currentTargetDate, previewWeekStart)
+        val targetPageStart = displayWeekStartOf(today, previewWeekStart)
+            .plusWeeks((selectedWeek - currentWeek).toLong())
+        return ChronoUnit.DAYS.between(
+            today, targetPageStart.plusDays(ChronoUnit.DAYS.between(currentPageStart, currentTargetDate)),
+        ).toInt()
+    }
     val currentTargetMonday = currentTargetDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     val targetWeek = selectedWeek.coerceAtLeast(1)
-    val targetMonday = if (termStart != null) {
-        termStart
-            .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-            .plusWeeks((targetWeek - 1).toLong())
-    } else {
-        today
-            .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-            .plusWeeks((targetWeek - currentWeek).toLong())
-    }
+    val targetMonday = termStart.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        .plusWeeks((targetWeek - 1).toLong())
     val weekdayOffset = ChronoUnit.DAYS.between(currentTargetMonday, currentTargetDate)
     val targetDate = targetMonday.plusDays(weekdayOffset)
     return ChronoUnit.DAYS.between(today, targetDate).toInt()
@@ -3096,12 +3204,17 @@ internal enum class DrawerAppearance { Theme, Background }
 private fun DrawerAppearanceChooser(
     kind: DrawerAppearance,
     onDismiss: () -> Unit,
+    themeMode: ThemeMode,
+    onThemeMode: (ThemeMode) -> Unit,
+    themeAccent: ThemeAccent,
+    themeCustomArgb: Int,
+    onThemeAccent: (ThemeAccent) -> Unit,
     onThemeColor: () -> Unit,
     onScheduleStyle: () -> Unit,
     onScheduleBackground: () -> Unit,
     onWidgetBackground: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    AppModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -3117,12 +3230,84 @@ private fun DrawerAppearanceChooser(
                 modifier = Modifier.padding(bottom = 8.dp),
             )
             if (kind == DrawerAppearance.Theme) {
-                DrawerChooserRow(
-                    icon = Icons.Rounded.Palette,
-                    title = stringResource(R.string.drawer_chooser_theme_color),
-                    subtitle = stringResource(R.string.drawer_chooser_theme_color_hint),
-                    onClick = onThemeColor,
-                )
+                // Light/dark and the accent apply on tap and the sheet stays open, so the result shows behind it.
+                DrawerChooserSectionLabel(stringResource(R.string.drawer_chooser_light_dark))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ThemeMode.entries.forEach { mode ->
+                        SettingsOptionChip(
+                            text = stringResource(
+                                when (mode) {
+                                    ThemeMode.System -> R.string.main_theme_system
+                                    ThemeMode.Light -> R.string.main_theme_light
+                                    ThemeMode.Dark -> R.string.main_theme_dark
+                                },
+                            ),
+                            selected = mode == themeMode,
+                            onClick = { onThemeMode(mode) },
+                        )
+                    }
+                }
+                DrawerChooserSectionLabel(stringResource(R.string.drawer_chooser_theme_color))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    themeAccentOptions.forEach { option ->
+                        val chosen = option.accent == themeAccent
+                        val label = stringResource(option.labelRes)
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .clickable(role = androidx.compose.ui.semantics.Role.RadioButton) { onThemeAccent(option.accent) }
+                                .semantics { contentDescription = label; selected = chosen },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(option.swatch)
+                                    .then(
+                                        if (chosen) Modifier.border(3.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                                            .border(5.dp, option.swatch, CircleShape)
+                                        else Modifier,
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (chosen) Icon(Icons.Rounded.Check, contentDescription = null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+                    // Custom colours need the full picker, so this swatch hands over to the existing dialog.
+                    val customChosen = themeAccent == ThemeAccent.Custom
+                    val customLabel = stringResource(R.string.main_accent_custom)
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onThemeColor)
+                            .semantics { contentDescription = customLabel; selected = customChosen },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(if (customChosen) androidx.compose.ui.graphics.Color(themeCustomArgb) else MaterialTheme.colorScheme.surfaceVariant)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.Rounded.MoreHoriz,
+                                contentDescription = null,
+                                tint = if (customChosen) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+                }
                 DrawerChooserRow(
                     icon = Icons.Rounded.Style,
                     title = stringResource(R.string.settings_dest_schedule_style),
@@ -3145,6 +3330,17 @@ private fun DrawerAppearanceChooser(
             }
         }
     }
+}
+
+@Composable
+private fun DrawerChooserSectionLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(top = 4.dp),
+    )
 }
 
 @Composable
@@ -3173,5 +3369,33 @@ private fun DrawerChooserRow(
                 Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+    }
+}
+
+/** Top-bar legend entry that explains the round end-of-course badge drawn on timetable cards. */
+@Composable
+private fun EndWarningLegendEntry(final: Boolean) {
+    val color = if (final) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        Box(
+            modifier = Modifier.size(13.dp).clip(CircleShape).background(color),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = if (final) "1" else "2",
+                color = if (final) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onTertiary,
+                fontSize = 9.sp,
+                lineHeight = 9.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false,
+            )
+        }
+        Text(
+            text = stringResource(if (final) R.string.main_end_legend_final else R.string.main_end_legend_near),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
     }
 }

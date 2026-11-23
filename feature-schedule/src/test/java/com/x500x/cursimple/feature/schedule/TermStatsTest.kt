@@ -10,6 +10,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
+import java.time.DayOfWeek
 
 class TermStatsTest {
     // Term starts on a Monday, so week 1 is that week.
@@ -81,5 +82,24 @@ class TermStatsTest {
         val courses = listOf(course("m", "高等数学", 1, listOf(1, 16)))
         assertEquals(18, termLastWeek(courses, extraWeeks = 2, minimum = 1))
         assertEquals(16, termLastWeek(courses, extraWeeks = 0, minimum = 1))
+    }
+
+    @Test
+    fun extendedStatsCountEarlyMorningEveningDailyLoadAndPeaks() {
+        val courses = listOf(
+            CourseItem("early", "早八", weeks = listOf(1, 2), time = CourseTimeSlot(1, 1, 2)),
+            CourseItem("evening", "晚课", weeks = listOf(1, 2), time = CourseTimeSlot(2, 7, 8)),
+            CourseItem("busy", "周三课", weeks = listOf(1), time = CourseTimeSlot(3, 3, 4)),
+        )
+        val result = stats(courses, today = LocalDate.of(2026, 12, 31), lastWeek = 2)
+        assertEquals(5, result.totalSessions)
+        assertEquals(2, result.earlyMorningSessions)
+        assertEquals(2, result.eveningSessions)
+        assertEquals(listOf(2, 2, 1, 0, 0, 0, 0), result.perDay)
+        assertEquals(listOf("早八"), result.dayCourses.first())
+        assertEquals(listOf("晚课"), result.dayCourses[1])
+        assertEquals(0, result.peakWeekIndex)
+        assertEquals(DayOfWeek.MONDAY, result.peakDay)
+        assertEquals(listOf("早八", "晚课", "周三课"), result.courses.map { it.title })
     }
 }

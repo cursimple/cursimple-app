@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import com.x500x.cursimple.core.data.ScheduleCardStylePreferences
 import com.x500x.cursimple.core.kernel.model.DEFAULT_TERM_WEEK_COUNT
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
@@ -8,6 +9,7 @@ import android.widget.Toast
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -18,7 +20,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.draw.clip
@@ -73,7 +74,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -94,10 +94,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.x500x.cursimple.core.data.note.COURSE_NOTE_MAX_LENGTH
@@ -119,30 +121,23 @@ import com.x500x.cursimple.core.kernel.model.examCountdownOrNull
 import com.x500x.cursimple.feature.schedule.time.LocalAppZone
 import com.x500x.cursimple.feature.schedule.time.today
 import java.time.LocalDate
+import androidx.compose.foundation.layout.FlowRowScope
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
+import androidx.compose.material.icons.automirrored.rounded.StickyNote2
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+
 
 @OptIn(ExperimentalLayoutApi::class)
-
-/** Page through overlapping courses individually with position indicators. */
-@Composable
-private fun SameSlotPager(courses: List<CourseItem>, selectedIndex: Int, onSelect: (Int) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        AppCircleIconButton(onClick = { onSelect((selectedIndex - 1 + courses.size) % courses.size) }) {
-            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, stringResource(R.string.schedule_same_slot_prev))
-        }
-        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(stringResource(R.string.schedule_course_detail_same_slot, courses.size), style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            AppAtomicText(stringResource(R.string.schedule_same_slot_position, selectedIndex + 1, courses.size),
-                style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-        }
-        AppCircleIconButton(onClick = { onSelect((selectedIndex + 1) % courses.size) }) {
-            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, stringResource(R.string.schedule_same_slot_next))
-        }
-    }
-}
-
 @Composable
 fun CourseDetailDialog(
     courses: List<CourseItem>,
@@ -169,6 +164,7 @@ fun CourseDetailDialog(
     temporaryScheduleOverrides: List<com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride> = emptyList(),
     holidayCalendar: com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings = com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings.NONE,
     countHolidays: Boolean = true,
+    courseEndWarningEnabled: Boolean = true,
     onSaveNote: (CourseItem, String) -> Unit = { _, _ -> },
     onSaveCourse: (CourseItem) -> Unit = {},
     sourceWeekOf: (CourseItem) -> Int? = { visibleWeekNumber },
@@ -204,6 +200,8 @@ fun CourseDetailDialog(
     }
     val sourceWeekNumber = sourceWeekOf(course)
     var editing by remember(course.id) { mutableStateOf(false) }
+    // The inline editor's buttons live in a pinned bar, so saving never needs a scroll to the end.
+    var editActions by remember(course.id) { mutableStateOf<CourseEditActions?>(null) }
     var confirmRestore by remember(course.id) { mutableStateOf(false) }
     var showColorPicker by remember(course.id) { mutableStateOf(false) }
     val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
@@ -261,18 +259,19 @@ fun CourseDetailDialog(
     }
 
     if (!readOnly && confirmRestore) {
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { confirmRestore = false },
+            icon = { Icon(Icons.Rounded.Restore, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.schedule_course_detail_restore_plugin_title)) },
             text = { Text(stringResource(R.string.schedule_course_detail_restore_plugin_body, course.title)) },
             confirmButton = {
-                AppOutlinedButton(onClick = {
+                AppDialogPrimaryButton(onClick = {
                     confirmRestore = false
                     onRestorePluginCourse(course)
                 }) { Text(stringResource(R.string.schedule_action_restore_plugin)) }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = { confirmRestore = false }) {
+                AppDialogSecondaryButton(onClick = { confirmRestore = false }) {
                     Text(stringResource(R.string.schedule_action_cancel))
                 }
             },
@@ -283,41 +282,109 @@ fun CourseDetailDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
+        // Centered card like the original dialog; safeDrawing includes the keyboard, so the card moves up with it.
         BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(16.dp), contentAlignment = Alignment.Center) {
             Box(Modifier.matchParentSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss))
             Surface(
                 // Wrap short content instead of always filling a fixed height.
                 modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().heightIn(max = minOf(maxHeight, 640.dp))
-                    .pointerInput(Unit) { detectTapGestures {} }.testTag("course-detail-card"),
+                    .pointerInput(Unit) { detectTapGestures {} }
+                    // Same-slot courses can be flipped with a horizontal swipe as well as the arrows.
+                    .pointerInput(courses.size, editing) {
+                        if (courses.size <= 1) return@pointerInput
+                        val threshold = 56.dp.toPx()
+                        var travelled = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { travelled = 0f },
+                            onDragCancel = { travelled = 0f },
+                            onHorizontalDrag = { change, delta ->
+                                // Editing a form scrolls horizontally nothing; keep the gesture for the form.
+                                if (!editing) {
+                                    travelled += delta
+                                    change.consume()
+                                }
+                            },
+                            onDragEnd = {
+                                if (!editing && kotlin.math.abs(travelled) >= threshold) {
+                                    selectedIndex = if (travelled < 0) {
+                                        (selectedIndex + 1) % courses.size
+                                    } else {
+                                        (selectedIndex - 1 + courses.size) % courses.size
+                                    }
+                                }
+                                travelled = 0f
+                            },
+                        )
+                    }
+                    .testTag("course-detail-card"),
                 shape = RoundedCornerShape(28.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 6.dp,
+                color = MaterialTheme.colorScheme.background,
+                tonalElevation = 0.dp,
             ) {
                 Column(Modifier.fillMaxWidth()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(headerContainer)
-                            .padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 14.dp),
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = course.titleForWeek(sourceWeekNumber),
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = headerContent,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Spacer(Modifier.width(8.dp))
+                    val chipSurface = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f)
+                    Column(Modifier.fillMaxWidth().background(headerContainer)) {
+                        Column(
+                            modifier = Modifier.padding(start = 16.dp, end = 10.dp, top = 8.dp, bottom = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (courses.size > 1) {
+                                    AppCircleIconButton(
+                                        onClick = { selectedIndex = (selectedIndex - 1 + courses.size) % courses.size; editing = false },
+                                        size = 40.dp, containerColor = headerContent, borderColor = Color.Transparent, contentColor = headerContainer,
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, stringResource(R.string.schedule_same_slot_prev), modifier = Modifier.size(24.dp))
+                                    }
+                                    AppCircleIconButton(
+                                        onClick = { selectedIndex = (selectedIndex + 1) % courses.size; editing = false },
+                                        size = 40.dp, containerColor = headerContent, borderColor = Color.Transparent, contentColor = headerContainer,
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, stringResource(R.string.schedule_same_slot_next), modifier = Modifier.size(24.dp))
+                                    }
+                                    // Count and position on two lines so neither is shrunk or cut on a narrow screen.
+                                    Column(Modifier.weight(1f)) {
+                                        AppAtomicText(
+                                            text = stringResource(R.string.schedule_course_detail_same_slot, courses.size).trimEnd('：', ':', ' '),
+                                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                            color = headerContent,
+                                        )
+                                        AppAtomicText(
+                                            text = stringResource(R.string.schedule_same_slot_position, selectedIndex.coerceIn(0, courses.size - 1) + 1, courses.size),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = headerContent,
+                                        )
+                                    }
+                                } else {
+                                    CourseTitle(course.titleForWeek(sourceWeekNumber), headerContent, Modifier.weight(1f).padding(vertical = 4.dp))
+                                }
+                                AppCircleIconButton(
+                                    onClick = onDismiss,
+                                    size = 40.dp, containerColor = chipSurface, borderColor = Color.Transparent, contentColor = headerContent,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = stringResource(R.string.schedule_action_close),
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                            }
+                            if (courses.size > 1) {
+                                CourseTitle(course.titleForWeek(sourceWeekNumber), headerContent, Modifier)
+                            }
+                            val titleOverridden = sourceWeekNumber != null &&
+                                course.titleForWeek(sourceWeekNumber).trim() != course.title.trim()
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
                                 StatusChip(
                                     activeInVisibleWeek = isThisWeek,
                                     visibleWeekNumber = visibleWeekNumber,
                                     viewingCurrentWeek = visibleWeekNumber != null &&
                                         visibleWeekNumber == currentWeekNumber,
                                     manual = manual,
+                                    headerContent = headerContent,
                                     // Whole-day holiday state takes priority over per-course cancellation.
                                     notOccurringLabel = when {
                                         dayIsHoliday -> stringResource(R.string.schedule_status_on_holiday)
@@ -326,192 +393,157 @@ fun CourseDetailDialog(
                                         else -> null
                                     },
                                 )
-                                AppCircleIconButton(onClick = onDismiss) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Close,
-                                        contentDescription = stringResource(R.string.schedule_action_close),
-                                        tint = headerContent,
-                                        modifier = Modifier.size(20.dp),
+                                HeaderPill(
+                                    text = stringResource(
+                                        R.string.schedule_course_detail_header,
+                                        if (course.category == CourseCategory.Exam) {
+                                            stringResource(R.string.schedule_course_detail_exam_prefix)
+                                        } else {
+                                            ""
+                                        },
+                                        weekday,
+                                        nodeRange,
+                                    ) + headerTimeText.orEmpty().let { if (it.isBlank()) "" else " · $it" },
+                                    content = headerContent,
+                                )
+                                if (progress != null && progress.current != null) {
+                                    SessionProgressPill(
+                                        label = stringResource(R.string.schedule_course_session_label),
+                                        current = progress.current,
+                                        total = progress.total,
+                                        content = headerContent,
+                                        modifier = Modifier.testTag("course-session-progress"),
+                                    )
+                                } else {
+                                    HeaderPill(
+                                        text = if (progress == null) {
+                                            stringResource(R.string.schedule_course_session_needs_start)
+                                        } else {
+                                            stringResource(R.string.schedule_course_session_not_scheduled, progress.total)
+                                        },
+                                        content = headerContent,
+                                        modifier = Modifier.testTag("course-session-progress"),
                                     )
                                 }
-                            }
-                            val titleOverridden = sourceWeekNumber != null &&
-                                course.titleForWeek(sourceWeekNumber).trim() != course.title.trim()
-                            if (titleOverridden) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    modifier = Modifier.padding(bottom = 2.dp),
-                                ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = headerContent.copy(alpha = 0.2f),
-                                    ) {
-                                        Text(
-                                            text = stringResource(R.string.schedule_course_override_badge),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = headerContent,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                        )
-                                    }
-                                    Text(
-                                        text = stringResource(R.string.schedule_course_override_default, course.title),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = headerContent.copy(alpha = 0.85f),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
+                                val endWarning = if (courseEndWarningEnabled) {
+                                    com.x500x.cursimple.core.kernel.model.courseEndWarning(visibleWeekNumber, course.weeks)
+                                } else {
+                                    com.x500x.cursimple.core.kernel.model.CourseEndWarning.None
+                                }
+                                if (endWarning != com.x500x.cursimple.core.kernel.model.CourseEndWarning.None) {
+                                    val final = endWarning == com.x500x.cursimple.core.kernel.model.CourseEndWarning.FinalWeek
+                                    HeaderPill(
+                                        text = stringResource(
+                                            if (final) R.string.schedule_course_end_final else R.string.schedule_course_end_near,
+                                        ),
+                                        content = if (final) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onTertiary,
+                                        containerOverride = if (final) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
+                                        modifier = Modifier.testTag("course-end-warning"),
                                     )
                                 }
-                            }
-                            if (sourceTerm != null) {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = headerContent.copy(alpha = 0.2f),
-                                    modifier = Modifier.padding(bottom = 2.dp),
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.School,
-                                            contentDescription = null,
-                                            tint = headerContent,
-                                            modifier = Modifier.size(12.dp),
-                                        )
-                                        Text(
-                                            text = sourceTerm,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = headerContent,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    }
+                                if (titleOverridden) {
+                                    HeaderPill(
+                                        text = stringResource(R.string.schedule_course_override_badge) + " · " +
+                                            stringResource(R.string.schedule_course_override_default, course.title),
+                                        content = headerContent,
+                                    )
                                 }
-                            }
-                            Text(
-                                text = stringResource(
-                                    R.string.schedule_course_detail_header,
-                                    if (course.category == CourseCategory.Exam) {
-                                        stringResource(R.string.schedule_course_detail_exam_prefix)
-                                    } else {
-                                        ""
-                                    },
-                                    weekday,
-                                    nodeRange,
-                                ) + headerTimeText.orEmpty().let { if (it.isBlank()) "" else " · $it" },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = headerContent.copy(alpha = 0.85f),
-                            )
-                            Text(
-                                text = when {
-                                    progress == null -> stringResource(R.string.schedule_course_session_needs_start)
-                                    progress.current == null -> stringResource(R.string.schedule_course_session_not_scheduled, progress.total)
-                                    else -> stringResource(R.string.schedule_course_session_progress, progress.current, progress.total)
-                                },
-                                style = MaterialTheme.typography.labelMedium,
-                                color = headerContent.copy(alpha = 0.85f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.testTag("course-session-progress"),
-                            )
-                        }
-                    }
-
-                    if (courses.size > 1) {
-                        SameSlotPager(
-                            courses = courses,
-                            selectedIndex = selectedIndex,
-                            onSelect = {
-                                selectedIndex = it
-                                editing = false
-                            },
-                        )
-                        val otherCourse = courses.firstOrNull { it.id != course.id }
-                        val overlappingWeeks = remember(course.weeks, otherCourse?.weeks) {
-                            if (otherCourse == null) emptySet()
-                            else course.weeks.toSet().intersect(otherCourse.weeks.toSet())
-                        }
-                        if (overlappingWeeks.isNotEmpty() && !readOnly) {
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 2.dp)
-                                    .testTag("course-conflict-resolution-card"),
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f),
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.SwapHoriz,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                                            modifier = Modifier.size(16.dp),
-                                        )
-                                        Text(
-                                            text = stringResource(R.string.schedule_conflict_resolve_title),
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                        )
-                                    }
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    ) {
-                                        AppOutlinedButton(
-                                            onClick = {
-                                                val oddCourse = course.copy(weeks = course.weeks.filter { it % 2 != 0 })
-                                                val evenCourse = otherCourse!!.copy(weeks = otherCourse.weeks.filter { it % 2 == 0 })
-                                                onSaveCourse(oddCourse)
-                                                onSaveCourse(evenCourse)
-                                            },
-                                            modifier = Modifier.weight(1f).testTag("course-conflict-odd-even"),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                        ) {
-                                            AppAtomicText(
-                                                text = stringResource(R.string.schedule_conflict_odd_even_split),
-                                                style = MaterialTheme.typography.labelSmall,
-                                            )
-                                        }
-                                        AppOutlinedButton(
-                                            onClick = {
-                                                val all = (course.weeks + otherCourse!!.weeks).sorted()
-                                                val mid = if (all.isNotEmpty()) (all.first() + all.last()) / 2 else 8
-                                                val firstHalfCourse = course.copy(weeks = course.weeks.filter { it <= mid })
-                                                val secondHalfCourse = otherCourse.copy(weeks = otherCourse.weeks.filter { it > mid })
-                                                onSaveCourse(firstHalfCourse)
-                                                onSaveCourse(secondHalfCourse)
-                                            },
-                                            modifier = Modifier.weight(1f).testTag("course-conflict-half-term"),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                        ) {
-                                            AppAtomicText(
-                                                text = stringResource(R.string.schedule_conflict_half_term_split),
-                                                style = MaterialTheme.typography.labelSmall,
-                                            )
-                                        }
-                                    }
+                                if (sourceTerm != null) {
+                                    HeaderPill(text = sourceTerm, content = headerContent, icon = Icons.Rounded.School)
                                 }
                             }
                         }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
 
                     Column(
                         // fill = false lets short details wrap instead of stretching to the height cap.
                         modifier = Modifier.weight(1f, fill = false).fillMaxWidth().verticalScroll(androidx.compose.runtime.key(course.id) { rememberScrollState() })
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        if (courses.size > 1) {
+                            val otherCourse = courses.firstOrNull { it.id != course.id }
+                            val overlappingWeeks = remember(course.weeks, otherCourse?.weeks) {
+                                if (otherCourse == null) emptySet()
+                                else course.weeks.toSet().intersect(otherCourse.weeks.toSet())
+                            }
+                            if (overlappingWeeks.isNotEmpty() && !readOnly) {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("course-conflict-resolution-card"),
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)),
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.SwapHoriz,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                                modifier = Modifier.size(16.dp),
+                                            )
+                                            Text(
+                                                text = stringResource(R.string.schedule_conflict_resolve_title),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                            )
+                                        }
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            AppOutlinedButton(
+                                                onClick = {
+                                                    val oddCourse = course.copy(weeks = course.weeks.filter { it % 2 != 0 })
+                                                    val evenCourse = otherCourse!!.copy(weeks = otherCourse.weeks.filter { it % 2 == 0 })
+                                                    onSaveCourse(oddCourse)
+                                                    onSaveCourse(evenCourse)
+                                                },
+                                                modifier = Modifier.weight(1f).testTag("course-conflict-odd-even"),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                            ) {
+                                                // May wrap to two lines on a narrow screen or a large font instead of being cut.
+                                                Text(
+                                                    text = stringResource(R.string.schedule_conflict_odd_even_split),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    textAlign = TextAlign.Center,
+                                                    maxLines = 2,
+                                                )
+                                            }
+                                            AppOutlinedButton(
+                                                onClick = {
+                                                    val all = (course.weeks + otherCourse!!.weeks).sorted()
+                                                    val mid = if (all.isNotEmpty()) (all.first() + all.last()) / 2 else 8
+                                                    val firstHalfCourse = course.copy(weeks = course.weeks.filter { it <= mid })
+                                                    val secondHalfCourse = otherCourse.copy(weeks = otherCourse.weeks.filter { it > mid })
+                                                    onSaveCourse(firstHalfCourse)
+                                                    onSaveCourse(secondHalfCourse)
+                                                },
+                                                modifier = Modifier.weight(1f).testTag("course-conflict-half-term"),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                            ) {
+                                                // May wrap to two lines on a narrow screen or a large font instead of being cut.
+                                                Text(
+                                                    text = stringResource(R.string.schedule_conflict_half_term_split),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    textAlign = TextAlign.Center,
+                                                    maxLines = 2,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         if (!readOnly && editing) {
                             CourseEditSection(
                                 course = course,
@@ -526,6 +558,7 @@ fun CourseDetailDialog(
                                 viewingCurrentWeek = visibleWeekNumber != null && visibleWeekNumber == currentWeekNumber,
                                 legacyColorArgb = legacyColor,
                                 onCancel = { editing = false },
+                                actionsHost = { editActions = it },
                                 onSave = {
                                     onSaveCourse(it)
                                     // The editor now owns the colors; drop the older per-title pick so it cannot resurface.
@@ -612,9 +645,51 @@ fun CourseDetailDialog(
                             onDismiss = { showColorPicker = false },
                         )
                     }
-                    if (!readOnly && !editing) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).testTag("course-detail-actions")) {
+                    if (!readOnly && editing) {
+                        editActions?.let { actions ->
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 10.dp)
+                                    .testTag("course-edit-actions-pinned"),
+                            ) {
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    AppOutlinedButton(
+                                        onClick = actions.onCancel,
+                                        shape = CircleShape,
+                                        modifier = Modifier.heightIn(min = 46.dp),
+                                    ) {
+                                        Text(stringResource(R.string.schedule_action_cancel))
+                                    }
+                                    if (actions.applyWeekLabel != null && actions.onApplyWeek != null) {
+                                        AppOutlinedButton(
+                                            onClick = actions.onApplyWeek,
+                                            shape = CircleShape,
+                                            modifier = Modifier.heightIn(min = 46.dp).testTag("course-edit-apply-this-week"),
+                                        ) {
+                                            Text(actions.applyWeekLabel, maxLines = 1, softWrap = false)
+                                        }
+                                    }
+                                    Button(
+                                        onClick = actions.onSave,
+                                        enabled = actions.canSave,
+                                        shape = CircleShape,
+                                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                                        modifier = Modifier.heightIn(min = 46.dp).testTag("course-edit-save"),
+                                    ) {
+                                        Text(stringResource(R.string.schedule_action_save), maxLines = 1, softWrap = false)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // The keyboard needs the room more than the actions do (and the note editor has its own Save).
+                    if (!readOnly && !editing && !WindowInsets.isImeVisible) {
+                        Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 10.dp).testTag("course-detail-actions")) {
                             CourseActionBar(
                                 temporarilyCancelled = targetDate != null && isTemporarilyCancelled(course),
                                 showTemporaryCancel = targetDate != null,
@@ -633,6 +708,8 @@ fun CourseDetailDialog(
                             )
                         }
                     }
+                    // Let the sheet run under the system navigation bar instead of floating above it.
+                    Spacer(Modifier.fillMaxWidth().navigationBarsPadding())
                 }
             }
         }
@@ -709,6 +786,15 @@ internal fun resolveSaveDraft(
     )
 }
 
+/** Save/cancel for the inline editor, so the dialog can pin them while the form scrolls. */
+internal data class CourseEditActions(
+    val canSave: Boolean,
+    val applyWeekLabel: String?,
+    val onCancel: () -> Unit,
+    val onApplyWeek: (() -> Unit)?,
+    val onSave: () -> Unit,
+)
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CourseEditSection(
@@ -723,6 +809,8 @@ private fun CourseEditSection(
     legacyColorArgb: Long? = null,
     onCancel: () -> Unit,
     onSave: (CourseItem) -> Unit,
+    /** When set, the caller draws the buttons (pinned at the bottom) instead of the scrolling form. */
+    actionsHost: ((CourseEditActions) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     var draft by remember(course.id) { mutableStateOf<CourseItem?>(null) }
@@ -742,24 +830,57 @@ private fun CourseEditSection(
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            text = stringResource(R.string.schedule_course_detail_edit_title),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = stringResource(R.string.schedule_course_detail_edit_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            if (convertsToManual) {
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                    Text(
+                        text = stringResource(R.string.schedule_source_plugin),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
 
         if (convertsToManual) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.tertiaryContainer,
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)),
             ) {
-                Text(
-                    text = stringResource(R.string.schedule_course_detail_converts_to_manual),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                )
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Box(
+                        Modifier.size(36.dp).clip(CircleShape).background(MaterialTheme.colorScheme.tertiaryContainer),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Text(
+                        text = stringResource(R.string.schedule_course_detail_converts_to_manual),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    )
+                }
             }
         }
 
@@ -768,7 +889,7 @@ private fun CourseEditSection(
             existingCourses = existingCourses,
             maxNodeCount = maxNodeCount,
             maxWeekCount = maxWeekCount,
-            onDraftChange = { draft = it },
+            onDraftChange = { draft = it.singleOrNull() },
             modifier = Modifier.fillMaxWidth(),
             slotTimes = slotTimes,
             sourceWeekNumber = sourceWeekNumber,
@@ -797,60 +918,81 @@ private fun CourseEditSection(
             }
         }
 
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            AppOutlinedButton(onClick = onCancel) {
-                Text(stringResource(R.string.schedule_action_cancel))
+        val applyLabel = if (hasFieldEdits && sourceWeekNumber != null) {
+            if (viewingCurrentWeek) {
+                stringResource(R.string.schedule_course_edit_apply_this_week)
+            } else {
+                stringResource(R.string.schedule_course_edit_apply_week_n, sourceWeekNumber)
             }
-            if (hasFieldEdits && sourceWeekNumber != null) {
-                val applyLabel = if (viewingCurrentWeek) {
-                    stringResource(R.string.schedule_course_edit_apply_this_week)
-                } else {
-                    stringResource(R.string.schedule_course_edit_apply_week_n, sourceWeekNumber)
-                }
-                val appliedFeedback = stringResource(
-                    R.string.schedule_course_edit_applied_feedback,
-                    sourceWeekNumber,
-                )
-                AppOutlinedButton(
-                    onClick = {
-                        val currentDraft = draft ?: return@AppOutlinedButton
-                        val weekCourse = applyDraftToTargetWeek(course, currentDraft, sourceWeekNumber)
-                        Toast.makeText(context, appliedFeedback, Toast.LENGTH_SHORT).show()
-                        onSave(weekCourse)
-                    },
-                    modifier = Modifier.testTag("course-edit-apply-this-week"),
-                ) {
-                    Text(applyLabel, maxLines = 1, softWrap = false)
+        } else null
+        val appliedFeedback = sourceWeekNumber?.let {
+            stringResource(R.string.schedule_course_edit_applied_feedback, it)
+        }.orEmpty()
+        val onApplyWeek: (() -> Unit)? = if (applyLabel != null) {
+            {
+                draft?.let { currentDraft ->
+                    onSave(applyDraftToTargetWeek(course, currentDraft, sourceWeekNumber!!))
+                    Toast.makeText(context, appliedFeedback, Toast.LENGTH_SHORT).show()
                 }
             }
-            Button(
-                onClick = {
-                    val currentDraft = draft ?: return@Button
-                    val resolvedCourse = resolveSaveDraft(
+        } else null
+        val onSaveResolved: () -> Unit = {
+            draft?.let { currentDraft ->
+                onSave(
+                    resolveSaveDraft(
                         baseCourse = course,
                         draftCourse = currentDraft,
                         sourceWeekNumber = sourceWeekNumber,
                         initialWeekTitle = initialWeekTitle,
                         initialWeekTeacher = initialWeekTeacher,
                         initialWeekLocation = initialWeekLocation,
-                    )
-                    onSave(resolvedCourse)
-                },
+                    ),
+                )
+            }
+        }
+        if (actionsHost != null) {
+            actionsHost(
+                CourseEditActions(
+                    canSave = draft != null,
+                    applyWeekLabel = applyLabel,
+                    onCancel = onCancel,
+                    onApplyWeek = onApplyWeek,
+                    onSave = onSaveResolved,
+                ),
+            )
+        } else {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AppOutlinedButton(onClick = onCancel, shape = CircleShape, modifier = Modifier.heightIn(min = 46.dp)) {
+                Text(stringResource(R.string.schedule_action_cancel))
+            }
+            if (applyLabel != null && onApplyWeek != null) {
+                AppOutlinedButton(
+                    onClick = { onApplyWeek?.invoke() },
+                    shape = CircleShape,
+                    modifier = Modifier.heightIn(min = 46.dp).testTag("course-edit-apply-this-week"),
+                ) {
+                    Text(applyLabel, maxLines = 1, softWrap = false)
+                }
+            }
+            Button(
+                onClick = onSaveResolved,
                 enabled = draft != null,
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                modifier = Modifier.testTag("course-edit-save"),
+                shape = CircleShape,
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                modifier = Modifier.heightIn(min = 46.dp).testTag("course-edit-save"),
             ) {
                 Text(stringResource(R.string.schedule_action_save), maxLines = 1, softWrap = false)
             }
         }
+        }
     }
 }
 
-/** Compact label/value rows keep multiple-course details readable. */
+/** One grouped card: time, weeks, place, teacher and extra fields read together as a labelled list. */
 @Composable
 private fun CourseFactsCard(
     classTimeText: String,
@@ -868,27 +1010,44 @@ private fun CourseFactsCard(
     sourceName: String? = null,
     isExam: Boolean = false,
 ) {
+    val scheme = MaterialTheme.colorScheme
+    val unset = stringResource(R.string.schedule_metadata_unset)
+    val sourceText = if (!manual && !pluginOverride && !sourceName.isNullOrBlank()) {
+        sourceName
+    } else {
+        stringResource(
+            when {
+                pluginOverride -> R.string.schedule_source_plugin_edited
+                manual -> R.string.schedule_source_manual
+                else -> R.string.schedule_source_plugin
+            },
+        )
+    }
+    val seat = if (isExam) {
+        details.firstOrNull { it.label.contains("座") || it.label.contains("Seat", ignoreCase = true) }
+    } else null
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        color = scheme.surfaceVariant.copy(alpha = 0.5f),
+        border = BorderStroke(1.dp, scheme.outlineVariant),
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             if (isExam) {
                 Surface(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
                     shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.errorContainer,
+                    color = scheme.errorContainer,
                 ) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Rounded.School,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
+                                tint = scheme.error,
                                 modifier = Modifier.size(20.dp),
                             )
                             Spacer(Modifier.width(8.dp))
@@ -896,33 +1055,31 @@ private fun CourseFactsCard(
                                 text = stringResource(R.string.schedule_course_detail_exam_prefix),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                color = scheme.onErrorContainer,
                             )
                             examCountdown?.let { cd ->
                                 Spacer(Modifier.weight(1f))
                                 Text(
                                     text = examCountdownText(cd),
                                     style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.error,
+                                    color = scheme.error,
                                     fontWeight = FontWeight.Bold,
                                 )
                             }
                         }
-                        val seat = details.firstOrNull {
-                            it.label.contains("座") || it.label.contains("Seat", ignoreCase = true)
-                        }?.value
-                        if (!seat.isNullOrBlank()) {
+                        if (seat != null && seat.value.isNotBlank()) {
                             Text(
-                                text = stringResource(R.string.schedule_exam_seat_line, seat),
+                                text = stringResource(R.string.schedule_exam_seat_line, seat.value),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                color = scheme.onErrorContainer,
+                                modifier = Modifier.testTag("course-exam-seat"),
                             )
                         }
                         Text(
                             text = stringResource(R.string.schedule_exam_bring_items),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f),
+                            color = scheme.onErrorContainer.copy(alpha = 0.85f),
                         )
                     }
                 }
@@ -952,28 +1109,22 @@ private fun CourseFactsCard(
             DetailRow(
                 icon = Icons.Rounded.LocationOn,
                 title = stringResource(R.string.schedule_course_detail_location),
-                body = location.ifBlank { stringResource(R.string.schedule_metadata_unset) },
+                body = location.ifBlank { unset },
                 badge = if (locationOverridden) stringResource(R.string.schedule_course_override_badge) else null,
                 defaultHint = if (locationOverridden) {
-                    stringResource(
-                        R.string.schedule_course_override_default,
-                        defaultLocation.ifBlank { stringResource(R.string.schedule_metadata_unset) },
-                    )
+                    stringResource(R.string.schedule_course_override_default, defaultLocation.ifBlank { unset })
                 } else null,
             )
             DetailRow(
                 icon = Icons.Rounded.Person,
                 title = stringResource(R.string.schedule_course_detail_teacher),
-                body = teacher.ifBlank { stringResource(R.string.schedule_metadata_unset) },
+                body = teacher.ifBlank { unset },
                 badge = if (teacherOverridden) stringResource(R.string.schedule_course_override_badge) else null,
                 defaultHint = if (teacherOverridden) {
-                    stringResource(
-                        R.string.schedule_course_override_default,
-                        defaultTeacher.ifBlank { stringResource(R.string.schedule_metadata_unset) },
-                    )
+                    stringResource(R.string.schedule_course_override_default, defaultTeacher.ifBlank { unset })
                 } else null,
             )
-            details.forEach { field ->
+            details.filter { it !== seat }.forEach { field ->
                 val isSourceTerm = field.label in setOf("来源学期", "Source Term", "來源學期")
                 DetailRow(
                     icon = if (isSourceTerm) Icons.Rounded.School else Icons.Rounded.Info,
@@ -981,6 +1132,7 @@ private fun CourseFactsCard(
                     body = field.value,
                 )
             }
+            HorizontalDivider(color = scheme.outlineVariant)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -988,31 +1140,21 @@ private fun CourseFactsCard(
                 Icon(
                     imageVector = Icons.Rounded.Source,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    tint = scheme.onSurfaceVariant.copy(alpha = 0.7f),
                     modifier = Modifier.size(14.dp),
                 )
                 Text(
-                    text = stringResource(R.string.schedule_course_detail_source) + " · " +
-                        if (!manual && !pluginOverride && !sourceName.isNullOrBlank()) {
-                            sourceName
-                        } else {
-                            stringResource(
-                                when {
-                                    pluginOverride -> R.string.schedule_source_plugin_edited
-                                    manual -> R.string.schedule_source_manual
-                                    else -> R.string.schedule_source_plugin
-                                },
-                            )
-                        },
+                    text = stringResource(R.string.schedule_course_detail_source) + " · " + sourceText,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = scheme.onSurfaceVariant,
                 )
             }
         }
     }
 }
 
-/** Equal-width actions adapt to the course's available operations. */
+/** Separate tiles, one per operation, adapting to what the course allows. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CourseActionBar(
     temporarilyCancelled: Boolean,
@@ -1030,93 +1172,102 @@ private fun CourseActionBar(
     onDelete: () -> Unit,
     onRestorePlugin: () -> Unit,
 ) {
-    Surface(
+    FlowRow(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
+        DetailAction(
+            icon = Icons.Rounded.Edit,
+            label = stringResource(R.string.schedule_action_edit),
+            onClick = onEdit,
+        )
+        if (showColor) {
             DetailAction(
-                icon = Icons.Rounded.Edit,
-                label = stringResource(R.string.schedule_action_edit),
-                onClick = onEdit,
+                icon = Icons.Rounded.Palette,
+                label = stringResource(R.string.schedule_action_color),
+                onClick = onColor,
             )
-            if (showColor) {
-                DetailAction(
-                    icon = Icons.Rounded.Palette,
-                    label = stringResource(R.string.schedule_action_color),
-                    onClick = onColor,
-                )
-            }
-            // Existing reminders expose removal rather than another creation action.
+        }
+        // Existing reminders expose removal rather than another creation action.
+        DetailAction(
+            icon = if (hasReminder) Icons.Rounded.NotificationsOff else Icons.Rounded.NotificationsActive,
+            label = stringResource(
+                if (hasReminder) R.string.schedule_action_cancel_reminder else R.string.schedule_action_reminder,
+            ),
+            onClick = if (hasReminder) onCancelReminder else onSetReminder,
+        )
+        if (showTemporaryCancel) {
             DetailAction(
-                icon = if (hasReminder) Icons.Rounded.NotificationsOff else Icons.Rounded.NotificationsActive,
+                icon = if (temporarilyCancelled) Icons.Rounded.Restore else Icons.Rounded.Close,
                 label = stringResource(
-                    if (hasReminder) R.string.schedule_action_cancel_reminder else R.string.schedule_action_reminder,
+                    if (temporarilyCancelled) {
+                        R.string.schedule_course_detail_restore_cancel_short
+                    } else {
+                        R.string.schedule_course_detail_temp_cancel
+                    },
                 ),
-                onClick = if (hasReminder) onCancelReminder else onSetReminder,
+                onClick = if (temporarilyCancelled) onRestoreTemporaryCancel else onTemporaryCancel,
             )
-            if (showTemporaryCancel) {
-                DetailAction(
-                    icon = if (temporarilyCancelled) Icons.Rounded.Restore else Icons.Rounded.Close,
-                    label = stringResource(
-                        if (temporarilyCancelled) {
-                            R.string.schedule_course_detail_restore_cancel_short
-                        } else {
-                            R.string.schedule_course_detail_temp_cancel
-                        },
-                    ),
-                    onClick = if (temporarilyCancelled) onRestoreTemporaryCancel else onTemporaryCancel,
-                )
-            }
-            if (showRestorePlugin) {
-                DetailAction(
-                    icon = Icons.Rounded.SettingsBackupRestore,
-                    label = stringResource(R.string.schedule_action_restore_plugin),
-                    onClick = onRestorePlugin,
-                )
-            }
-            if (showDelete) {
-                DetailAction(
-                    icon = Icons.Rounded.DeleteOutline,
-                    label = stringResource(R.string.schedule_action_delete),
-                    onClick = onDelete,
-                    tint = MaterialTheme.colorScheme.error,
-                )
-            }
+        }
+        if (showRestorePlugin) {
+            DetailAction(
+                icon = Icons.Rounded.SettingsBackupRestore,
+                label = stringResource(R.string.schedule_action_restore_plugin),
+                onClick = onRestorePlugin,
+            )
+        }
+        if (showDelete) {
+            DetailAction(
+                icon = Icons.Rounded.DeleteOutline,
+                label = stringResource(R.string.schedule_action_delete),
+                onClick = onDelete,
+                danger = true,
+            )
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun RowScope.DetailAction(
+private fun FlowRowScope.DetailAction(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
-    tint: Color = MaterialTheme.colorScheme.onSurface,
+    danger: Boolean = false,
 ) {
+    val scheme = MaterialTheme.colorScheme
+    val tint = if (danger) scheme.error else scheme.onSurface
+    val shape = RoundedCornerShape(16.dp)
     Column(
         modifier = Modifier
             .weight(1f)
-            .padding(horizontal = 4.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 2.dp, vertical = 8.dp),
+            .widthIn(min = 56.dp)
+            .heightIn(min = 48.dp)
+            .fillMaxRowHeight()
+            .clip(shape)
+            .background(if (danger) scheme.errorContainer else scheme.surface)
+            .border(1.dp, if (danger) scheme.error.copy(alpha = 0.3f) else scheme.outlineVariant, shape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(20.dp),
+            tint = if (danger) scheme.onErrorContainer else scheme.primary,
+            modifier = Modifier.size(18.dp),
         )
-        AppAtomicText(text = label, modifier = Modifier.fillMaxWidth(),
-            style = MaterialTheme.typography.labelSmall.copy(textAlign = TextAlign.Center), color = tint)
+        // Two lines at most: long labels ("Cancel once") wrap at large font sizes instead of being cut off.
+        Text(
+            text = label,
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.labelSmall.copy(textAlign = TextAlign.Center, fontWeight = FontWeight.Bold),
+            color = if (danger) scheme.onErrorContainer else tint,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -1132,112 +1283,123 @@ private fun CourseNoteSection(
     var draft by remember(courseKey, savedNote) { mutableStateOf(savedNote) }
     val draftLength = courseNoteLength(draft)
     val tooLong = draftLength > maxLength
+    val scheme = MaterialTheme.colorScheme
+    val hasNote = savedNote.isNotBlank()
+    // A saved note reads as an amber sticky note; an empty one stays neutral.
+    val container = if (hasNote && !editing) scheme.tertiaryContainer.copy(alpha = 0.55f) else scheme.surface
+    val accent = if (hasNote && !editing) scheme.tertiary else scheme.primary
 
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+    Surface(
+        modifier = Modifier.fillMaxWidth().testTag("course-note-card"),
+        shape = RoundedCornerShape(18.dp),
+        color = container,
+        border = BorderStroke(1.dp, if (hasNote && !editing) scheme.tertiary.copy(alpha = 0.35f) else scheme.outlineVariant),
+    ) {
+        Column(
+            modifier = Modifier.padding(start = 14.dp, end = 8.dp, top = 8.dp, bottom = 12.dp).padding(end = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Icon(
-                imageVector = Icons.Rounded.Edit,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp),
-            )
-            Text(
-                text = stringResource(R.string.schedule_note_title),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-            )
-            if (!readOnly && !editing) {
-                AppOutlinedButton(
-                    onClick = { editing = true },
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                ) {
-                    Text(stringResource(if (savedNote.isBlank()) R.string.schedule_action_add else R.string.schedule_action_edit))
-                }
-            }
-        }
-
-        if (!readOnly && editing) {
-            OutlinedTextField(
-                value = draft,
-                onValueChange = { draft = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 96.dp),
-                placeholder = { Text(stringResource(R.string.schedule_note_hint)) },
-                isError = tooLong,
-                supportingText = {
-                    Text(
-                        text = if (tooLong) {
-                            stringResource(R.string.schedule_note_over_limit, draftLength - maxLength, maxLength)
-                        } else {
-                            "$draftLength / $maxLength"
-                        },
-                    )
-                },
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (savedNote.isNotBlank()) {
-                    AppOutlinedButton(
-                        onClick = {
-                            draft = ""
-                            onSave("")
-                            editing = false
-                        },
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.StickyNote2,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    text = stringResource(R.string.schedule_note_title),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (hasNote && !editing) scheme.onTertiaryContainer else scheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                )
+                if (!readOnly && !editing) {
+                    TextButton(
+                        onClick = { editing = true },
+                        modifier = Modifier.heightIn(min = 40.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                     ) {
-                        Text(stringResource(R.string.schedule_action_clear), maxLines = 1, softWrap = false)
+                        Text(
+                            stringResource(if (hasNote) R.string.schedule_action_edit else R.string.schedule_action_add),
+                            fontWeight = FontWeight.Bold,
+                        )
                     }
                 }
-                Spacer(modifier = Modifier.weight(1f))
-                AppOutlinedButton(
-                    onClick = {
-                        draft = savedNote
-                        editing = false
-                    },
-                ) {
-                    Text(stringResource(R.string.schedule_action_cancel))
-                }
-                Button(
-                    onClick = {
-                        when (val result = validateCourseNote(draft, maxLength)) {
-                            is CourseNoteInput.Accepted -> {
-                                draft = result.text
-                                onSave(result.text)
-                                editing = false
-                            }
-
-                            is CourseNoteInput.TooLong -> Unit
-                        }
-                    },
-                    enabled = !tooLong,
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                ) {
-                    Text(stringResource(R.string.schedule_action_save), maxLines = 1, softWrap = false)
-                }
             }
-        } else {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-            ) {
+
+            if (!readOnly && editing) {
+                AppOutlinedTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 96.dp),
+                    placeholder = { Text(stringResource(R.string.schedule_note_hint)) },
+                    isError = tooLong,
+                    supportingText = {
+                        Text(
+                            text = if (tooLong) {
+                                stringResource(R.string.schedule_note_over_limit, draftLength - maxLength, maxLength)
+                            } else {
+                                "$draftLength / $maxLength"
+                            },
+                        )
+                    },
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (hasNote) {
+                        AppOutlinedButton(
+                            onClick = {
+                                draft = ""
+                                onSave("")
+                                editing = false
+                            },
+                            shape = CircleShape,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        ) {
+                            Text(stringResource(R.string.schedule_action_clear), maxLines = 1, softWrap = false)
+                        }
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    AppOutlinedButton(
+                        onClick = {
+                            draft = savedNote
+                            editing = false
+                        },
+                        shape = CircleShape,
+                    ) {
+                        Text(stringResource(R.string.schedule_action_cancel))
+                    }
+                    Button(
+                        onClick = {
+                            when (val result = validateCourseNote(draft, maxLength)) {
+                                is CourseNoteInput.Accepted -> {
+                                    draft = result.text
+                                    onSave(result.text)
+                                    editing = false
+                                }
+
+                                is CourseNoteInput.TooLong -> Unit
+                            }
+                        },
+                        enabled = !tooLong,
+                        shape = CircleShape,
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    ) {
+                        Text(stringResource(R.string.schedule_action_save), maxLines = 1, softWrap = false)
+                    }
+                }
+            } else {
                 Text(
                     text = savedNote.ifBlank { stringResource(R.string.schedule_note_empty) },
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (savedNote.isBlank()) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
+                    modifier = Modifier.padding(end = 4.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (hasNote) scheme.onTertiaryContainer else scheme.onSurfaceVariant,
                 )
             }
         }
@@ -1253,19 +1415,31 @@ private fun ExamReminderMuteRow(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(
-            modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+            modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            Box(
+                Modifier.size(36.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = if (enabled && !muted) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsOff,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(R.string.schedule_exam_mute_title),
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                 )
                 Text(
                     text = when {
@@ -1278,8 +1452,13 @@ private fun ExamReminderMuteRow(
                 )
             }
             if (enabled) {
-                AppOutlinedButton(onClick = if (muted) onRestore else onMute) {
-                    Text(stringResource(if (muted) R.string.schedule_action_restore else R.string.schedule_exam_mute_this))
+                AppOutlinedButton(
+                    onClick = if (muted) onRestore else onMute,
+                    shape = CircleShape,
+                    modifier = Modifier.heightIn(min = 40.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                ) {
+                    Text(stringResource(if (muted) R.string.schedule_action_restore else R.string.schedule_exam_mute_this), maxLines = 1)
                 }
             }
         }
@@ -1293,56 +1472,124 @@ private fun StatusChip(
     visibleWeekNumber: Int?,
     viewingCurrentWeek: Boolean,
     manual: Boolean,
+    headerContent: Color,
     // Resolved holiday or cancellation status takes priority over active-week labeling.
     notOccurringLabel: String? = null,
 ) {
-    val (label, container, content) = when {
-        notOccurringLabel != null -> Triple(
-            notOccurringLabel,
-            MaterialTheme.colorScheme.surfaceVariant,
-            MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        activeInVisibleWeek == null -> Triple(
-            stringResource(R.string.schedule_status_week_unknown),
-            MaterialTheme.colorScheme.surfaceVariant,
-            MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        !activeInVisibleWeek -> Triple(
-            if (viewingCurrentWeek || visibleWeekNumber == null) {
+    val scheme = MaterialTheme.colorScheme
+    val neutral = scheme.surface.copy(alpha = 0.62f)
+    val label: String
+    val container: Color
+    val content: Color
+    var active = false
+    when {
+        notOccurringLabel != null -> { label = notOccurringLabel; container = neutral; content = headerContent }
+        activeInVisibleWeek == null -> {
+            label = stringResource(R.string.schedule_status_week_unknown); container = neutral; content = headerContent
+        }
+        !activeInVisibleWeek -> {
+            label = if (viewingCurrentWeek || visibleWeekNumber == null) {
                 stringResource(R.string.schedule_status_other_week)
             } else {
                 stringResource(R.string.schedule_status_week_inactive, visibleWeekNumber)
-            },
-            MaterialTheme.colorScheme.surfaceVariant,
-            MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        manual -> Triple(
-            stringResource(R.string.schedule_status_manual),
-            MaterialTheme.colorScheme.tertiaryContainer,
-            MaterialTheme.colorScheme.onTertiaryContainer,
-        )
-        else -> Triple(
-            if (viewingCurrentWeek || visibleWeekNumber == null) {
+            }
+            container = neutral; content = headerContent
+        }
+        manual -> {
+            label = stringResource(R.string.schedule_status_manual)
+            container = scheme.tertiaryContainer; content = scheme.onTertiaryContainer
+        }
+        else -> {
+            label = if (viewingCurrentWeek || visibleWeekNumber == null) {
                 stringResource(R.string.schedule_status_this_week)
             } else {
                 stringResource(R.string.schedule_status_week_active, visibleWeekNumber)
-            },
-            MaterialTheme.colorScheme.primaryContainer,
-            MaterialTheme.colorScheme.onPrimaryContainer,
-        )
+            }
+            container = scheme.primary; content = scheme.onPrimary; active = true
+        }
     }
+    HeaderPill(text = label, content = content, containerOverride = container, icon = if (active) Icons.Rounded.Check else null)
+}
+
+/** Course name in the header: 18sp keeps one or two lines readable without dominating the card. */
+@Composable
+private fun CourseTitle(text: String, color: Color, modifier: Modifier) {
+    Text(
+        text = text,
+        modifier = modifier,
+        style = MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp, lineHeight = 24.sp),
+        fontWeight = FontWeight.Bold,
+        color = color,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+/** A compact pill in the course header; tinted by the header's own colours so it works in every theme. */
+/** Session count pill: the label is regular weight and the "n/total" figure is large and heavy so it reads at a glance. */
+@Composable
+private fun SessionProgressPill(
+    label: String,
+    current: Int,
+    total: Int,
+    content: Color,
+    modifier: Modifier = Modifier,
+) {
     Surface(
-        shape = RoundedCornerShape(50),
-        color = container,
+        modifier = modifier.semantics(mergeDescendants = true) {},
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
     ) {
-        Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = content,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-        )
+        Row(
+            modifier = Modifier.heightIn(min = 24.dp).padding(horizontal = 9.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = content,
+                maxLines = 1,
+            )
+            Text(
+                text = "$current/$total",
+                style = MaterialTheme.typography.titleSmall,
+                color = content,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HeaderPill(
+    text: String,
+    content: Color,
+    modifier: Modifier = Modifier,
+    containerOverride: Color? = null,
+    icon: ImageVector? = null,
+) {
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = containerOverride ?: MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+    ) {
+        Row(
+            modifier = Modifier.heightIn(min = 24.dp).padding(horizontal = 8.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            if (icon != null) Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(13.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall,
+                color = content,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -1361,10 +1608,10 @@ private fun DetailRow(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier
-                .padding(top = 2.dp)
-                .size(16.dp),
+                .padding(top = 1.dp)
+                .size(18.dp),
         )
         // Minimum label width aligns values without truncating longer labels.
         Text(
@@ -1386,7 +1633,7 @@ private fun DetailRow(
                 Text(
                     text = body,
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f, fill = false),
                 )
@@ -1468,7 +1715,7 @@ internal sealed interface WeeksDetail {
     data class Count(val count: Int, val weeksList: String) : WeeksDetail
 }
 
-private fun describeWeeksDetail(weeks: List<Int>): WeeksDetail {
+internal fun describeWeeksDetail(weeks: List<Int>): WeeksDetail {
     if (weeks.isEmpty()) return WeeksDetail.Unspecified
     val sorted = weeks.sorted().distinct()
     val first = sorted.first()
@@ -1512,9 +1759,10 @@ private fun CourseColorSheet(
     onChange: (ItemAppearance) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag("course-color-sheet"),
+        icon = { Icon(Icons.Rounded.Palette, contentDescription = null, modifier = Modifier.size(22.dp)) },
         text = {
             Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                 ItemAppearanceSection(
@@ -1526,7 +1774,7 @@ private fun CourseColorSheet(
             }
         },
         confirmButton = {
-            Button(onClick = onDismiss, shape = CircleShape) {
+            AppDialogPrimaryButton(onClick = onDismiss, shape = CircleShape) {
                 Text(stringResource(R.string.schedule_action_close))
             }
         },

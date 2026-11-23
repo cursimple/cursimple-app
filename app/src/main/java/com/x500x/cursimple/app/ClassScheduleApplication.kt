@@ -240,7 +240,7 @@ class ClassScheduleApplication : Application() {
         appScope.launch {
             appContainer.bootstrapJob.join()
             appContainer.userPreferencesRepository.preferencesFlow
-                .map { it.themeAccent to it.themeCustomColorArgb }
+                .map { Triple(it.themeMode, it.themeAccent, it.themeCustomColorArgb) }
                 .distinctUntilChanged()
                 .drop(1)
                 .collect {
@@ -289,9 +289,13 @@ class ClassScheduleApplication : Application() {
     private suspend fun syncDateDataIfDue() {
         val prefs = getSharedPreferences(DATE_DATA_PREFS, MODE_PRIVATE)
         val now = System.currentTimeMillis()
-        if (now - prefs.getLong(KEY_DATE_DATA_SYNCED_AT, 0L) < DATE_DATA_MIN_INTERVAL_MILLIS) return
-        prefs.edit().putLong(KEY_DATE_DATA_SYNCED_AT, now).apply()
         appContainer.bootstrapJob.join()
+        // Until holiday data has been fetched once (first launch, or earlier attempts offline), skip the cooldown.
+        val neverSynced = runCatching {
+            appContainer.userPreferencesRepository.preferencesFlow.first().holidayCalendar.syncedYears.isEmpty()
+        }.getOrDefault(false)
+        if (!neverSynced && now - prefs.getLong(KEY_DATE_DATA_SYNCED_AT, 0L) < DATE_DATA_MIN_INTERVAL_MILLIS) return
+        prefs.edit().putLong(KEY_DATE_DATA_SYNCED_AT, now).apply()
         syncHolidayCalendar(force = true)
         runCatching {
             com.x500x.cursimple.app.greeting.FestivalDataset.sync(this, dateDataDownloader())

@@ -12,6 +12,18 @@ private val PLUGIN_DATE: LocalDate = LocalDate.of(2026, 2, 23)
 
 class ResolveCanonicalTermStartTest {
     @Test
+    fun `new school evidence replaces an old automatic date`() {
+        assertEquals(USER_DATE, resolveCanonicalTermStart(false, PLUGIN_DATE, USER_DATE))
+    }
+
+    @Test
+    fun `stale automatic date without fresh evidence returns to unset`() {
+        assertNull(resolveCanonicalTermStart(false, PLUGIN_DATE, null, LocalDate.of(2026, 12, 1)))
+        assertNull(resolveCanonicalTermStart(false, null, PLUGIN_DATE, LocalDate.of(2026, 12, 1)))
+        assertEquals(PLUGIN_DATE, resolveCanonicalTermStart(true, PLUGIN_DATE, null, LocalDate.of(2026, 12, 1)))
+    }
+
+    @Test
     fun `a first-time user inherits the date the plugin brought`() {
         val resolved = resolveCanonicalTermStart(
             userDecided = false,

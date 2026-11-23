@@ -12,6 +12,7 @@ import android.text.TextUtils
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.theme.AccentColors
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
+import com.x500x.cursimple.core.kernel.model.CourseEndWarning
 import kotlin.math.max
 import kotlin.math.min
 
@@ -22,6 +23,9 @@ internal data class CalendarRenderLabels(
     val legendClass: String,
     val legendExam: String,
     val legendEvent: String,
+    val endWarningNear: String,
+    val endWarningFinal: String,
+    val endWarningWeeksLeft: (Int) -> String,
     val emptyMessage: String?,
 )
 
@@ -178,7 +182,8 @@ internal object CalendarWidgetRenderer {
                     header + (span.last + 1) * rowH - gap,
                 )
                 if (rect.height() <= 0f || rect.width() <= 0f) return@forEach
-                drawCourseBlock(canvas, rect, block, px)
+                drawCourseBlock(canvas, rect, block, px, labels)
+                if (!block.inactive) drawEndWarningBadge(canvas, rect, block.endWarning, px)
                 // Opaque course cards cover the bands; outline the intersection so it stays visible.
                 if (week.days[index].isToday && !block.inactive && week.currentRows.any { it in span }) {
                     val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -241,7 +246,13 @@ internal object CalendarWidgetRenderer {
 
     private fun StaticLayout.isTruncated(): Boolean = lineCount > 0 && getEllipsisCount(lineCount - 1) > 0
 
-    private fun drawCourseBlock(canvas: Canvas, rect: RectF, block: CalendarCourseBlock, px: Float) {
+    private fun drawCourseBlock(
+        canvas: Canvas,
+        rect: RectF,
+        block: CalendarCourseBlock,
+        px: Float,
+        labels: CalendarRenderLabels,
+    ) {
         val (container, onContainer) = when {
             block.inactive -> INACTIVE_CONTAINER to INACTIVE_ON
             else -> coursePalette(block.colorSeed)
@@ -258,14 +269,19 @@ internal object CalendarWidgetRenderer {
             val inset = stroke.strokeWidth / 2
             canvas.drawRoundRect(RectF(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset), radius, radius, stroke)
         }
+        if (!block.inactive) {
+            drawEndWarningGlow(canvas, rect, block.endWarning, radius, px)
+        }
         val pad = 3f * px
-        val textW = (rect.width() - pad * 2).toInt()
+        // Keep the corner badge clear of the title text.
+        val badgeReserve = if (!block.inactive && block.endWarning != CourseEndWarning.None) 6f * px else 0f
+        val textW = (rect.width() - pad * 2 - badgeReserve).toInt()
         val availH = rect.height() - pad * 2
         if (textW <= 4) return
         val titlePaint = textPaint(9.5f * px, onContainer, bold = true)
         val titleLines = if (availH <= 4) 0 else maxLinesFor(availH, titlePaint).coerceAtMost(4)
         canvas.save()
-        canvas.clipRect(rect)
+        canvas.clipRect(RectF(rect.left, rect.top, rect.right - badgeReserve, rect.bottom))
         if (titleLines <= 1) {
             // Clip one-line labels without ellipsis; reduce size if the row is shorter than a line.
             titlePaint.textSize = min(titlePaint.textSize, max(6f * px, rect.height() * 0.72f))
@@ -288,6 +304,41 @@ internal object CalendarWidgetRenderer {
             }
         }
         canvas.restore()
+    }
+
+    private fun endWarningColor(warning: CourseEndWarning): Int? = when (warning) {
+        CourseEndWarning.NearEnd -> 0xFFC98A12.toInt()
+        CourseEndWarning.FinalWeek -> 0xFFD93B4B.toInt()
+        CourseEndWarning.None -> null
+    }
+
+    /** Soft glow ring inside the block edge, same hue as the corner badge. */
+    private fun drawEndWarningGlow(canvas: Canvas, rect: RectF, warning: CourseEndWarning, radius: Float, px: Float) {
+        val color = endWarningColor(warning) ?: return
+        val final = warning == CourseEndWarning.FinalWeek
+        val outer = (if (final) 3.2f else 2.4f) * px
+        val core = (if (final) 1.2f else 0.9f) * px
+        val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+        ring.strokeWidth = outer
+        ring.color = withAlpha(color, if (final) 0x2A else 0x22)
+        val a = outer / 2f
+        canvas.drawRoundRect(RectF(rect.left + a, rect.top + a, rect.right - a, rect.bottom - a), radius, radius, ring)
+        ring.strokeWidth = core
+        ring.color = withAlpha(color, 0x8C)
+        val b = core / 2f
+        canvas.drawRoundRect(RectF(rect.left + b, rect.top + b, rect.right - b, rect.bottom - b), radius, radius, ring)
+    }
+
+    /** Numeric badge on the block's top-right corner; drawn outside the text clip so it never hides the title. */
+    private fun drawEndWarningBadge(canvas: Canvas, rect: RectF, warning: CourseEndWarning, px: Float) {
+        val color = endWarningColor(warning) ?: return
+        val text = if (warning == CourseEndWarning.FinalWeek) "1" else "2"
+        val r = 6f * px
+        val cx = rect.right - 3.5f * px
+        val cy = rect.top + 3.5f * px
+        canvas.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
+        val paint = textPaint(8f * px, 0xFFFFFFFF.toInt(), bold = true).apply { textAlign = Paint.Align.CENTER }
+        canvas.drawText(text, cx, cy - (paint.ascent() + paint.descent()) / 2f, paint)
     }
 
     private fun drawMonth(canvas: Canvas, month: CalendarMonthData, px: Float, accent: Int, accentText: Int, labels: CalendarRenderLabels, isDark: Boolean) {

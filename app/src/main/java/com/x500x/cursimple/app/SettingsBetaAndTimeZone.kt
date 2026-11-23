@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import androidx.compose.foundation.layout.Box
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import com.x500x.cursimple.feature.plugin.ui.appItemMotion
@@ -32,30 +33,39 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.R
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.platform.LocalConfiguration
 import java.text.Collator
 import java.time.Instant
 import java.util.Locale
 import java.util.TimeZone
 import java.time.ZoneId
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.rounded.AccessTime
+import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material3.Icon
 
 @Composable
 internal fun BetaUpdatesConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        tone = AppDialogTone.Warning,
+        icon = { Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.settings_beta_updates_confirm_title)) },
         text = { Text(stringResource(R.string.settings_beta_updates_confirm_body)) },
         confirmButton = {
-            AppOutlinedButton(onClick = onConfirm) {
+            AppDialogPrimaryButton(onClick = onConfirm) {
                 Text(stringResource(R.string.settings_beta_updates_confirm_ok))
             }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) {
+            AppDialogSecondaryButton(onClick = onDismiss) {
                 Text(stringResource(R.string.settings_cancel))
             }
         },
@@ -180,8 +190,9 @@ private fun TimeZonePickerDialog(
     var query by rememberSaveable { mutableStateOf("") }
     val matched = remember(choices, query) { choices.filter { matchesZoneQuery(it, query) } }
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.AccessTime, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.settings_time_zone_dialog_title)) },
         text = {
             Column {
@@ -191,7 +202,7 @@ private fun TimeZonePickerDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.padding(top = 8.dp))
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
@@ -222,7 +233,7 @@ private fun TimeZonePickerDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+            AppDialogPrimaryButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }

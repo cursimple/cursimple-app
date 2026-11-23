@@ -1,19 +1,26 @@
 package com.x500x.cursimple.feature.plugin
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.rounded.TableRows
 import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -22,9 +29,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
@@ -38,7 +48,6 @@ import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.storage.PluginFileStore
 import com.x500x.cursimple.core.plugin.ui.PluginTimetableRowSetting
 import com.x500x.cursimple.core.plugin.ui.PluginUiSchema
-import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
@@ -98,80 +107,156 @@ internal fun SchedulePluginSettingsScreen(record: InstalledPluginRecord, onBack:
     val canBindLegacy = remember(record.pluginId, schema, courses?.schedule, timing) {
         schema?.let { canBindLegacyTimetableDisplayPlugin(record.pluginId, it, courses?.schedule, timing) } == true
     }
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).testTag("schedule-plugin-settings"),
-        verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AppCircleIconButton(onClick = onBack) { IconBack() }
-            Text(stringResource(R.string.plugin_timetable_settings_title), style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(start = 12.dp))
-        }
-        Text(record.name, style = MaterialTheme.typography.titleMedium)
-        if (loadFailed) Text(stringResource(R.string.plugin_timetable_load_failed), color = MaterialTheme.colorScheme.error)
-        if (saveFailed) Text(stringResource(R.string.plugin_timetable_save_failed), color = MaterialTheme.colorScheme.error)
-        if (legacyBound || canBindLegacy) {
-            Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(stringResource(R.string.plugin_timetable_legacy_title), style = MaterialTheme.typography.titleMedium)
-                    val termName = courses?.termName?.takeIf { it.isNotBlank() } ?: stringResource(R.string.plugin_timetable_current_term)
-                    Text(stringResource(if (legacyBound) R.string.plugin_timetable_legacy_enabled else R.string.plugin_timetable_legacy_confirm, termName),
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    val toggleBinding = {
-                        val snapshot = courses
-                        val definition = schema
-                        val expected = snapshot?.schedule
-                        val profile = timing
-                        val next = !legacyBound
-                        if (snapshot != null && definition != null && expected != null) {
-                            bindingBusy = true
-                            scope.launch {
-                                try {
-                                    saveFailed = runCatching { withContext(Dispatchers.IO) {
-                                        schedules.setLegacyTimetableDisplayPlugin(snapshot.termId, expected, record.pluginId, definition, profile, next)
-                                    } }.getOrDefault(false).not()
-                                } finally { bindingBusy = false }
+    Column(modifier.fillMaxSize().testTag("schedule-plugin-settings")) {
+        MarketDetailTopBar(stringResource(R.string.plugin_timetable_settings_title), onBack)
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = record.name,
+                modifier = Modifier.padding(horizontal = 6.dp),
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.5.sp, lineHeight = 17.sp, letterSpacing = 0.4.sp),
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (loadFailed) Text(stringResource(R.string.plugin_timetable_load_failed), color = MaterialTheme.colorScheme.error)
+            if (saveFailed) Text(stringResource(R.string.plugin_timetable_save_failed), color = MaterialTheme.colorScheme.error)
+            if (legacyBound || canBindLegacy) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(22.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            stringResource(R.string.plugin_timetable_legacy_title),
+                            style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp, lineHeight = 19.5.sp),
+                            fontWeight = FontWeight.Bold,
+                        )
+                        val termName = courses?.termName?.takeIf { it.isNotBlank() } ?: stringResource(R.string.plugin_timetable_current_term)
+                        Text(
+                            stringResource(if (legacyBound) R.string.plugin_timetable_legacy_enabled else R.string.plugin_timetable_legacy_confirm, termName),
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp, lineHeight = 20.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        val toggleBinding = {
+                            val snapshot = courses
+                            val definition = schema
+                            val expected = snapshot?.schedule
+                            val profile = timing
+                            val next = !legacyBound
+                            if (snapshot != null && definition != null && expected != null) {
+                                bindingBusy = true
+                                scope.launch {
+                                    try {
+                                        saveFailed = runCatching { withContext(Dispatchers.IO) {
+                                            schedules.setLegacyTimetableDisplayPlugin(snapshot.termId, expected, record.pluginId, definition, profile, next)
+                                        } }.getOrDefault(false).not()
+                                    } finally { bindingBusy = false }
+                                }
+                            }
+                        }
+                        val buttonEnabled = prefs.loaded && !bindingBusy
+                        val buttonLabel = stringResource(when {
+                            bindingBusy -> R.string.plugin_timetable_legacy_saving
+                            legacyBound -> R.string.plugin_timetable_legacy_disable
+                            else -> R.string.plugin_timetable_legacy_enable
+                        })
+                        val buttonModifier = Modifier.fillMaxWidth().height(38.dp)
+                        if (legacyBound) {
+                            AppOutlinedButton(onClick = toggleBinding, enabled = buttonEnabled, modifier = buttonModifier,
+                                shape = RoundedCornerShape(19.dp), border = BorderStroke(1.5.dp,
+                                    MaterialTheme.colorScheme.primary.copy(alpha = if (buttonEnabled) 0.35f else 0.12f)),
+                                contentPadding = PaddingValues(horizontal = 16.dp)) {
+                                SettingsButtonLabel(buttonLabel)
+                            }
+                        } else {
+                            Button(onClick = toggleBinding, enabled = buttonEnabled, modifier = buttonModifier,
+                                shape = RoundedCornerShape(19.dp), contentPadding = PaddingValues(horizontal = 16.dp)) {
+                                SettingsButtonLabel(buttonLabel)
                             }
                         }
                     }
-                    val buttonEnabled = prefs.loaded && !bindingBusy
-                    val buttonLabel = stringResource(when {
-                        bindingBusy -> R.string.plugin_timetable_legacy_saving
-                        legacyBound -> R.string.plugin_timetable_legacy_disable
-                        else -> R.string.plugin_timetable_legacy_enable
-                    })
-                    if (legacyBound) AppOutlinedButton(onClick = toggleBinding, enabled = buttonEnabled, modifier = Modifier.heightIn(min = 48.dp)) { Text(buttonLabel) }
-                    else Button(onClick = toggleBinding, enabled = buttonEnabled, modifier = Modifier.heightIn(min = 48.dp)) { Text(buttonLabel) }
                 }
             }
-        }
-        validPluginTimetableRows(schema?.timetableRows.orEmpty()).forEach { row ->
-            val occupied = remember(row, timing, courses, prefs.temporaryScheduleOverrides, prefs.termStartDate) {
-                pluginRowHasCourses(row, courses?.courses.orEmpty(), prefs.temporaryScheduleOverrides, courses?.start ?: prefs.termStartDate)
-            }
-            val visible = !applicable || occupied || (prefs.pluginTimetableRowVisibility[record.pluginId]?.get(row.id) ?: row.defaultVisible)
-            Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(localizedTimetableRowTitle(row, language), style = MaterialTheme.typography.titleMedium)
-                        Text(stringResource(when {
-                            !applicable -> R.string.plugin_timetable_row_not_applicable
-                            occupied -> R.string.plugin_timetable_row_occupied
-                            else -> R.string.plugin_timetable_row_empty
-                        }),
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val rows = validPluginTimetableRows(schema?.timetableRows.orEmpty())
+            if (rows.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        stringResource(R.string.plugin_timetable_display_settings),
+                        modifier = Modifier.padding(horizontal = 6.dp),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.5.sp, lineHeight = 17.sp, letterSpacing = 0.4.sp),
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(22.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    ) {
+                        Column(Modifier.fillMaxWidth()) {
+                            rows.forEachIndexed { index, row ->
+                                val occupied = remember(row, timing, courses, prefs.temporaryScheduleOverrides, prefs.termStartDate) {
+                                    pluginRowHasCourses(row, courses?.courses.orEmpty(), prefs.temporaryScheduleOverrides, courses?.start ?: prefs.termStartDate)
+                                }
+                                val visible = !applicable || occupied || (prefs.pluginTimetableRowVisibility[record.pluginId]?.get(row.id) ?: row.defaultVisible)
+                                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                    Box(
+                                        modifier = Modifier.size(36.dp).clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(Icons.Rounded.TableRows, contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                    }
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            localizedTimetableRowTitle(row, language),
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, lineHeight = 18.2.sp),
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                        Text(
+                                            stringResource(when {
+                                                !applicable -> R.string.plugin_timetable_row_not_applicable
+                                                occupied -> R.string.plugin_timetable_row_occupied
+                                                else -> R.string.plugin_timetable_row_empty
+                                            }),
+                                            modifier = Modifier.padding(top = 2.dp),
+                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 16.7.sp),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    Switch(checked = visible, enabled = prefs.loaded && applicable && !occupied,
+                                        onCheckedChange = { next ->
+                                            scope.launch { saveFailed = runCatching { repository.setPluginTimetableRowVisible(record.pluginId, row.id, next) }.isFailure }
+                                        }, modifier = Modifier.testTag("plugin-row-${row.id}"))
+                                }
+                                if (index != rows.lastIndex) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(start = 64.dp, end = 14.dp),
+                                        thickness = 1.dp,
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                    )
+                                }
+                            }
+                        }
                     }
-                    Switch(checked = visible, enabled = prefs.loaded && applicable && !occupied,
-                        onCheckedChange = { next ->
-                            scope.launch { saveFailed = runCatching { repository.setPluginTimetableRowVisible(record.pluginId, row.id, next) }.isFailure }
-                        }, modifier = Modifier.testTag("plugin-row-${row.id}"))
                 }
             }
         }
     }
 }
 
+/** 13/700 label inside the 38dp page buttons. */
 @Composable
-private fun IconBack() {
-    androidx.compose.material3.Icon(Icons.AutoMirrored.Rounded.ArrowBack,
-        contentDescription = stringResource(R.string.plugin_timetable_back))
+private fun SettingsButtonLabel(label: String) {
+    Text(label, style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp, lineHeight = 17.sp),
+        fontWeight = FontWeight.Bold)
 }

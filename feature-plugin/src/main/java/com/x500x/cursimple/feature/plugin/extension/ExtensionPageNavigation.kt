@@ -13,9 +13,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
+import com.x500x.cursimple.feature.plugin.R
 import com.x500x.cursimple.core.plugin.manifest.PluginExtensionUiPage
 import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import kotlinx.coroutines.CancellationException
@@ -39,6 +41,12 @@ internal fun ExtensionOwnedPage(
     modifier: Modifier = Modifier,
 ) {
     key(record.packageRevision, page, html) {
+        val updatedOrRemoved = stringResource(R.string.extension_page_updated_or_removed)
+        val pageMissing = stringResource(R.string.extension_page_missing)
+        val pageLoadFailed = stringResource(R.string.extension_page_load_failed)
+        val pageLoadTimeout = stringResource(R.string.extension_page_load_timeout)
+        val retryLabel = stringResource(R.string.plugin_action_retry)
+        val closeLabel = stringResource(R.string.extension_item_close)
         val scope = rememberCoroutineScope()
         val currentActions by rememberUpdatedState(actions)
         val documents = remember { mutableStateMapOf(page to html) }
@@ -59,17 +67,17 @@ internal fun ExtensionOwnedPage(
             destination = next
             loadJob = scope.launch {
                 try {
-                    if (!currentActions.isCurrent(record)) error("组件已更新或移除")
+                    if (!currentActions.isCurrent(record)) error(updatedOrRemoved)
                     if (next.last() !in documents) {
                         val source = currentActions.loadUi(record, next.last())
                         if (source == null) {
                             destination = null
                             if (next.last() == PluginExtensionUiPage.Settings) onOpenSettings()
-                            else error("组件未提供此页面")
+                            else error(pageMissing)
                         } else documents[next.last()] = source
                     }
                 } catch (cancelled: CancellationException) { throw cancelled }
-                catch (error: Exception) { failedRoute = next; failure = error.message ?: "页面加载失败"; destination = null }
+                catch (error: Exception) { failedRoute = next; failure = error.message ?: pageLoadFailed; destination = null }
             }
         }
         fun navigate(next: PluginExtensionUiPage, replace: Boolean) {
@@ -103,7 +111,7 @@ internal fun ExtensionOwnedPage(
             val requested = destination ?: return@LaunchedEffect
             delay(15_000)
             if (destination == requested) {
-                loadJob?.cancel(); failedRoute = requested; failure = "组件页面加载超时，请重试"
+                loadJob?.cancel(); failedRoute = requested; failure = pageLoadTimeout
                 documents.remove(requested.last()); painted.remove(requested.last()); destination = null
             }
         }
@@ -146,8 +154,8 @@ internal fun ExtensionOwnedPage(
             if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter).zIndex(3f))
             failure?.let { message ->
                 Snackbar(modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp).zIndex(3f),
-                    action = { TextButton(onClick = { failedRoute?.let(::open) }) { Text("重试") } },
-                    dismissAction = { TextButton(onClick = { failure = null }) { Text("关闭") } },
+                    action = { TextButton(onClick = { failedRoute?.let(::open) }) { Text(retryLabel) } },
+                    dismissAction = { TextButton(onClick = { failure = null }) { Text(closeLabel) } },
                 ) { Text(message) }
             }
         }

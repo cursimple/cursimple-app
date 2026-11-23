@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.material3.MaterialTheme
@@ -23,7 +24,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.annotation.StringRes
 import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
@@ -38,12 +38,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.reminder.model.ReminderLabelAction
 import com.x500x.cursimple.core.reminder.model.ReminderLabelActionType
 import com.x500x.cursimple.core.reminder.model.ReminderLabelCondition
 import com.x500x.cursimple.core.reminder.model.ReminderLabelPresence
 import com.x500x.cursimple.core.reminder.model.ReminderRule
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.NotificationsActive
 
 @Composable
 internal fun ReminderRuleEditorDialog(
@@ -88,8 +93,9 @@ internal fun ReminderRuleEditorDialog(
         actions = actions,
     )
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.NotificationsActive, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(if (rule == null) R.string.schedule_reminder_rule_new_title else R.string.schedule_reminder_rule_edit_title)) },
         text = {
             Column(
@@ -99,7 +105,7 @@ internal fun ReminderRuleEditorDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = name,
                     onValueChange = { name = it.take(40) },
                     label = { Text(stringResource(R.string.schedule_reminder_rule_name_label)) },
@@ -151,7 +157,7 @@ internal fun ReminderRuleEditorDialog(
 
                 AlarmEditorSection(stringResource(R.string.schedule_alarm_section_ring)) {
                     val advanceInvalid = advanceText.isNotBlank() && (advance == null || advance !in 0..720)
-                    OutlinedTextField(
+                    AppOutlinedTextField(
                         value = advanceText,
                         onValueChange = { advanceText = it.filter(Char::isDigit).take(4) },
                         label = { Text(stringResource(R.string.schedule_advance_minutes_label)) },
@@ -182,7 +188,7 @@ internal fun ReminderRuleEditorDialog(
             }
         },
         confirmButton = {
-            Button(
+            AppDialogPrimaryButton(
                 onClick = {
                     onSave(
                         rule?.ruleId,
@@ -199,7 +205,7 @@ internal fun ReminderRuleEditorDialog(
                 AppAtomicText(stringResource(R.string.schedule_action_save))
             }
         },
-        dismissButton = { AppOutlinedButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.schedule_action_cancel)) } },
+        dismissButton = { AppDialogSecondaryButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.schedule_action_cancel)) } },
     )
 
     if (confirmDelete && onDelete != null) {
@@ -300,12 +306,13 @@ private fun RuleClauseLayout(
     labelDropdown: @Composable (Modifier) -> Unit,
     enumDropdown: @Composable (Modifier) -> Unit,
 ) {
+    val fontScale = LocalDensity.current.fontScale
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp),
     ) {
-        if (maxWidth >= CLAUSE_SIDE_BY_SIDE_MIN_WIDTH) {
+        if (maxWidth >= CLAUSE_SIDE_BY_SIDE_MIN_WIDTH && fontScale < CLAUSE_STACK_FONT_SCALE) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -348,6 +355,9 @@ private fun ClauseDeleteButton(description: String, onDelete: () -> Unit) {
 
 private val CLAUSE_SIDE_BY_SIDE_MIN_WIDTH = 300.dp
 
+/** Above this font scale a half-width selector can no longer show its value without clipping. */
+private const val CLAUSE_STACK_FONT_SCALE = 1.2f
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LabelDropdown(
@@ -362,7 +372,7 @@ private fun LabelDropdown(
         onExpandedChange = { expanded = it },
         modifier = modifier,
     ) {
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = label.ifBlank { stringResource(R.string.schedule_reminder_rule_no_label) },
             onValueChange = {},
             readOnly = true,
@@ -406,7 +416,7 @@ private fun <T> EnumDropdown(
         onExpandedChange = { expanded = it },
         modifier = modifier,
     ) {
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = optionLabel(value),
             onValueChange = {},
             readOnly = true,

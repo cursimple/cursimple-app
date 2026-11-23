@@ -57,6 +57,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.rounded.Image
 
 private data class PreparedScheduleImage(val bitmap: Bitmap, val intent: Intent, val sourceUri: Uri)
 
@@ -160,7 +166,8 @@ internal fun ScheduleImageDialog(
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { error = context.getString(R.string.ie_export_failed_retry) }
     }
-    AlertDialog(onDismissRequest = { if (!saving) onDismiss() },
+    AppAlertDialog(onDismissRequest = { if (!saving) onDismiss() },
+        icon = { Icon(Icons.Rounded.Image, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.ie_image_panel_title), Modifier.weight(1f))
@@ -225,7 +232,7 @@ internal fun ScheduleImageDialog(
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Button(
+                AppDialogPrimaryButton(
                     enabled = image != null && !saving,
                     onClick = { saveToLocal() },
                     modifier = Modifier.heightIn(min = 44.dp).testTag("schedule-image-save"),
@@ -234,7 +241,7 @@ internal fun ScheduleImageDialog(
                     Spacer(Modifier.width(4.dp))
                     AppAtomicText(stringResource(if (saving) R.string.ie_saving else R.string.ie_save_to_local))
                 }
-                AppOutlinedButton(
+                AppDialogPrimaryButton(
                     enabled = image != null && !saving,
                     onClick = { image?.let { onShare(it.intent) } },
                     modifier = Modifier.heightIn(min = 44.dp).testTag("schedule-image-share"),
@@ -244,7 +251,7 @@ internal fun ScheduleImageDialog(
                     AppAtomicText(stringResource(R.string.ie_share_image))
                 }
                 // Cancel shares the flow so all three buttons wrap together without overlapping.
-                AppOutlinedButton(onClick = onDismiss, enabled = !saving) { AppAtomicText(stringResource(R.string.ie_cancel)) }
+                AppDialogPrimaryButton(onClick = onDismiss, enabled = !saving) { AppAtomicText(stringResource(R.string.ie_cancel)) }
             }
         },
     )
@@ -267,9 +274,10 @@ private fun ScheduleImageOptionsDialog(
     onChange: (ScheduleImageOptions) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag("schedule-image-options-dialog"),
+        icon = { Icon(Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.ie_image_options_title)) },
         text = {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
@@ -293,12 +301,12 @@ private fun ScheduleImageOptionsDialog(
             }
         },
         confirmButton = {
-            Button(onClick = onDismiss, modifier = Modifier.heightIn(min = 44.dp)) {
+            AppDialogPrimaryButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 44.dp)) {
                 AppAtomicText(stringResource(R.string.ie_image_options_done))
             }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = { onChange(ScheduleImageOptions()) }, enabled = options != ScheduleImageOptions()) {
+            AppDialogSecondaryButton(onClick = { onChange(ScheduleImageOptions()) }, enabled = options != ScheduleImageOptions()) {
                 AppAtomicText(stringResource(R.string.ie_image_options_reset))
             }
         },

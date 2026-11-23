@@ -11,6 +11,7 @@ import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import com.x500x.cursimple.core.data.widget.classSlotLabelOfIndex
 import com.x500x.cursimple.core.data.widget.classSlotLabelText
 import com.x500x.cursimple.core.data.widget.resolveAccent
+import com.x500x.cursimple.core.data.widget.resolveThemeMode
 import com.x500x.cursimple.core.kernel.model.allCoursesWith
 import com.x500x.cursimple.core.kernel.model.occurrencesOn
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
@@ -42,6 +43,7 @@ internal object CalendarWidgetDataSource {
         val timingProfile = widgetPrefs.timingProfileFlow.first()
         val widgetTheme = widgetPrefs.themePreferencesFlow.first()
             .resolveAccent(userPrefs.themeAccent, userPrefs.themeCustomColorArgb)
+            .resolveThemeMode(userPrefs.themeMode)
         BeijingTime.setForcedNow(userPrefs.debugForcedDateTime)
         val zone = BeijingTime.zone
         val now = BeijingTime.nowDateTimeIn(zone)
@@ -64,6 +66,7 @@ internal object CalendarWidgetDataSource {
                 holidayCalendar = userPrefs.holidayCalendar,
             ) { dayOfWeek -> allCourses.filter { it.time.dayOfWeek == dayOfWeek } }
             val makeUp = resolveScheduleDay(date, userPrefs.temporaryScheduleOverrides, userPrefs.holidayCalendar).isMakeUpWorkday
+            val weekIndex = resolveWeekIndex(date, termStart)
             return CalendarDay(
                 date = date,
                 isToday = date == today,
@@ -71,6 +74,8 @@ internal object CalendarWidgetDataSource {
                 makeUpWorkday = makeUp,
                 courses = resolved.courses,
                 eventCount = events.occurrencesOn(date).size,
+                weekIndex = weekIndex,
+                courseEndWarningEnabled = userPrefs.scheduleDisplay.courseEndWarningEnabled,
             )
         }
 

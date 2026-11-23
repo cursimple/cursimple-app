@@ -54,12 +54,11 @@ data class PluginPackageLayout(
             pluginRequire(path in files, R.string.plugin_error_package_missing_ui_file, widget.entry)
         }
         manifest.home?.let { home ->
-            val path = normalizePluginPackagePath(home.entry)
-            pluginRequire(path in files, R.string.plugin_error_package_missing_ui_file, home.entry)
-            require(home.sections.isNotEmpty() && home.sections.size <= 12) { "Invalid plugin home sections" }
-            require(home.sections.map { it.id }.toSet().size == home.sections.size) { "Duplicate plugin home sections" }
-            require(home.sections.all { it.id.matches(Regex("[a-zA-Z0-9_-]{1,64}")) }) { "Invalid plugin home section ID" }
-            (listOf(home.runUrl, home.loginUrl) + home.sections.mapNotNull { it.url }).forEach { url ->
+            val entryPath = normalizePluginPackagePath(home.entry)
+            pluginRequire(entryPath in files, R.string.plugin_error_package_missing_ui_file, home.entry)
+            val pagePath = normalizePluginPackagePath(home.page)
+            pluginRequire(pagePath in files, R.string.plugin_error_package_missing_ui_file, home.page)
+            (listOf(home.runUrl, home.loginUrl)).forEach { url ->
                 val uri = java.net.URI(url)
                 require(uri.scheme == "https" && uri.rawUserInfo == null && uri.host != null) { "Invalid plugin home URL" }
                 require(manifest.allowedHosts.any { allowed ->

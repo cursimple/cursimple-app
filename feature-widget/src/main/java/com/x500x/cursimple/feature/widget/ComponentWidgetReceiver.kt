@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.SizeF
 import android.view.View
 import android.widget.RemoteViews
 import com.x500x.cursimple.core.data.widget.ComponentWidgetBindings
@@ -56,50 +57,64 @@ open class ComponentWidgetReceiver : AppWidgetProvider() {
                 val definition = if (bound != null) registry.firstOrNull { it.key == bound }
                     else (if (slot != null) registry.firstOrNull { it.key == ComponentWidgetSlots.assignedKey(context, slot) } else registry.singleOrNull())
                         ?.also { ComponentWidgetBindings.set(context, id, it.key) }
-                val views = RemoteViews(context.packageName, R.layout.widget_component)
                 val options = manager.getAppWidgetOptions(id)
-                val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 300).coerceAtLeast(1).toFloat()
-                val height = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 180).coerceAtLeast(1).toFloat()
-                val rendered = if (definition == null) null else runCatching {
-                    requireNotNull(ComponentWidgetHooks.render)(definition, width, height)
-                }.onFailure { android.util.Log.e("ComponentWidget", "Owned render failed: ${definition.key}", it) }.getOrNull()
-                val result = rendered?.takeIf {
-                    ComponentWidgetBindings.get(context, id) == definition?.key &&
-                        ComponentWidgetRegistry.read(context).any { current -> current == definition }
+                val sizes = componentWidgetSizes(options)
+                val renderedViews = sizes.associate { size ->
+                    val width = size.widthDp.toFloat()
+                    val height = size.heightDp.toFloat()
+                    SizeF(width, height) to buildViews(context, id, definition, width, height)
                 }
-                if (result == null) {
-                    views.setImageViewBitmap(R.id.component_widget_image, null)
-                    views.removeAllViews(R.id.component_widget_hits)
-                    views.setViewVisibility(R.id.component_widget_error, View.VISIBLE)
-                    views.setTextViewText(R.id.component_widget_error, context.getString(R.string.component_widget_unavailable))
-                } else {
-                    views.setViewVisibility(R.id.component_widget_error, View.GONE)
-                    views.setImageViewBitmap(R.id.component_widget_image, result.bitmap)
-                    views.setContentDescription(R.id.component_widget_image, definition!!.spec.title)
-                    views.removeAllViews(R.id.component_widget_hits)
-                    val scale = context.resources.displayMetrics.density
-                    result.hits.forEachIndexed { index, hit ->
-                        val region = RemoteViews(context.packageName, R.layout.widget_component_hit)
-                        region.setViewPadding(R.id.component_widget_hit_region, (hit.x * scale).toInt(), (hit.y * scale).toInt(),
-                            ((width - hit.x - hit.width).coerceAtLeast(0f) * scale).toInt(),
-                            ((height - hit.y - hit.height).coerceAtLeast(0f) * scale).toInt())
-                        val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            when (hit.action) {
-                                "settings" -> putExtra("com.x500x.cursimple.extra.OPEN_EXTENSION_SETTINGS", definition.componentId)
-                                "about" -> putExtra(WidgetDeepLinks.EXTRA_OPEN_COMPONENT_ABOUT, definition.componentId)
-                                else -> putExtra(WidgetDeepLinks.EXTRA_OPEN_COMPONENT_PAGE, definition.componentId)
-                            }
-                            data = Uri.parse("cursimple-widget://open/$id/$index")
-                        }
-                        if (launch != null) region.setOnClickPendingIntent(R.id.component_widget_hit_target,
-                            PendingIntent.getActivity(context, id * 16 + index, launch, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
-                        views.addView(R.id.component_widget_hits, region)
-                    }
-                }
-                manager.updateAppWidget(id, views)
+                manager.updateAppWidget(id, if (renderedViews.size == 1) renderedViews.values.single() else RemoteViews(renderedViews))
             }
             if (targets.isNotEmpty()) WidgetLifecycleRefresher.onWidgetUpdated(context, "component_widget_update")
+        }
+
+        private suspend fun buildViews(
+            context: Context,
+            appWidgetId: Int,
+            definition: com.x500x.cursimple.core.data.widget.ComponentWidgetDefinition?,
+            width: Float,
+            height: Float,
+        ): RemoteViews {
+            val views = RemoteViews(context.packageName, R.layout.widget_component)
+            val rendered = if (definition == null) null else runCatching {
+                requireNotNull(ComponentWidgetHooks.render)(definition, width, height)
+            }.onFailure { android.util.Log.e("ComponentWidget", "Owned render failed: ${definition.key}", it) }.getOrNull()
+            val result = rendered?.takeIf {
+                ComponentWidgetBindings.get(context, appWidgetId) == definition?.key &&
+                    ComponentWidgetRegistry.read(context).any { current -> current == definition }
+            }
+            if (result == null) {
+                views.setImageViewBitmap(R.id.component_widget_image, null)
+                views.removeAllViews(R.id.component_widget_hits)
+                views.setViewVisibility(R.id.component_widget_error, View.VISIBLE)
+                views.setTextViewText(R.id.component_widget_error, context.getString(R.string.component_widget_unavailable))
+                return views
+            }
+            views.setViewVisibility(R.id.component_widget_error, View.GONE)
+            views.setImageViewBitmap(R.id.component_widget_image, result.bitmap)
+            views.setContentDescription(R.id.component_widget_image, definition!!.spec.title)
+            views.removeAllViews(R.id.component_widget_hits)
+            val scale = context.resources.displayMetrics.density
+            result.hits.forEachIndexed { index, hit ->
+                val region = RemoteViews(context.packageName, R.layout.widget_component_hit)
+                region.setViewPadding(R.id.component_widget_hit_region, (hit.x * scale).toInt(), (hit.y * scale).toInt(),
+                    ((width - hit.x - hit.width).coerceAtLeast(0f) * scale).toInt(),
+                    ((height - hit.y - hit.height).coerceAtLeast(0f) * scale).toInt())
+                val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    when (hit.action) {
+                        "settings" -> putExtra("com.x500x.cursimple.extra.OPEN_EXTENSION_SETTINGS", definition.componentId)
+                        "about" -> putExtra(WidgetDeepLinks.EXTRA_OPEN_COMPONENT_ABOUT, definition.componentId)
+                        else -> putExtra(WidgetDeepLinks.EXTRA_OPEN_COMPONENT_PAGE, definition.componentId)
+                    }
+                    data = Uri.parse("cursimple-widget://open/$appWidgetId/$index")
+                }
+                if (launch != null) region.setOnClickPendingIntent(R.id.component_widget_hit_target,
+                    PendingIntent.getActivity(context, appWidgetId * 16 + index, launch, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+                views.addView(R.id.component_widget_hits, region)
+            }
+            return views
         }
     }
 }

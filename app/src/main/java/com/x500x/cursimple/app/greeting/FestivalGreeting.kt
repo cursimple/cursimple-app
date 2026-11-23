@@ -43,15 +43,19 @@ internal object FestivalGreeting {
     private const val KEY_LAST_DATE = "last_posted_date"
 
     internal val WINDOW_START: LocalTime = LocalTime.of(8, 0)
-    internal const val WINDOW_MINUTES = 180L
+    internal const val SCHEDULE_WINDOW_MINUTES = 180L
 
-    private val CATCH_UP_AFTER: LocalTime = WINDOW_START.plusMinutes(WINDOW_MINUTES)
+    internal fun canDeliverAt(time: LocalTime, catchUp: Boolean = false): Boolean {
+        val start = if (catchUp) WINDOW_START.plusMinutes(SCHEDULE_WINDOW_MINUTES) else WINDOW_START
+        return time >= start && time < LocalTime.NOON
+    }
 
+    @Synchronized
     fun postIfDue(context: Context, catchUp: Boolean = false) {
-        val app = context.applicationContext
         val now = BeijingTime.nowDateTime()
+        if (!canDeliverAt(now.toLocalTime(), catchUp)) return
+        val app = context.applicationContext
         val today = now.toLocalDate()
-        if (now.toLocalTime().isBefore(if (catchUp) CATCH_UP_AFTER else WINDOW_START)) return
         val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.getString(KEY_LAST_DATE, null) == today.toString()) return
         val greeting = greetingFor(app, today) ?: return
@@ -144,11 +148,11 @@ class FestivalGreetingWorker(
 
         fun schedule(context: Context) {
             val now = BeijingTime.nowDateTime()
-            val offset = Random.nextLong(FestivalGreeting.WINDOW_MINUTES)
+            val offset = Random.nextLong(FestivalGreeting.SCHEDULE_WINDOW_MINUTES)
             var target = LocalDateTime.of(now.toLocalDate(), FestivalGreeting.WINDOW_START).plusMinutes(offset)
             if (!target.isAfter(now)) target = target.plusDays(1)
             val request = PeriodicWorkRequestBuilder<FestivalGreetingWorker>(24, TimeUnit.HOURS)
-                .setInitialDelay(Duration.between(now, target).toMinutes(), TimeUnit.MINUTES)
+                .setInitialDelay(Duration.between(now, target).toMillis(), TimeUnit.MILLISECONDS)
                 .build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,

@@ -1,11 +1,12 @@
 name: Pages
 
+# 官网已迁到独立仓库 cursimple/cursimple.github.io（https://cursimple.github.io/）。
+# 这里只发布一个跳转页，让旧地址 https://cursimple.github.io/cursimple-app/ 的链接继续有效。
 on:
   push:
     branches:
       - main
     paths:
-      - "site/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -26,26 +27,32 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: Verify static site
+      - name: Build redirect page
         run: |
-          node --check site/i18n.js
-          node --check site/releases.js
-          node --check site/main.js
-          node --test site/tests/*.test.cjs
-          node site/check-links.cjs
+          mkdir _site
+          cat > _site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="zh-CN">
+          <head>
+          <meta charset="utf-8">
+          <title>课简 CurSimple</title>
+          <meta name="robots" content="noindex">
+          <link rel="canonical" href="https://cursimple.github.io/">
+          <meta http-equiv="refresh" content="0; url=https://cursimple.github.io/">
+          <script>location.replace('https://cursimple.github.io/' + location.search + location.hash);</script>
+          </head>
+          <body><p>官网已迁移到 <a href="https://cursimple.github.io/">https://cursimple.github.io/</a></p></body>
+          </html>
+          HTML
+          cp _site/index.html _site/404.html
 
       - name: Configure Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
-      - name: Upload site
+      - name: Upload redirect page
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
-          path: site
+          path: _site
 
       - name: Deploy
         id: deployment

@@ -7,6 +7,7 @@ import com.x500x.cursimple.core.kernel.model.memoCourseKey
 import com.x500x.cursimple.core.data.AppBackupStores
 import com.x500x.cursimple.core.data.PreferencesStoreSnapshot
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -19,8 +20,9 @@ import java.util.Locale
 /** Portable notes contain course names, never the sender's timetable identifiers. */
 @Serializable
 data class MemoTransferBundle(
-    val format: String = MemoTransferCodec.FORMAT,
-    val version: Int = 1,
+    // The envelope markers identify the payload, so they must be written even with defaults omitted.
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS) val format: String = MemoTransferCodec.FORMAT,
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS) val version: Int = 1,
     val notes: List<MemoNote>,
     val images: List<MemoTransferImage> = emptyList(),
 )
@@ -40,7 +42,8 @@ object MemoTransferCodec {
     const val MIME = "application/vnd.cursimple.notes+json"
     const val EXTENSION = "csnotes"
     const val MAX_BYTES = 8 * 1024 * 1024
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    // Defaults and nulls are implied by the model; writing them only made codes longer.
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = false; explicitNulls = false }
 
     fun encode(notes: List<MemoNote>, images: List<MemoTransferImage> = emptyList()): ByteArray {
         val portable = notes.map { it.copy(courseKey = null, sharedOriginId = it.sharedOriginId ?: it.id) }

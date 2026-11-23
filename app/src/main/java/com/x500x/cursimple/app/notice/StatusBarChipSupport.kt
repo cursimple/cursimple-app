@@ -17,9 +17,14 @@ object StatusBarChipSupport {
 
     fun level(): Level = decide(Build.VERSION.SDK_INT)
 
-    fun allowed(context: Context): Boolean = level() != Level.Unsupported && runCatching {
-        NotificationManagerCompat.from(context).canPostPromotedNotifications()
-    }.getOrDefault(false)
+    fun allowed(context: Context): Boolean = permissionState(context) == true
+
+    internal fun permissionState(context: Context): Boolean? {
+        if (level() == Level.Unsupported) return null
+        return runCatching {
+            NotificationManagerCompat.from(context).canPostPromotedNotifications()
+        }.getOrNull()
+    }
 
     /** OS capability and user permission take precedence over vendor/version guesses. */
     internal fun decide(sdk: Int): Level =
@@ -29,4 +34,10 @@ object StatusBarChipSupport {
         val clazz = Class.forName("android.os.SystemProperties")
         clazz.getMethod("get", String::class.java).invoke(null, key) as? String
     }.getOrNull()?.takeIf { it.isNotBlank() }
+}
+
+internal fun resolveIslandPermission(states: List<Boolean?>): Boolean? = when {
+    true in states -> true
+    states.isEmpty() || null in states -> null
+    else -> false
 }

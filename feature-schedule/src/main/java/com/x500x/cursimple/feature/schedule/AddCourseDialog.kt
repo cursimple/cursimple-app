@@ -62,13 +62,14 @@ fun AddCourseDialog(
     onConfirm: (CourseItem) -> Unit,
     onConfirmEvent: ((ScheduleEvent) -> Unit)? = null,
     existingCourses: List<CourseItem> = emptyList(),
-    maxNodeCount: Int = 12,
+    maxNodeCount: Int = maxOf(8, existingCourses.maxOfOrNull { it.time.endNode } ?: 0),
     maxWeekCount: Int = DEFAULT_TERM_WEEK_COUNT,
     initial: CourseItem? = null,
     slotTimes: List<ClassSlotTime> = emptyList(),
     initialScheduleType: ScheduleItemType = ScheduleItemType.Course,
     defaultDate: LocalDate? = null,
     termStartDate: LocalDate? = null,
+    onConfirmBatch: (List<CourseItem>) -> Unit = { courses -> courses.forEach(onConfirm) },
 ) {
     var scheduleType by rememberSaveable(initial, initialScheduleType) {
         mutableStateOf(if (initial != null) ScheduleItemType.Course else initialScheduleType)
@@ -79,7 +80,7 @@ fun AddCourseDialog(
     var sharedLocation by rememberSaveable { mutableStateOf(initial?.location.orEmpty()) }
 
     // Course draft state
-    var draft by remember(initial) { mutableStateOf<CourseItem?>(null) }
+    var drafts by remember(initial) { mutableStateOf(emptyList<CourseItem>()) }
 
     // Event state
     val zone = com.x500x.cursimple.feature.schedule.time.LocalAppZone.current
@@ -127,7 +128,7 @@ fun AddCourseDialog(
             ).withRepeat(eventRepeat, eventRepeatUntil, eventPickedWeeks, weekAnchor)
             onConfirmEvent?.invoke(event)
         } else {
-            draft?.let(onConfirm)
+            if (drafts.isNotEmpty()) onConfirmBatch(drafts)
         }
     }
 
@@ -169,7 +170,7 @@ fun AddCourseDialog(
                     )
                     Button(
                         onClick = ::submit,
-                        enabled = if (isEventMode) true else draft != null,
+                        enabled = isEventMode || drafts.isNotEmpty(),
                         modifier = Modifier.testTag("add-course-save"),
                     ) { Text(stringResource(R.string.schedule_action_save), maxLines = 1) }
                 }
@@ -241,9 +242,9 @@ fun AddCourseDialog(
                         maxNodeCount = maxNodeCount,
                         maxWeekCount = maxWeekCount,
                         showCategorySelector = (initial != null || onConfirmEvent == null),
-                        onDraftChange = {
-                            draft = it
-                            if (it != null) {
+                        onDraftChange = { courses ->
+                            drafts = courses
+                            courses.firstOrNull()?.let {
                                 sharedTitle = it.title
                                 sharedLocation = it.location
                             }
@@ -259,6 +260,8 @@ fun AddCourseDialog(
                             .verticalScroll(rememberScrollState())
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         slotTimes = slotTimes,
+                        termStartDate = termStartDate,
+                        defaultDate = defaultDate,
                     )
                 }
 

@@ -44,6 +44,12 @@ import com.x500x.cursimple.core.data.ClassNoticeSkin
 import com.x500x.cursimple.core.reminder.permission.AlarmSettingsIntents
 import com.x500x.cursimple.core.reminder.permission.MiuiPermissions
 import com.x500x.cursimple.core.reminder.permission.VendorRom
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material3.Icon
 
 /** Build a device-specific notification setup checklist and refresh it on resume. */
 
@@ -86,13 +92,15 @@ internal fun NotificationGuideDialog(
     }
     LaunchedEffect(preferences) { refresh() }
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        tone = AppDialogTone.Warning,
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            AppDialogPrimaryButton(onClick = onDismiss) {
                 Text(stringResource(R.string.notice_guide_close))
             }
         },
+        icon = { Icon(Icons.Rounded.NotificationsActive, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.notice_guide_title)) },
         text = {
             Column {
@@ -214,8 +222,7 @@ internal fun buildNotificationGuideSteps(
                 ),
             )
         }
-        // Show chip setup only on systems with supported focus or live-update notifications.
-        if (ClassNoticeNotifier.islandAvailable(context)) {
+        ClassNoticeNotifier.islandPermissionGranted(context)?.let { granted ->
             add(
                 NotificationGuideStep(
                     title = context.getString(R.string.notice_guide_step_island_title),
@@ -226,7 +233,7 @@ internal fun buildNotificationGuideSteps(
                             R.string.notice_guide_step_island_subtitle
                         },
                     ),
-                    isDone = !ClassNoticeNotifier.islandBlocked(context),
+                    isDone = granted,
                     onJump = {
                         context.openIslandSettings(ClassNoticeNotifier.channelIdFor(preferences))
                     },
@@ -234,12 +241,12 @@ internal fun buildNotificationGuideSteps(
             )
         }
         // Background pop-up status is queryable on supported Xiaomi devices only.
-        if (isXiaomi) {
+        MiuiPermissions.backgroundStartActivity(context)?.let { granted ->
             add(
                 NotificationGuideStep(
                     title = context.getString(R.string.notice_guide_step_popup_title),
                     subtitle = context.getString(R.string.notice_guide_step_popup_subtitle),
-                    isDone = MiuiPermissions.backgroundStartActivity(context) != false,
+                    isDone = granted,
                     onJump = {
                         context.launchFirstSetting(AlarmSettingsIntents.backgroundPopup(context))
                     },

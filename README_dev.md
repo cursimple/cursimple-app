@@ -11,8 +11,6 @@
 ```sh
 ./gradlew :app:assembleDebug
 ./gradlew testDebugUnitTest lintDebug
-node --test site/tests/*.test.cjs
-node site/check-links.cjs
 python3 -m unittest discover -s scripts/tests
 ```
 
@@ -58,7 +56,7 @@ properties 路径使用正斜杠。`scripts/load-signing-env.ps1` 可从环境�
 |---|---|
 | `android-ci.yml` | PR 和 main 分支构建、测试 |
 | `android-release.yml` | 签名包、发布信息、正式／测试版更新清单 |
-| `pages.yml` | 官网验证与部署 |
+| `pages.yml` | 旧官网地址（`/cursimple-app/`）的跳转页；官网本身在 [cursimple.github.io](https://github.com/cursimple/cursimple.github.io) 仓库 |
 
 ## 公告和日期数据
 
@@ -85,4 +83,4 @@ python3 scripts/gen_cn_calendar.py 2024 2060
 
 包体积比较使用相同构建类型与 ABI。Debug 不启用压缩，正式包使用现有 R8 代码与资源压缩；不能将两种配置的体积差当作一次清理的收益。
 
-其他说明：[官网](site/README.md)、[今日概览](docs/today-overview.md)、[假日闹钟策略](docs/holiday-alarm-policy.md)。
+其他说明：[官网（独立仓库）](https://github.com/cursimple/cursimple.github.io)、[今日概览](docs/today-overview.md)、[假日闹钟策略](docs/holiday-alarm-policy.md)。

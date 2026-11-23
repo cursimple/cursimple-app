@@ -2,6 +2,7 @@ package com.x500x.cursimple.feature.plugin.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,9 +32,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun AppSearchField(
@@ -46,39 +50,75 @@ fun AppSearchField(
     clearModifier: Modifier = Modifier,
     onSearch: () -> Unit = {},
     onClear: () -> Unit = {},
+    /** Page-level search fields use a squarer, taller field than the compact 50dp variant. */
+    cornerRadius: Dp = 25.dp,
+    minHeight: Dp = 50.dp,
+    borderWidth: Dp = 1.dp,
+    /** Page-level fields keep a small caption above the query line. */
+    label: String? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+        shape = RoundedCornerShape(cornerRadius),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            borderWidth,
+            if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+        ),
     ) {
         Row(
-            modifier = Modifier.heightIn(min = 48.dp).padding(start = 14.dp, end = 6.dp),
+            modifier = Modifier
+                .heightIn(min = minHeight)
+                .padding(start = 16.dp, end = 6.dp)
+                .then(if (label != null) Modifier.padding(vertical = 7.dp) else Modifier),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Rounded.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            BasicTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
-                modifier = Modifier.weight(1f).padding(vertical = 10.dp).then(fieldModifier).onFocusChanged { focused = it.isFocused },
-                decorationBox = { inner ->
-                    Box(contentAlignment = Alignment.CenterStart) {
-                        if (query.isEmpty()) {
-                            Text(hint, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Icon(Icons.Rounded.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                if (label != null) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 10.5.sp,
+                            lineHeight = 13.sp,
+                            letterSpacing = 0.sp,
+                        ),
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                BasicTextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (label != null) Modifier else Modifier.padding(vertical = 10.dp))
+                        .then(fieldModifier)
+                        .onFocusChanged { focused = it.isFocused },
+                    decorationBox = { inner ->
+                        Box(contentAlignment = Alignment.CenterStart) {
+                            if (query.isEmpty()) {
+                                Text(hint, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            inner()
                         }
-                        inner()
-                    }
-                },
-            )
+                    },
+                )
+            }
             if (query.isNotEmpty()) {
                 IconButton(onClick = { onQueryChange(""); onClear() }, modifier = clearModifier) {
                     Surface(

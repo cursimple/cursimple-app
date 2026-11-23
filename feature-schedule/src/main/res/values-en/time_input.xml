@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="schedule_time_select">Set time</string>
+    <string name="schedule_time_select_start">Start time</string>
+    <string name="schedule_time_select_end">End time</string>
+    <string name="schedule_time_input_hour">Hour</string>
+    <string name="schedule_time_input_minute">Minute</string>
+    <string name="schedule_time_input_range">Use 0–23 for hours and 0–59 for minutes</string>
+</resources>

@@ -71,6 +71,16 @@ import java.io.ByteArrayInputStream
 import java.security.MessageDigest
 import java.time.OffsetDateTime
 import java.util.Locale
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.rounded.CheckCircle
 
 private const val MAX_CAPTURE_SELECTOR_COUNT = 64
 private const val MAX_CAPTURE_SELECTOR_LENGTH = 2048
@@ -82,6 +92,9 @@ private const val MAX_HTML_CAPTURE_CHARS = 524288
 private const val MAX_ENTRY_SCRIPT_CHARS = 1048576
 private const val MAX_NETWORK_BODY_BYTES = 262144
 private const val MAX_PLUGIN_USER_AGENT_LENGTH = 512
+
+/** How long a manual "Upload schedule" may keep capturing before it reports failure. */
+private const val MANUAL_UPLOAD_WAIT_MS = 20_000L
 private const val DEFAULT_COMPLETION_STABLE_DELAY_MS = 1200L
 private const val MAX_COMPLETION_STABLE_DELAY_MS = 10000L
 private const val MAX_OBSERVED_SCOPES = 64
@@ -511,7 +524,8 @@ fun PluginWebSessionScreen(
 
     LaunchedEffect(request.token) {
         while (true) {
-            delay(800)
+            // Poll faster than one second so a committed draft reaches the host without a visible lag.
+            delay(300)
             val webView = foregroundWebView() ?: continue
             val target = webView.url?.toString()?.takeIf(String::isNotBlank) ?: currentUrl.value
             // Gateway hash routes can change after login without a page-load callback.
@@ -553,7 +567,8 @@ fun PluginWebSessionScreen(
     )
     LaunchedEffect(manualUploadRequested.value) {
         if (manualUploadRequested.value) {
-            delay(request.limits.timeoutMs.coerceAtLeast(5_000))
+            // A manual upload reads what is already on screen; if it cannot finish in this window, fail and let the user retry.
+            delay(minOf(request.limits.timeoutMs, MANUAL_UPLOAD_WAIT_MS).coerceAtLeast(5_000))
             if (manualUploadRequested.value && !isFinishing.value) {
                 manualUploadRequested.value = false
                 uploadStage.value = null
@@ -624,7 +639,8 @@ fun PluginWebSessionScreen(
                     .height(if (compact) 36.dp else 40.dp)
                 Button(
                     onClick = onCancel,
-                    enabled = !uploadInProgress,
+                    // Capturing can stall on the school side; the user must always be able to back out.
+                    enabled = !isFinishing.value && !switchingAccount.value,
                     modifier = buttonModifier,
                     contentPadding = buttonPadding,
                 ) {
@@ -848,12 +864,14 @@ fun PluginWebSessionScreen(
     }
 
     if (showSwitchAccountConfirm.value) {
-        androidx.compose.material3.AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { showSwitchAccountConfirm.value = false },
+            tone = AppDialogTone.Warning,
+            icon = { Icon(Icons.Rounded.AccountCircle, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.plugin_web_switch_account)) },
             text = { Text(stringResource(R.string.plugin_web_switch_account_message)) },
             confirmButton = {
-                Button(onClick = {
+                AppDialogPrimaryButton(onClick = {
                     showSwitchAccountConfirm.value = false
                     switchingAccount.value = true
                     foregroundWebView()?.apply {
@@ -887,7 +905,7 @@ fun PluginWebSessionScreen(
                 }) { Text(stringResource(R.string.plugin_web_switch_account)) }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = { showSwitchAccountConfirm.value = false }) {
+                AppDialogSecondaryButton(onClick = { showSwitchAccountConfirm.value = false }) {
                     Text(stringResource(R.string.plugin_action_cancel))
                 }
             },
@@ -895,18 +913,19 @@ fun PluginWebSessionScreen(
     }
 
     pendingCompletion.value?.takeIf { it.requiresUserConfirmation }?.let { candidate ->
-        androidx.compose.material3.AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { pendingCompletion.value = null },
+            icon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.plugin_web_ready_dialog_title)) },
             text = { Text(stringResource(R.string.plugin_web_ready_dialog_message)) },
             confirmButton = {
-                Button(onClick = {
+                AppDialogPrimaryButton(onClick = {
                     pendingCompletion.value = null
                     finishWithPacket(candidate.packet, candidate.packets)
                 }) { Text(stringResource(R.string.plugin_web_ready_dialog_confirm)) }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = { pendingCompletion.value = null }) {
+                AppDialogSecondaryButton(onClick = { pendingCompletion.value = null }) {
                     Text(stringResource(R.string.plugin_web_ready_dialog_dismiss))
                 }
             },
@@ -940,8 +959,9 @@ private fun SaveLoginCredentialDialog(
     onNever: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    androidx.compose.material3.AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Lock, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = {
             Text(
                 stringResource(
@@ -960,14 +980,14 @@ private fun SaveLoginCredentialDialog(
             }
         },
         confirmButton = {
-            Button(onClick = onSave) { Text(stringResource(R.string.plugin_web_login_save_confirm)) }
+            AppDialogPrimaryButton(onClick = onSave) { Text(stringResource(R.string.plugin_web_login_save_confirm)) }
         },
         dismissButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                androidx.compose.material3.TextButton(onClick = onNever) {
+                AppDialogSecondaryButton(onClick = onNever) {
                     Text(stringResource(R.string.plugin_web_login_save_never))
                 }
-                AppOutlinedButton(onClick = onDismiss) {
+                AppDialogSecondaryButton(onClick = onDismiss) {
                     Text(stringResource(R.string.plugin_web_login_save_dismiss))
                 }
             }
@@ -976,7 +996,7 @@ private fun SaveLoginCredentialDialog(
 }
 
 @Composable
-private fun PluginWorkingOverlay(stageLabel: String? = null) {
+internal fun PluginWorkingOverlay(stageLabel: String? = null, title: String? = null) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -999,7 +1019,7 @@ private fun PluginWorkingOverlay(stageLabel: String? = null) {
                     strokeWidth = 4.dp,
                 )
                 Text(
-                    text = stringResource(R.string.plugin_web_overlay_title),
+                    text = title ?: stringResource(R.string.plugin_web_overlay_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -1456,7 +1476,6 @@ internal fun WebView.applyPluginBrowserSettings(userAgent: String) {
     settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
     settings.mixedContentMode = pluginMixedContentMode()
     userAgent.takeIf(String::isNotBlank)?.let { settings.userAgentString = it }
-    suppressRequestedWithHeader()
     isVerticalScrollBarEnabled = true
     isHorizontalScrollBarEnabled = true
     scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
@@ -2239,7 +2258,8 @@ internal fun buildPluginRuntimeScript(
               const draft = {
                 termId: source.termId || termId || "",
                 courses,
-                updatedAt: source.updatedAt || new Date().toISOString()
+                updatedAt: source.updatedAt || new Date().toISOString(),
+                termStartDate: typeof source.termStartDate === "string" ? source.termStartDate : null
               };
               const json = JSON.stringify(draft);
               if (byteLength(json) > maxOutputBytes) {

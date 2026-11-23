@@ -72,6 +72,51 @@ class SchoolPortalCatalogTest {
     }
 
     @Test
+    fun everySchoolHasPinyinAndInitialsForTheAzShelves() {
+        entries.forEach { entry ->
+            val pinyin = entry.pinyin
+            val initials = entry.initials
+            assertTrue(entry.name, !pinyin.isNullOrBlank())
+            assertTrue(entry.name, !initials.isNullOrBlank())
+            assertTrue(entry.name, pinyin!!.all { it in 'a'..'z' || it in '0'..'9' })
+            assertTrue(entry.name, initials!!.all { it in 'a'..'z' || it in '0'..'9' })
+            assertTrue(entry.name, entry.initial == '#' || entry.initial in 'A'..'Z')
+        }
+        assertEquals("changjiangdaxue", entries.single { it.name == "长江大学" }.pinyin)
+        assertEquals("cjdx", entries.single { it.name == "长江大学" }.initials)
+        assertEquals("qinghuadaxue", entries.single { it.name == "清华大学" }.pinyin)
+    }
+
+    @Test
+    fun sortedForDisplayPutsAzShelvesFirstAndHashLast() {
+        val withoutPinyin = SchoolPortalEntry(id = "unindexed", name = "未分类学校")
+        val sorted = SchoolPortalCatalog.sortedForDisplay(listOf(withoutPinyin) + entries)
+        assertEquals(entries.size + 1, sorted.size)
+        assertEquals(sorted.sortedWith(compareBy<SchoolPortalEntry>({ it.initial == '#' }, { it.initial }, { it.sortKey })), sorted)
+        assertFalse(sorted.first().name == "长江大学")
+        assertEquals('#', sorted.last().initial)
+        assertEquals(withoutPinyin, sorted.last())
+    }
+
+    @Test
+    fun sectionsCoverEverySchoolOnceInAlphabeticalOrder() {
+        val sections = SchoolPortalCatalog.sections(entries)
+        assertEquals(entries.size, sections.sumOf { it.second.size })
+        val letters = sections.map { it.first }
+        assertEquals(letters.sortedWith(compareBy({ it == '#' }, { it })), letters)
+        assertEquals(letters.size, letters.toSet().size)
+    }
+
+    @Test
+    fun searchMatchesFullPinyinAndSyllableInitials() {
+        assertTrue(SchoolPortalCatalog.search(entries, "changjiang").any { it.name == "长江大学" })
+        assertTrue(SchoolPortalCatalog.search(entries, "cjdx").any { it.name == "长江大学" })
+        assertTrue(SchoolPortalCatalog.search(entries, "qinghua").any { it.name == "清华大学" })
+        assertTrue(SchoolPortalCatalog.search(entries, "qhd").any { it.name == "清华大学" })
+        assertTrue(SchoolPortalCatalog.search(entries, "CJDX").any { it.name == "长江大学" })
+    }
+
+    @Test
     fun openablePortalRejectsHttpIpLiteralsAndMissingHosts() {
         assertTrue(SchoolPortalCatalog.isOpenablePortal("https://jw.example.edu.cn/login"))
         assertFalse(SchoolPortalCatalog.isOpenablePortal("http://jw.example.edu.cn/login"))

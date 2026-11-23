@@ -1,6 +1,7 @@
 package com.x500x.cursimple.feature.plugin.extension
 
 import com.x500x.cursimple.feature.plugin.hardenLocalAccess
+import com.x500x.cursimple.feature.plugin.LegacySiteCompat
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -99,7 +100,20 @@ sealed interface ExtensionRunResult {
         val state: Map<String, JsonElement>,
     ) : ExtensionRunResult
 
-    data class Failed(val message: String) : ExtensionRunResult
+    data class Failed(
+        val message: String,
+        /** Structured cause, so callers never have to recognise the (localised) message text. */
+        val kind: ExtensionFailureKind = ExtensionFailureKind.Script,
+    ) : ExtensionRunResult
+}
+
+enum class ExtensionFailureKind {
+    /** The page could not be loaded: DNS, connection, TLS, or the gateway refused it. */
+    Unreachable,
+    /** The component did not finish within its time budget. */
+    Timeout,
+    /** The component script reported an error or returned unusable output. */
+    Script,
 }
 
 /**
@@ -112,11 +126,13 @@ class ExtensionRuntime(
 ) {
 
     private val appContext = context.applicationContext
+    // Only Resources is kept (not the Activity), so failure text follows the caller's language.
+    private val messages: ExtensionRunMessages = ExtensionRunMessages.from(context.resources)
 
     @SuppressLint("SetJavaScriptEnabled")
     suspend fun run(request: ExtensionRunRequest): ExtensionRunResult = withContext(Dispatchers.Main) {
         if (!ExtensionUrls.isAllowed(request.url, request.allowedHosts)) {
-            return@withContext ExtensionRunResult.Failed("入口地址不在组件声明的站点里：${request.url}")
+            return@withContext ExtensionRunResult.Failed(messages.entryNotAllowed(request.url))
         }
         val token = UUID.randomUUID().toString()
         val done = CompletableDeferred<ExtensionRunResult>()
@@ -136,8 +152,14 @@ class ExtensionRuntime(
                 request.userAgent?.let { userAgentString = it }
             }
             CookieManager.getInstance().setAcceptCookie(true)
-            webView.addJavascriptInterface(ExtensionBridge(token, request, done, webView, nativeScope, nativeFetch), BRIDGE_NAME)
+            val legacySiteCompat = if (!request.isolated && request.waitForRunUrl) {
+                LegacySiteCompat(appContext, request.allowedHosts, { request.userAgent.orEmpty() }).also { it.install(webView) }
+            } else null
+            webView.addJavascriptInterface(ExtensionBridge(token, request, done, webView, nativeScope, nativeFetch, messages), BRIDGE_NAME)
             webView.webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(view: WebView?, req: WebResourceRequest?): android.webkit.WebResourceResponse? =
+                    req?.let { legacySiteCompat?.interceptDocument(it) }
+
                 override fun shouldOverrideUrlLoading(view: WebView?, req: WebResourceRequest?): Boolean {
                     // Block navigation beyond declared hosts while the native bridge is attached.
                     return request.isolated || !ExtensionUrls.isAllowed(req?.url?.toString().orEmpty(), request.allowedHosts)
@@ -148,12 +170,15 @@ class ExtensionRuntime(
                     if (!request.isolated && !ExtensionUrls.isAllowed(url.orEmpty(), request.allowedHosts)) return
                     if (!extensionEntryPageReached(request, url.orEmpty())) return
                     injected = true
-                    view.evaluateJavascript(buildExtensionScript(request, token, useBridge = true), null)
+                    view.evaluateJavascript(buildExtensionScript(request, token, useBridge = true, messages = messages), null)
                 }
 
                 override fun onReceivedError(view: WebView?, req: WebResourceRequest?, error: WebResourceError?) {
                     if (req?.isForMainFrame == true) {
-                        done.complete(ExtensionRunResult.Failed("打不开 ${request.url}：${error?.description ?: "网络错误"}"))
+                        done.complete(ExtensionRunResult.Failed(
+                            messages.cannotOpen(request.url, error?.description?.toString()),
+                            ExtensionFailureKind.Unreachable,
+                        ))
                     }
                 }
             }
@@ -161,7 +186,7 @@ class ExtensionRuntime(
                 "<!doctype html><html><head></head><body></body></html>", "text/html", "UTF-8", null)
             else webView.loadUrl(request.url)
             withTimeoutOrNull(request.timeoutMs) { done.await() }
-                ?: ExtensionRunResult.Failed("组件运行超时（${request.timeoutMs / 1000} 秒）")
+                ?: ExtensionRunResult.Failed(messages.timeout(request.timeoutMs / 1000), ExtensionFailureKind.Timeout)
         } finally {
             nativeJob.cancel()
             runCatching {
@@ -180,31 +205,32 @@ class ExtensionRuntime(
         private val view: WebView,
         private val scope: CoroutineScope,
         private val nativeFetch: suspend (ExtensionRunRequest, JsonObject) -> JsonObject,
+        private val messages: ExtensionRunMessages,
     ) {
         @JavascriptInterface
         fun request(callToken: String?, id: String?, command: String?, payload: String?) {
             if (callToken != token || id == null || id.length > 64 || payload == null || payload.length > 128 * 1024) return
             scope.launch {
                 val response = try {
-                    check(request.isolated && request.mode == ExtensionRunMode.DeliverNotifications) { "此运行模式不支持宿主传输" }
-                    val values = extensionJson.parseToJsonElement(payload) as? JsonObject ?: error("请求格式错误")
+                    check(request.isolated && request.mode == ExtensionRunMode.DeliverNotifications) { messages.bridge(BridgeError.UnsupportedMode) }
+                    val values = extensionJson.parseToJsonElement(payload) as? JsonObject ?: error(messages.bridge(BridgeError.BadRequest))
                     val value = when (command) {
                         "network.fetch" -> nativeFetch(request, values)
                         "mail.send" -> ExtensionSmtpTransport.send(request, values)
                         "crypto.hmac" -> ExtensionNativeTransport.hmac(values)
                         "notification.receipt" -> {
-                            require(PluginPermission.NotificationReceive.id in request.permissions) { "组件未声明通知出口权限" }
-                            JsonPrimitive(request.onReceipt?.invoke(values) ?: error("通知回执不可用"))
+                            require(PluginPermission.NotificationReceive.id in request.permissions) { messages.bridge(BridgeError.ReceiptPermission) }
+                            JsonPrimitive(request.onReceipt?.invoke(values) ?: error(messages.bridge(BridgeError.ReceiptUnavailable)))
                         }
                         "notification.session" -> {
-                            require(PluginPermission.SecureStorage.id in request.permissions && PluginPermission.NotificationReceive.id in request.permissions) { "组件未声明加密会话权限" }
-                            JsonPrimitive(request.onSession?.invoke(values) ?: error("会话存储不可用"))
+                            require(PluginPermission.SecureStorage.id in request.permissions && PluginPermission.NotificationReceive.id in request.permissions) { messages.bridge(BridgeError.SessionPermission) }
+                            JsonPrimitive(request.onSession?.invoke(values) ?: error(messages.bridge(BridgeError.SessionUnavailable)))
                         }
-                        else -> error("不支持的运行时调用")
+                        else -> error(messages.bridge(BridgeError.UnsupportedCall))
                     }
                     buildJsonObject { put("ok", true); put("value", value) }
                 } catch (cancelled: CancellationException) { throw cancelled }
-                catch (failure: Exception) { buildJsonObject { put("ok", false); put("error", failure.message ?: "运行时调用失败") } }
+                catch (failure: Exception) { buildJsonObject { put("ok", false); put("error", failure.message ?: messages.bridge(BridgeError.CallFailed)) } }
                 if (!done.isCompleted) view.evaluateJavascript(
                     "window.__CurSimpleNativeReply && window.__CurSimpleNativeReply(${JsonPrimitive(id)},${componentUiJsonForScript(response.toString())});", null)
             }
@@ -212,13 +238,13 @@ class ExtensionRuntime(
         @JavascriptInterface
         fun complete(callToken: String?, payload: String?) {
             if (callToken != token) return
-            done.complete(parseExtensionPayload(payload, request.maxOutputBytes))
+            done.complete(parseExtensionPayload(payload, request.maxOutputBytes, messages))
         }
 
         @JavascriptInterface
         fun fail(callToken: String?, message: String?) {
             if (callToken != token) return
-            done.complete(ExtensionRunResult.Failed(message?.take(500)?.ifBlank { null } ?: "组件脚本出错"))
+            done.complete(ExtensionRunResult.Failed(message?.take(500)?.ifBlank { null } ?: messages.scriptError()))
         }
 
         @JavascriptInterface
@@ -249,11 +275,15 @@ internal fun extensionEntryPageReached(request: ExtensionRunRequest, url: String
 }
 
 /** Parse items independently so one malformed row cannot discard the snapshot. */
-internal fun parseExtensionPayload(payload: String?, maxOutputBytes: Int): ExtensionRunResult {
-    if (payload.isNullOrBlank()) return ExtensionRunResult.Failed("组件没有返回结果")
-    if (payload.length > maxOutputBytes) return ExtensionRunResult.Failed("组件返回的数据太大（${payload.length} 字节）")
+internal fun parseExtensionPayload(
+    payload: String?,
+    maxOutputBytes: Int,
+    messages: ExtensionRunMessages = ExtensionRunMessages.Plain,
+): ExtensionRunResult {
+    if (payload.isNullOrBlank()) return ExtensionRunResult.Failed(messages.noResult())
+    if (payload.length > maxOutputBytes) return ExtensionRunResult.Failed(messages.tooLarge(payload.length))
     val root = runCatching { extensionJson.parseToJsonElement(payload).jsonObject }.getOrNull()
-        ?: return ExtensionRunResult.Failed("组件返回的不是 JSON 对象")
+        ?: return ExtensionRunResult.Failed(messages.notJson())
     val result = root["result"] as? JsonObject ?: JsonObject(emptyMap())
     val items = (root["items"] as? JsonArray).orEmpty()
         .asSequence()
@@ -330,7 +360,12 @@ object ExtensionUrls {
  * Construct ctx and call entry code. Without [useBridge], publish results on window for host
  * polling.
  */
-internal fun buildExtensionScript(request: ExtensionRunRequest, token: String, useBridge: Boolean): String {
+internal fun buildExtensionScript(
+    request: ExtensionRunRequest,
+    token: String,
+    useBridge: Boolean,
+    messages: ExtensionRunMessages = ExtensionRunMessages.Plain,
+): String {
     val config = JsonObject(
         mapOf(
             "token" to JsonPrimitive(token),
@@ -346,6 +381,7 @@ internal fun buildExtensionScript(request: ExtensionRunRequest, token: String, u
             "permissions" to JsonArray(request.permissions.map(::JsonPrimitive)),
             "maxOutputBytes" to JsonPrimitive(request.maxOutputBytes),
             "useBridge" to JsonPrimitive(useBridge),
+            "messages" to JsonObject(messages.scriptTemplates().mapValues { JsonPrimitive(it.value) }),
         ),
     )
     return """
@@ -355,13 +391,14 @@ internal fun buildExtensionScript(request: ExtensionRunRequest, token: String, u
   window.__cursimpleExtensionToken = CONFIG.token;
   window.__cursimpleExtensionResult = null;
   var bridge = CONFIG.useBridge ? window.$BRIDGE_JS_NAME : null;
+  function say(key, value) { return String(CONFIG.messages[key]).replace("{0}", value === undefined ? "" : value); }
   var nativePending = new Map(), nativeSequence = 0;
   window.__CurSimpleNativeReply = function(id, response) {
     var pending = nativePending.get(id); if (!pending) return;
     nativePending.delete(id); response.ok ? pending.resolve(response.value) : pending.reject(new Error(response.error));
   };
   function nativeRequest(command, payload) {
-    if (!CONFIG.isolated || !bridge || !bridge.request) return Promise.reject(new Error("宿主传输不可用"));
+    if (!CONFIG.isolated || !bridge || !bridge.request) return Promise.reject(new Error(say("transportUnavailable")));
     return new Promise(function(resolve,reject) { var id = String(++nativeSequence);
       nativePending.set(id, {resolve:resolve,reject:reject}); bridge.request(CONFIG.token,id,command,JSON.stringify(payload)); });
   }
@@ -373,7 +410,7 @@ internal fun buildExtensionScript(request: ExtensionRunRequest, token: String, u
     }
   }
   function need(permission) {
-    if (CONFIG.permissions.indexOf(permission) < 0) throw new Error("组件没有声明权限：" + permission);
+    if (CONFIG.permissions.indexOf(permission) < 0) throw new Error(say("permissionMissing", permission));
   }
   function hostAllowed(url) {
     var host;
@@ -420,7 +457,7 @@ internal fun buildExtensionScript(request: ExtensionRunRequest, token: String, u
           });
         }
         need("network.fetch");
-        if (!hostAllowed(url)) return Promise.reject(new Error("不允许访问：" + url));
+        if (!hostAllowed(url)) return Promise.reject(new Error(say("accessDenied", url)));
         var options = Object.assign({ credentials: "include" }, init || {});
         return window.fetch(url, options);
       }
@@ -460,11 +497,11 @@ ${normalizeExtensionEntrySource(request.entrySource)}
       };
     })();
   } catch (error) {
-    report("fail", "组件脚本加载失败：" + (error && error.message ? error.message : String(error)));
+    report("fail", say("loadFailed", error && error.message ? error.message : String(error)));
     return;
   }
   var fn = entry[CONFIG.mode];
-  if (typeof fn !== "function") { report("fail", "组件没有导出 " + CONFIG.mode + " 函数"); return; }
+  if (typeof fn !== "function") { report("fail", say("functionMissing", CONFIG.mode)); return; }
   Promise.resolve().then(function () { return fn(ctx); }).then(function (result) {
     result = result && typeof result === "object" ? result : {};
     var all = items.slice();
@@ -472,7 +509,7 @@ ${normalizeExtensionEntrySource(request.entrySource)}
     var copy = Object.assign({}, result);
     delete copy.items;
     var payload = JSON.stringify({ result: copy, items: all, state: state });
-    if (payload.length > CONFIG.maxOutputBytes) throw new Error("组件返回的数据太大");
+    if (payload.length > CONFIG.maxOutputBytes) throw new Error(say("tooLarge"));
     report("ok", payload);
   }).catch(function (error) {
     report("fail", error && error.message ? error.message : String(error));
@@ -492,12 +529,17 @@ internal fun normalizeExtensionEntrySource(source: String): String = source
     .replace(Regex("""\bexport\s+default\s+"""), "")
     .replace(Regex("""\bexport\s+(?=(async\s+)?function\b|const\b|let\b|var\b|class\b)"""), "")
 
-internal fun parseLoginPollResult(raw: String?, maxOutputBytes: Int): ExtensionRunResult? {
+internal fun parseLoginPollResult(
+    raw: String?,
+    maxOutputBytes: Int,
+    messages: ExtensionRunMessages = ExtensionRunMessages.Plain,
+): ExtensionRunResult? {
     val text = decodeEvaluateJavascriptString(raw) ?: return null
     val obj = runCatching { extensionJson.parseToJsonElement(text).jsonObject }.getOrNull() ?: return null
     val kind = (obj["kind"] as? JsonPrimitive)?.contentOrNull
     val payload = (obj["payload"] as? JsonPrimitive)?.contentOrNull
-    return if (kind == "ok") parseExtensionPayload(payload, maxOutputBytes) else ExtensionRunResult.Failed(payload ?: "组件脚本出错")
+    return if (kind == "ok") parseExtensionPayload(payload, maxOutputBytes, messages)
+    else ExtensionRunResult.Failed(payload ?: messages.scriptError())
 }
 
 /** Unwrap evaluateJavascript's JSON-encoded string result; null remains literal null. */

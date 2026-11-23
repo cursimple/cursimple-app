@@ -61,6 +61,10 @@ import com.x500x.cursimple.core.kernel.model.coursesScheduledOn
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import java.time.LocalDate
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.SwapHoriz
 
 private val CELL_HEIGHT = 64.dp
 private val NODE_COLUMN_WIDTH = 44.dp
@@ -277,8 +281,9 @@ fun CourseSwapScreen(
             resolveScheduleDay(swap.toDate, overrides, holidayCalendar)
                 .takeIf { it.isHoliday }
         }
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { pending = null },
+            icon = { Icon(Icons.Rounded.SwapHoriz, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.schedule_swap_confirm_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -315,13 +320,13 @@ fun CourseSwapScreen(
                 }
             },
             confirmButton = {
-                AppOutlinedButton(onClick = {
+                AppDialogPrimaryButton(onClick = {
                     onMove(swap.course, swap.fromDate, swap.toDate, swap.startNode, swap.endNode)
                     pending = null
                 }) { Text(stringResource(R.string.schedule_swap_confirm_action)) }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = { pending = null }) {
+                AppDialogSecondaryButton(onClick = { pending = null }) {
                     Text(stringResource(R.string.schedule_action_cancel))
                 }
             },

@@ -655,16 +655,23 @@ object ClassNoticeNotifier {
      * Query focus or live-update permission when available; otherwise allow ordinary
      * notification fallback.
      */
-    fun islandBlocked(context: Context): Boolean {
-        val nativeAvailable = StatusBarChipSupport.level() != StatusBarChipSupport.Level.Unsupported
-        val nativeAllowed = nativeAvailable && StatusBarChipSupport.allowed(context)
-        val focusAvailable = miuiFocusProtocol(context) > 0
-        val focusAllowed = focusAvailable && runCatching {
-            context.contentResolver.call(Uri.parse("content://miui.statusbar.notification.public"), "canShowFocus", null,
-                Bundle().apply { putString("package", context.packageName) })?.getBoolean("canShowFocus", false)
-        }.getOrNull() != false
-        return (nativeAvailable || focusAvailable) && !nativeAllowed && !focusAllowed
-    }
+    fun islandBlocked(context: Context): Boolean = islandPermissionGranted(context) == false
+
+    internal fun islandPermissionGranted(context: Context): Boolean? = resolveIslandPermission(buildList {
+        if (StatusBarChipSupport.level() != StatusBarChipSupport.Level.Unsupported) {
+            add(StatusBarChipSupport.permissionState(context))
+        }
+        if (miuiFocusProtocol(context) > 0) {
+            add(runCatching {
+                context.contentResolver.call(
+                    Uri.parse("content://miui.statusbar.notification.public"),
+                    "canShowFocus",
+                    null,
+                    Bundle().apply { putString("package", context.packageName) },
+                )?.takeIf { it.containsKey("canShowFocus") }?.getBoolean("canShowFocus")
+            }.getOrNull())
+        }
+    })
 
     /** Available request protocols; system acceptance and rendering are separate. */
     fun islandAvailable(context: Context): Boolean =
@@ -755,7 +762,7 @@ object ClassNoticeNotifier {
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID_QUIET)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("明日课表预告")
+            .setContentTitle(context.getString(R.string.notice_evening_briefing_title))
             .setContentText(bodyText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(bodyText))
             .setContentIntent(openApp)
@@ -779,10 +786,10 @@ object ClassNoticeNotifier {
             Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val body = "下节课《$nextTitle》需前往【$nextLocation】，距离较远请提前出发"
+        val body = context.getString(R.string.notice_transit_body, nextTitle, nextLocation)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("赶课提醒")
+            .setContentTitle(context.getString(R.string.notice_transit_title))
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setContentIntent(openApp)
@@ -806,11 +813,11 @@ object ClassNoticeNotifier {
             Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val seatText = if (seat.isNotBlank()) " · 座位号：$seat" else ""
-        val body = "考场：$location$seatText · 距离考试还有 $minutesUntil 分钟，请带齐准考证与证件！"
+        val seatText = if (seat.isNotBlank()) context.getString(R.string.notice_exam_seat, seat) else ""
+        val body = context.getString(R.string.notice_exam_body, location, seatText, minutesUntil)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("【考试提醒】$examTitle")
+            .setContentTitle(context.getString(R.string.notice_exam_title, examTitle))
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setContentIntent(openApp)

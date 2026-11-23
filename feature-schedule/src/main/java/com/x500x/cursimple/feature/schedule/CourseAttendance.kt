@@ -7,6 +7,16 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material.icons.rounded.EventAvailable
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -66,74 +76,135 @@ internal fun CourseAttendanceSection(
     val markable = sessionDate != null && !sessionDate.isAfter(today)
     // Collapsed by default so the detail page is not crowded; the summary stays visible on the header.
     var expanded by rememberSaveable(course.id) { mutableStateOf(false) }
+    val scheme = MaterialTheme.colorScheme
     Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        shape = RoundedCornerShape(18.dp),
+        color = scheme.surface,
+        border = BorderStroke(1.dp, scheme.outlineVariant),
         modifier = Modifier.fillMaxWidth().testTag("course-attendance-section"),
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.padding(bottom = if (expanded) 12.dp else 0.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }.testTag("course-attendance-toggle"),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .clickable(role = Role.Button) { expanded = !expanded }
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
+                    .testTag("course-attendance-toggle"),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                // The title keeps its natural width; the totals take the rest, so the title never wraps per character.
+                Icon(Icons.Rounded.EventAvailable, contentDescription = null, tint = scheme.primary, modifier = Modifier.size(16.dp))
+                // The title keeps its natural width; the summary takes the rest, so the title never wraps per character.
                 Text(
                     text = stringResource(R.string.attendance_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     softWrap = false,
                 )
+                val remaining = summary.remaining
                 Text(
-                    text = stringResource(R.string.attendance_totals, summary.present, summary.absent, summary.leave),
+                    text = when {
+                        expanded && sessionDate != null -> "· " + stringResource(R.string.attendance_this_session, sessionDate.monthValue, sessionDate.dayOfMonth)
+                        remaining != null && remaining > 0 -> "· " + stringResource(R.string.attendance_remaining, remaining)
+                        else -> "· " + stringResource(R.string.attendance_totals, summary.present, summary.absent, summary.leave)
+                    },
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = scheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+                if (expanded && remaining != null) {
+                    Text(
+                        text = when {
+                            remaining > 0 -> stringResource(R.string.attendance_remaining, remaining)
+                            remaining == 0 -> stringResource(R.string.attendance_at_limit)
+                            else -> stringResource(R.string.attendance_over_limit, -remaining)
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (remaining <= 0) scheme.error else scheme.primary,
+                        maxLines = 1,
+                        modifier = Modifier.testTag("attendance-remaining"),
+                    )
+                }
                 Icon(
                     Icons.Rounded.ExpandMore,
                     contentDescription = null,
                     modifier = Modifier.size(20.dp).rotate(if (expanded) 180f else 0f),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = scheme.onSurfaceVariant,
                 )
             }
             if (expanded) {
-                if (sessionDate != null) {
-                    Text(
-                        text = stringResource(
-                            if (markable) R.string.attendance_this_session else R.string.attendance_not_yet,
-                            sessionDate.monthValue,
-                            sessionDate.dayOfMonth,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        listOf(
-                            AttendanceStatus.Present to R.string.attendance_present,
-                            AttendanceStatus.Absent to R.string.attendance_absent,
-                            AttendanceStatus.Leave to R.string.attendance_leave,
-                        ).forEach { (status, label) ->
-                            AppFilterChip(
-                                selected = current == status,
-                                enabled = markable,
-                                onClick = {
-                                    val next = if (current == status) null else status
-                                    onMark(key, requireNotNull(date), next)
-                                    if (next == AttendanceStatus.Absent && summary.allowance != null && summary.remaining!! <= 1) onLimitReached()
-                                },
-                                label = { Text(stringResource(label)) },
-                                modifier = Modifier.testTag("attendance-mark-${status.name}"),
+                Column(modifier = Modifier.padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (sessionDate != null) {
+                        if (!markable) {
+                            Text(
+                                text = stringResource(R.string.attendance_not_yet, sessionDate.monthValue, sessionDate.dayOfMonth),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = scheme.onSurfaceVariant,
                             )
                         }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(
+                                AttendanceStatus.Present to R.string.attendance_present,
+                                AttendanceStatus.Absent to R.string.attendance_absent,
+                                AttendanceStatus.Leave to R.string.attendance_leave,
+                            ).forEach { (status, label) ->
+                                AttendanceChoice(
+                                    label = stringResource(label),
+                                    selected = current == status,
+                                    enabled = markable,
+                                    modifier = Modifier.weight(1f).testTag("attendance-mark-${status.name}"),
+                                    onClick = {
+                                        val next = if (current == status) null else status
+                                        onMark(key, requireNotNull(date), next)
+                                        if (next == AttendanceStatus.Absent && summary.allowance != null && summary.remaining!! <= 1) onLimitReached()
+                                    },
+                                )
+                            }
+                        }
                     }
+                    AttendanceTotals(summary)
+                    AllowanceRow(summary, onSetAllowance = { onSetAllowance(key, it) })
                 }
-                AttendanceTotals(summary)
-                AllowanceRow(summary, onSetAllowance = { onSetAllowance(key, it) })
             }
         }
+    }
+}
+
+/** One of the three marks; the selected one is filled with the primary container and a 1.5dp primary border. */
+@Composable
+private fun AttendanceChoice(
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(14.dp)
+    Box(
+        modifier = modifier
+            .heightIn(min = 44.dp)
+            .alpha(if (enabled) 1f else 0.45f)
+            .clip(shape)
+            .background(if (selected) scheme.primaryContainer else scheme.surface)
+            .border(if (selected) 1.5.dp else 1.dp, if (selected) scheme.primary else scheme.outlineVariant, shape)
+            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = if (selected) scheme.onPrimaryContainer else scheme.onSurface,
+            maxLines = 1,
+        )
     }
 }
 
@@ -144,19 +215,6 @@ private fun AttendanceTotals(summary: AttendanceSummary) {
         style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.testTag("attendance-totals"),
     )
-    val remaining = summary.remaining
-    if (remaining != null) {
-        Text(
-            text = when {
-                remaining > 0 -> stringResource(R.string.attendance_remaining, remaining)
-                remaining == 0 -> stringResource(R.string.attendance_at_limit)
-                else -> stringResource(R.string.attendance_over_limit, -remaining)
-            },
-            style = MaterialTheme.typography.labelLarge,
-            color = if (remaining <= 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-            modifier = Modifier.testTag("attendance-remaining"),
-        )
-    }
 }
 
 @Composable

@@ -82,6 +82,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import androidx.compose.material.icons.rounded.SystemUpdate
 
 /** Image sections become full-screen highlights; text-only notes use a scrollable dialog. */
 @Composable
@@ -94,12 +97,13 @@ fun ReleaseAnnouncementDialog(
 ) {
     val announcement = remember(markdown) { buildReleaseAnnouncement(markdown) }
     if (announcement == null || announcement.highlights.isEmpty()) {
-        androidx.compose.material3.AlertDialog(
+        AppAlertDialog(
             onDismissRequest = onDismiss,
+            icon = { Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.update_announcement_title, versionName)) },
             text = { ReleaseNotesCard(markdown = markdown, maxHeight = 300.dp) },
             confirmButton = {
-                Button(onClick = onDismiss) { Text(stringResource(R.string.update_announcement_dismiss)) }
+                AppDialogPrimaryButton(onClick = onDismiss) { Text(stringResource(R.string.update_announcement_dismiss)) }
             },
         )
         return

@@ -84,11 +84,11 @@ fun ExtensionLoginScreen(
             if (current == null) {
                 val token = UUID.randomUUID().toString()
                 attempt = token to System.currentTimeMillis()
-                view.evaluateJavascript(buildExtensionScript(request, token, useBridge = false), null)
+                view.evaluateJavascript(buildExtensionScript(request, token, useBridge = false, messages = ExtensionRunMessages.from(view.resources)), null)
                 continue
             }
             view.evaluateJavascript("window.__cursimpleExtensionResult || null") { raw ->
-                val result = parseLoginPollResult(raw, request.maxOutputBytes)
+                val result = parseLoginPollResult(raw, request.maxOutputBytes, ExtensionRunMessages.from(view.resources))
                 when {
                     result == null -> {
                         if (System.currentTimeMillis() - current.second > LOGIN_ATTEMPT_TIMEOUT_MILLIS) attempt = null

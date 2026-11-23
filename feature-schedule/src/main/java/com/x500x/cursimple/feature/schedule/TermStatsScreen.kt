@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,6 +16,13 @@ import androidx.compose.foundation.background
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AccessTime
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.School
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,8 +37,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
+import java.time.DayOfWeek
 
-/** The term at a glance: totals, the week-by-week load, each course's share and attendance. */
+/** The term at a glance, with course load peaks and actionable detail. */
 @Composable
 fun TermStatsContent(stats: TermStats?, modifier: Modifier = Modifier) {
     if (stats == null) {
@@ -52,8 +61,10 @@ fun TermStatsContent(stats: TermStats?, modifier: Modifier = Modifier) {
             StatTile(stringResource(R.string.stats_left_sessions), (stats.totalSessions - stats.doneSessions).toString(), Modifier.weight(1f))
         }
 
+        StatsHighlights(stats)
+
         SectionTitle(stringResource(R.string.stats_per_week))
-        WeekBars(stats.perWeek)
+        WeekBars(stats.perWeek, stats.weekCourses)
 
         SectionTitle(stringResource(R.string.stats_by_course))
         if (stats.courses.isEmpty()) {
@@ -86,6 +97,124 @@ fun TermStatsContent(stats: TermStats?, modifier: Modifier = Modifier) {
 }
 
 @Composable
+private fun StatsHighlights(stats: TermStats) {
+    val peakWeek = stats.peakWeekIndex
+    val peakDay = stats.peakDay
+    var selected by rememberSaveable { mutableStateOf<String?>(null) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            HighlightTile(
+                icon = Icons.Rounded.AccessTime,
+                label = stringResource(R.string.stats_early_morning),
+                value = stringResource(R.string.stats_count_sessions, stats.earlyMorningSessions),
+                modifier = Modifier.weight(1f),
+                onClick = { selected = if (selected == "early") null else "early" },
+            )
+            HighlightTile(
+                icon = Icons.Rounded.Event,
+                label = stringResource(R.string.stats_evening),
+                value = stringResource(R.string.stats_count_sessions, stats.eveningSessions),
+                modifier = Modifier.weight(1f),
+                onClick = { selected = if (selected == "evening") null else "evening" },
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            HighlightTile(
+                icon = Icons.Rounded.BarChart,
+                label = stringResource(R.string.stats_peak_week),
+                value = peakWeek?.let { stringResource(R.string.stats_week_value, it + 1, stats.perWeek[it]) }
+                    ?: stringResource(R.string.stats_none),
+                modifier = Modifier.weight(1f),
+                onClick = { selected = if (selected == "week") null else "week" },
+            )
+            HighlightTile(
+                icon = Icons.Rounded.CalendarMonth,
+                label = stringResource(R.string.stats_peak_day),
+                value = peakDay?.let { stringResource(weekdayStringRes(it), stats.perDay[it.value - 1]) }
+                    ?: stringResource(R.string.stats_none),
+                modifier = Modifier.weight(1f),
+                onClick = { selected = if (selected == "day") null else "day" },
+            )
+        }
+        selected?.let { kind ->
+            val titles = when (kind) {
+                "week" -> peakWeek?.let { stats.weekCourses[it] }.orEmpty()
+                "day" -> peakDay?.let { stats.dayCourses[it.value - 1] }.orEmpty()
+                "early" -> stats.courses.map { it.title }
+                else -> stats.courses.map { it.title }
+            }
+            val title = when (kind) {
+                "week" -> stringResource(R.string.stats_peak_week_detail)
+                "day" -> stringResource(R.string.stats_peak_day_detail)
+                "early" -> stringResource(R.string.stats_early_morning_detail)
+                else -> stringResource(R.string.stats_evening_detail)
+            }
+            HighlightDetail(title, titles)
+        }
+    }
+}
+
+@Composable
+private fun HighlightTile(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(value, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HighlightDetail(title: String, titles: List<String>) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().testTag("term-stats-highlight-detail"),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            }
+            if (titles.isEmpty()) {
+                Text(stringResource(R.string.stats_no_courses), style = MaterialTheme.typography.bodySmall)
+            } else {
+                titles.forEach { titleText ->
+                    Text(titleText, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    }
+}
+
+private fun weekdayStringRes(day: DayOfWeek): Int = when (day) {
+    DayOfWeek.MONDAY -> R.string.stats_monday
+    DayOfWeek.TUESDAY -> R.string.stats_tuesday
+    DayOfWeek.WEDNESDAY -> R.string.stats_wednesday
+    DayOfWeek.THURSDAY -> R.string.stats_thursday
+    DayOfWeek.FRIDAY -> R.string.stats_friday
+    DayOfWeek.SATURDAY -> R.string.stats_saturday
+    DayOfWeek.SUNDAY -> R.string.stats_sunday
+}
+
+@Composable
 private fun StatTile(label: String, value: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
@@ -109,7 +238,7 @@ private fun SectionTitle(text: String) {
  * shows its exact count below; tapping the selected bar again clears the selection.
  */
 @Composable
-private fun WeekBars(perWeek: List<Int>) {
+private fun WeekBars(perWeek: List<Int>, perWeekCourses: List<List<String>>) {
     val peak = perWeek.maxOrNull()?.coerceAtLeast(1) ?: 1
     var selected by rememberSaveable { mutableStateOf<Int?>(null) }
     Row(
@@ -164,6 +293,14 @@ private fun WeekBars(perWeek: List<Int>) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth().testTag("term-stats-week-detail"),
         )
+        if (perWeek[index] > 0) {
+            Text(
+                text = perWeekCourses[index].joinToString("、"),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().testTag("term-stats-week-courses"),
+            )
+        }
     }
 }
 

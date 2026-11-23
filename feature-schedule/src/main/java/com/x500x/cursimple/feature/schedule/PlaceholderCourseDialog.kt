@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
 import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
@@ -33,7 +34,6 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,6 +55,10 @@ import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import java.time.LocalTime
 import java.util.Locale
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.Add
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -96,8 +100,9 @@ internal fun PlaceholderCourseDialog(
     val weeksValid = parity != WeekParity.Custom || customWeeks.isNotEmpty()
     val canSave = label.isNotBlank() && timeValid && days.isNotEmpty() && weeksValid
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = {
             Text(
                 stringResource(
@@ -116,7 +121,7 @@ internal fun PlaceholderCourseDialog(
                     onExpandedChange = { labelExpanded = it },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    OutlinedTextField(
+                    AppOutlinedTextField(
                         value = label,
                         onValueChange = { label = it.take(40) },
                         label = { Text(stringResource(R.string.schedule_placeholder_label_label)) },
@@ -212,7 +217,7 @@ internal fun PlaceholderCourseDialog(
                         )
                         if (customWeeks.isEmpty()) PlaceholderError(stringResource(R.string.schedule_week_custom_empty))
                     }
-                    OutlinedTextField(
+                    AppOutlinedTextField(
                         value = title,
                         onValueChange = { title = it.take(40) },
                         label = { Text(stringResource(R.string.schedule_placeholder_name_label)) },
@@ -224,7 +229,7 @@ internal fun PlaceholderCourseDialog(
             }
         },
         confirmButton = {
-            Button(
+            AppDialogPrimaryButton(
                 enabled = canSave,
                 onClick = {
                     onSave(
@@ -239,12 +244,13 @@ internal fun PlaceholderCourseDialog(
                 },
             ) { AppAtomicText(stringResource(R.string.schedule_action_save)) }
         },
-        dismissButton = { AppOutlinedButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.schedule_action_cancel)) } },
+        dismissButton = { AppDialogSecondaryButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.schedule_action_cancel)) } },
     )
 
     picking?.let { pick ->
         EventTimePickerDialog(
             initialMinute = if (pick == PlaceholderTimePick.Start) startMinute else endMinute,
+            titleRes = if (pick == PlaceholderTimePick.Start) R.string.schedule_time_select_start else R.string.schedule_time_select_end,
             onDismiss = { picking = null },
             onPick = { minute ->
                 if (pick == PlaceholderTimePick.Start) startMinute = minute else endMinute = minute

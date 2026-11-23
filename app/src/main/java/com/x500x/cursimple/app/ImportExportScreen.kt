@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Image
@@ -56,11 +57,12 @@ import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import com.x500x.cursimple.feature.plugin.ui.AppModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -134,10 +136,15 @@ import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.app.util.ScheduleShareDecodeException
 import com.x500x.cursimple.app.util.ScheduleShareDecodeReason
 import androidx.compose.material3.Switch
-import androidx.compose.material3.OutlinedTextField
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.foundation.layout.width
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogDangerButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import androidx.compose.material.icons.rounded.AutoAwesome
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -183,6 +190,14 @@ fun ImportExportScreen(
     var aiBusy by remember { mutableStateOf(false) }
     var icsBusy by remember { mutableStateOf(false) }
     var qrBusy by remember { mutableStateOf(false) }
+    var localBackupBusy by remember { mutableStateOf(false) }
+    var showLocalBackupSheet by rememberSaveable { mutableStateOf(false) }
+    var localBackupSelection by remember { mutableStateOf<LocalBackupSelection?>(null) }
+    var localBackupPayload by remember { mutableStateOf<AppBackupPayload?>(null) }
+    var pendingLocalBackup by remember { mutableStateOf<LocalBackupImportPreview?>(null) }
+    var showLocalExportConfirmation by remember { mutableStateOf(false) }
+    var localExportSummary by remember { mutableStateOf<List<LocalBackupExportSummary>>(emptyList()) }
+    var localBackupError by remember { mutableStateOf<String?>(null) }
     var showTextShare by rememberSaveable { mutableStateOf(false) }
     var showTextImport by rememberSaveable { mutableStateOf(false) }
     var showSharedFreeTime by rememberSaveable { mutableStateOf(false) }
@@ -210,6 +225,56 @@ fun ImportExportScreen(
         }
     }
     var aiCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val createLocalBackupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip"),
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val selection = localBackupSelection ?: return@rememberLauncherForActivityResult
+        localBackupBusy = true
+        scope.launch {
+            runCatching {
+                val payload = localBackupPayload ?: withContext(Dispatchers.IO) { onCreateAppBackup() }
+                val bytes = withContext(Dispatchers.Default) {
+                    LocalBackupArchive.encode(payload, selection.selectedStoreNames.toSet())
+                }
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+                        ?: error("backup_file_open_failed")
+                }
+            }.onSuccess {
+                showLocalBackupSheet = false
+                withContext(Dispatchers.Main.immediate) {
+                    Toast.makeText(context, context.getString(R.string.ie_local_backup_export_success), Toast.LENGTH_SHORT).show()
+                }
+            }.onFailure {
+                localBackupError = it.message ?: context.getString(R.string.ie_unknown_error)
+            }
+            localBackupBusy = false
+        }
+    }
+
+    val openLocalBackupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        localBackupBusy = true
+        scope.launch {
+            runCatching {
+                val bytes = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: error("backup_file_open_failed")
+                }
+                prepareLocalBackupImport(bytes, onCreateAppBackup)
+            }.onSuccess { preview ->
+                showLocalBackupSheet = false
+                pendingLocalBackup = preview
+            }.onFailure {
+                localBackupError = it.message ?: context.getString(R.string.ie_unknown_error)
+            }
+            localBackupBusy = false
+        }
+    }
 
     fun consumeScannedText(text: String) {
         ScheduleShareCodec.decode(text)
@@ -748,6 +813,29 @@ fun ImportExportScreen(
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 SettingsCardGroup(title = stringResource(R.string.ie_section_backup)) {
+                    ImportExportRow(
+                        icon = Icons.Rounded.Archive,
+                        title = stringResource(R.string.ie_local_backup_title),
+                        subtitle = stringResource(R.string.ie_local_backup_body),
+                        enabled = !localBackupBusy && webDavTask == null,
+                        onClick = {
+                            localBackupBusy = true
+                            scope.launch {
+                                runCatching { withContext(Dispatchers.IO) { onCreateAppBackup() } }
+                                    .onSuccess { payload ->
+                                        localBackupPayload = payload
+                                        localBackupSelection = LocalBackupSelection.all(
+                                            payload.stores.map { it.storeName },
+                                        )
+                                        showLocalBackupSheet = true
+                                    }
+                                    .onFailure {
+                                        localBackupError = it.message ?: context.getString(R.string.ie_unknown_error)
+                                    }
+                                localBackupBusy = false
+                            }
+                        },
+                    )
                     if (!webDavConfig.isComplete) {
                         ImportExportRow(
                             icon = Icons.Rounded.CloudUpload,
@@ -881,14 +969,11 @@ fun ImportExportScreen(
     if (showAiScheduleDialog) {
         var aiScheduleInput by remember { mutableStateOf("") }
         var parseError by remember { mutableStateOf<String?>(null) }
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { showAiScheduleDialog = false },
+            icon = { Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = {
-                Text(
-                    text = stringResource(R.string.ie_import_aischedule_dialog_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Text(text = stringResource(R.string.ie_import_aischedule_dialog_title))
             },
             text = {
                 Column(
@@ -943,7 +1028,7 @@ fun ImportExportScreen(
                 }
             },
             confirmButton = {
-                Button(
+                AppDialogPrimaryButton(
                     enabled = aiScheduleInput.isNotBlank(),
                     modifier = Modifier.heightIn(min = 48.dp),
                     onClick = {
@@ -963,7 +1048,7 @@ fun ImportExportScreen(
                 }
             },
             dismissButton = {
-                AppOutlinedButton(
+                AppDialogSecondaryButton(
                     onClick = { showAiScheduleDialog = false },
                     modifier = Modifier.heightIn(min = 48.dp),
                 ) {
@@ -978,20 +1063,169 @@ fun ImportExportScreen(
     }
 
     qrError?.let { message ->
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { qrError = null },
+            tone = AppDialogTone.Warning,
+            icon = { Icon(Icons.Rounded.QrCode2, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.ie_qr_error_title)) },
             text = { Text(message) },
-            confirmButton = { Button(onClick = { qrError = null; showTextShare = true }) {
+            confirmButton = { AppDialogPrimaryButton(onClick = { qrError = null; showTextShare = true }) {
                 AppAtomicText(stringResource(R.string.ie_text_share_title))
             } },
-            dismissButton = { AppOutlinedButton(onClick = { qrError = null }) { AppAtomicText(stringResource(R.string.ie_close)) } },
+            dismissButton = { AppDialogSecondaryButton(onClick = { qrError = null }) { AppAtomicText(stringResource(R.string.ie_close)) } },
+        )
+    }
+
+    if (showLocalBackupSheet && !showLocalExportConfirmation) {
+        val selection = localBackupSelection
+        if (selection != null) {
+            AppAlertDialog(
+                onDismissRequest = { if (!localBackupBusy) showLocalBackupSheet = false },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Rounded.Archive,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                    )
+                },
+                title = { Text(stringResource(R.string.ie_local_backup_title)) },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.ie_local_backup_select_body),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        selection.storeNames.forEach { storeName ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = !localBackupBusy) {
+                                        localBackupSelection = selection.toggle(storeName)
+                                    }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(
+                                    checked = storeName in selection.selectedStoreNames,
+                                    onCheckedChange = {
+                                        localBackupSelection = selection.toggle(storeName)
+                                    },
+                                    enabled = !localBackupBusy,
+                                )
+                                Text(
+                                    text = localBackupStoreLabel(storeName),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                        if (selection.selectedStoreNames.isEmpty()) {
+                            Text(
+                                text = stringResource(R.string.ie_local_backup_select_required),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Text(
+                            text = stringResource(R.string.ie_local_backup_note),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                },
+                confirmButton = {
+                    AppDialogPrimaryButton(
+                        enabled = selection.selectedStoreNames.isNotEmpty() && !localBackupBusy,
+                        onClick = {
+                            localBackupPayload?.let { payload ->
+                                localExportSummary = LocalBackupDiff.exportSummary(
+                                    payload = payload,
+                                    selectedStoreNames = selection.selectedStoreNames,
+                                )
+                                showLocalExportConfirmation = true
+                            }
+                        },
+                    ) {
+                        Text(
+                            if (localBackupBusy) stringResource(R.string.ie_local_backup_processing)
+                            else stringResource(R.string.ie_local_backup_export),
+                        )
+                    }
+                },
+                dismissButton = {
+                    AppDialogSecondaryButton(
+                        enabled = !localBackupBusy,
+                        onClick = { openLocalBackupLauncher.launch(arrayOf("application/zip", "application/octet-stream")) },
+                    ) { Text(stringResource(R.string.ie_local_backup_import)) }
+                },
+            )
+        }
+    }
+
+    if (showLocalExportConfirmation) {
+        LocalBackupExportConfirmationDialog(
+            summaries = localExportSummary,
+            busy = localBackupBusy,
+            onDismiss = { if (!localBackupBusy) showLocalExportConfirmation = false },
+            onConfirm = {
+                if (showLocalExportConfirmation && !localBackupBusy) {
+                    val fileName = "cursimple-backup-${DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now())}.zip"
+                    showLocalExportConfirmation = false
+                    createLocalBackupLauncher.launch(fileName)
+                }
+            },
+        )
+    }
+
+    localBackupError?.let { message ->
+        AppAlertDialog(
+            onDismissRequest = { localBackupError = null },
+            tone = AppDialogTone.Warning,
+            icon = { Icon(Icons.Rounded.Archive, contentDescription = null, modifier = Modifier.size(22.dp)) },
+            title = { Text(stringResource(R.string.ie_local_backup_failed_title)) },
+            text = { Text(stringResource(R.string.ie_local_backup_failed, message)) },
+            confirmButton = {
+                AppDialogPrimaryButton(onClick = { localBackupError = null }) {
+                    Text(stringResource(R.string.ie_close))
+                }
+            },
+        )
+    }
+
+    pendingLocalBackup?.let { preview ->
+        LocalBackupImportDiffDialog(
+            diff = preview.diff,
+            busy = localBackupBusy,
+            onDismiss = { if (!localBackupBusy) pendingLocalBackup = null },
+            onConfirm = {
+                if (!localBackupBusy && pendingLocalBackup === preview) {
+                    localBackupBusy = true
+                    scope.launch {
+                        val result = runCatching { withContext(Dispatchers.IO) { onRestoreAppBackup(preview.payload) } }
+                        pendingLocalBackup = null
+                        result.onSuccess {
+                            withContext(Dispatchers.Main.immediate) {
+                                Toast.makeText(context, context.getString(R.string.ie_local_backup_restore_success), Toast.LENGTH_SHORT).show()
+                            }
+                        }.onFailure {
+                            localBackupError = it.message ?: context.getString(R.string.ie_unknown_error)
+                        }
+                        localBackupBusy = false
+                    }
+                }
+            },
         )
     }
 
     pendingRestore?.let { backup ->
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { if (!webDavBusy) pendingRestore = null },
+            tone = AppDialogTone.Danger,
             icon = {
                 Icon(
                     imageVector = Icons.Rounded.CloudDownload,
@@ -1035,12 +1269,8 @@ fun ImportExportScreen(
                 }
             },
             confirmButton = {
-                Button(
+                AppDialogDangerButton(
                     enabled = !webDavBusy,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError,
-                    ),
                     onClick = { restoreRemoteBackup(backup) },
                 ) {
                     Text(
@@ -1053,7 +1283,7 @@ fun ImportExportScreen(
                 }
             },
             dismissButton = {
-                AppOutlinedButton(
+                AppDialogSecondaryButton(
                     enabled = !webDavBusy,
                     onClick = { pendingRestore = null },
                 ) { Text(stringResource(R.string.ie_cancel)) }
@@ -1073,7 +1303,7 @@ fun ImportExportScreen(
         val importedTermStart = remember(payload.termStartDate) {
             parseImportedTermStartDate(payload.termStartDate)
         }
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { if (!importing) pendingImport = null },
             icon = {
                 Icon(
@@ -1152,7 +1382,7 @@ fun ImportExportScreen(
                         }
                     }
                     if (asNewTerm) {
-                        OutlinedTextField(
+                        AppOutlinedTextField(
                             value = termNameInput,
                             onValueChange = { termNameInput = it },
                             singleLine = true,
@@ -1164,7 +1394,7 @@ fun ImportExportScreen(
                 }
             },
             confirmButton = {
-                Button(
+                AppDialogPrimaryButton(
                     enabled = !importing,
                     onClick = {
                         importing = true
@@ -1216,7 +1446,7 @@ fun ImportExportScreen(
                 }
             },
             dismissButton = {
-                AppOutlinedButton(
+                AppDialogSecondaryButton(
                     enabled = !importing,
                     onClick = { pendingImport = null },
                 ) { Text(stringResource(R.string.ie_cancel)) }
@@ -1340,6 +1570,35 @@ private fun FootnoteText(text: String) {
     )
 }
 
+@Composable
+private fun localBackupStoreLabel(storeName: String): String = when (storeName) {
+    com.x500x.cursimple.core.data.AppBackupStores.USER_PREFERENCES ->
+        stringResource(R.string.ie_local_backup_store_settings)
+    com.x500x.cursimple.core.data.AppBackupStores.SCHEDULE ->
+        stringResource(R.string.ie_local_backup_store_schedule)
+    com.x500x.cursimple.core.data.AppBackupStores.MANUAL_COURSES ->
+        stringResource(R.string.ie_local_backup_store_manual)
+    com.x500x.cursimple.core.data.AppBackupStores.COURSE_NOTES ->
+        stringResource(R.string.ie_local_backup_store_notes)
+    com.x500x.cursimple.core.data.AppBackupStores.TERM_PROFILES ->
+        stringResource(R.string.ie_local_backup_store_terms)
+    com.x500x.cursimple.core.data.AppBackupStores.WIDGET_PREFERENCES ->
+        stringResource(R.string.ie_local_backup_store_widgets)
+    com.x500x.cursimple.core.data.AppBackupStores.REMINDERS ->
+        stringResource(R.string.ie_local_backup_store_reminders)
+    com.x500x.cursimple.core.data.AppBackupStores.PLUGIN_REGISTRY ->
+        stringResource(R.string.ie_local_backup_store_plugins)
+    com.x500x.cursimple.core.data.AppBackupStores.PLUGIN_COMPONENTS ->
+        stringResource(R.string.ie_local_backup_store_components)
+    com.x500x.cursimple.core.data.AppBackupStores.SCHEDULE_EVENTS ->
+        stringResource(R.string.ie_local_backup_store_events)
+    com.x500x.cursimple.core.data.AppBackupStores.MEMOS ->
+        stringResource(R.string.ie_local_backup_store_memos)
+    com.x500x.cursimple.core.data.AppBackupStores.ATTENDANCE ->
+        stringResource(R.string.ie_local_backup_store_attendance)
+    else -> storeName
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ThirdPartyImportSheet(
@@ -1349,7 +1608,7 @@ internal fun ThirdPartyImportSheet(
     onImportAiSchedule: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    AppModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),

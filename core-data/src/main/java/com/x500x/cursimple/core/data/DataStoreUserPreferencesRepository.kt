@@ -100,6 +100,7 @@ class DataStoreUserPreferencesRepository(
                 runCatching { LocalDateTime.parse(raw) }.getOrNull()
             },
             disclaimerAccepted = prefs[KEY_DISCLAIMER_ACCEPTED] ?: false,
+            firstRunPermissionsReviewed = prefs[KEY_FIRST_RUN_PERMISSIONS_REVIEWED] ?: false,
             firstRunGuideCompleted = prefs[KEY_FIRST_RUN_GUIDE_COMPLETED] ?: false,
             // Legacy system-clock backend selections map to managed alarms because foreground-only creation cannot sustain automatic scheduling.
             alarmBackend = prefs[KEY_ALARM_BACKEND]
@@ -445,6 +446,10 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_TODAY_OVERVIEW_ENABLED] = enabled }
     }
 
+    override suspend fun setCourseEndWarningEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_COURSE_END_WARNING_ENABLED] = enabled }
+    }
+
     override suspend fun setScheduleSaturdayVisible(visible: Boolean) {
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE] = visible }
     }
@@ -530,6 +535,10 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setDisclaimerAccepted(accepted: Boolean) {
         store.edit { prefs -> prefs[KEY_DISCLAIMER_ACCEPTED] = accepted }
+    }
+
+    override suspend fun markFirstRunPermissionsReviewed() {
+        store.edit { prefs -> prefs[KEY_FIRST_RUN_PERMISSIONS_REVIEWED] = true }
     }
 
     override suspend fun setFirstRunGuideCompleted(completed: Boolean) {
@@ -805,6 +814,18 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_GRID_DASHED_LINES_ENABLED] = enabled }
     }
 
+    override suspend fun setDayViewEventsEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_DAY_EVENTS] = enabled }
+    }
+
+    override suspend fun setInactiveCourseDisplayMode(mode: InactiveCourseDisplayMode) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_INACTIVE_COURSE_MODE] = mode.name }
+    }
+
+    override suspend fun setPeriodBreakDividersEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_PERIOD_BREAK_DIVIDERS_ENABLED] = enabled }
+    }
+
     override suspend fun setTimeColumnWidthDp(widthDp: Int) {
         store.edit { prefs ->
             if (widthDp <= 0) {
@@ -1064,7 +1085,7 @@ class DataStoreUserPreferencesRepository(
             gridBorderWidthDp = ScheduleCardStylePreferences.coerceBorderWidthDp(
                 this[KEY_SCHEDULE_GRID_BORDER_WIDTH_DP] ?: ScheduleCardStylePreferences.DEFAULT_GRID_BORDER_WIDTH_DP,
             ),
-            gridBorderDashed = this[KEY_SCHEDULE_GRID_BORDER_DASHED] ?: false,
+            gridBorderDashed = this[KEY_SCHEDULE_GRID_BORDER_DASHED] ?: true,
             coursePaletteStyle = this[KEY_SCHEDULE_COURSE_PALETTE_STYLE]?.let {
                 runCatching { CoursePaletteStyle.valueOf(it) }.getOrNull()
             } ?: CoursePaletteStyle.Default,
@@ -1113,6 +1134,12 @@ class DataStoreUserPreferencesRepository(
             gridDashedLinesEnabled = this[KEY_SCHEDULE_DISPLAY_GRID_DASHED_LINES_ENABLED] ?: false,
             timeColumnWidthDp = (this[KEY_SCHEDULE_DISPLAY_TIME_COLUMN_WIDTH_DP] ?: 0)
                 .let { if (it <= 0) 0 else it.coerceIn(MIN_TIME_COLUMN_WIDTH_DP, MAX_TIME_COLUMN_WIDTH_DP) },
+            dayViewEventsEnabled = this[KEY_SCHEDULE_DISPLAY_DAY_EVENTS] ?: true,
+            inactiveCourseDisplayMode = this[KEY_SCHEDULE_DISPLAY_INACTIVE_COURSE_MODE]
+                ?.let { raw -> runCatching { InactiveCourseDisplayMode.valueOf(raw) }.getOrNull() }
+                ?: InactiveCourseDisplayMode.Dimmed,
+            periodBreakDividersEnabled = this[KEY_SCHEDULE_DISPLAY_PERIOD_BREAK_DIVIDERS_ENABLED] ?: false,
+            courseEndWarningEnabled = this[KEY_SCHEDULE_DISPLAY_COURSE_END_WARNING_ENABLED] ?: true,
         )
     }
 
@@ -1266,6 +1293,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_DISPLAY_PINCH_ZOOM_ENABLED =
             booleanPreferencesKey("schedule_display_pinch_zoom_enabled")
         val KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE = booleanPreferencesKey("schedule_display_location_visible")
+        val KEY_SCHEDULE_DISPLAY_DAY_EVENTS = booleanPreferencesKey("schedule_display_day_events")
         val KEY_SCHEDULE_DISPLAY_LOCATION_AT_PREFIX = booleanPreferencesKey("schedule_display_location_at_prefix")
         val KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED =
             booleanPreferencesKey("schedule_display_location_prefix_at_enabled")
@@ -1288,6 +1316,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_DEBUG_FORCED_DATE_EPOCH_DAY = longPreferencesKey("debug_forced_date_epoch_day")
         val KEY_DEBUG_FORCED_DATETIME = stringPreferencesKey("debug_forced_datetime")
         val KEY_DISCLAIMER_ACCEPTED = booleanPreferencesKey("disclaimer_accepted")
+        val KEY_FIRST_RUN_PERMISSIONS_REVIEWED = booleanPreferencesKey("first_run_permissions_reviewed")
         val KEY_FIRST_RUN_GUIDE_COMPLETED = booleanPreferencesKey("first_run_guide_completed")
         val KEY_ALARM_BACKEND = stringPreferencesKey("alarm_backend")
         val KEY_ALARM_RINGTONE_URI = stringPreferencesKey("alarm_ringtone_uri")
@@ -1348,6 +1377,9 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_DISPLAY_TIMELINE_INDICATOR_ENABLED = booleanPreferencesKey("schedule_display_timeline_indicator_enabled")
         val KEY_SCHEDULE_DISPLAY_GRID_DASHED_LINES_ENABLED = booleanPreferencesKey("schedule_display_grid_dashed_lines_enabled")
         val KEY_SCHEDULE_DISPLAY_TIME_COLUMN_WIDTH_DP = intPreferencesKey("schedule_display_time_column_width_dp")
+        val KEY_SCHEDULE_DISPLAY_INACTIVE_COURSE_MODE = stringPreferencesKey("schedule_display_inactive_course_mode")
+        val KEY_SCHEDULE_DISPLAY_PERIOD_BREAK_DIVIDERS_ENABLED = booleanPreferencesKey("schedule_display_period_break_dividers_enabled")
+        val KEY_SCHEDULE_DISPLAY_COURSE_END_WARNING_ENABLED = booleanPreferencesKey("schedule_display_course_end_warning_enabled")
         val KEY_CLASS_NOTICE_EVENING_BRIEFING_ENABLED = booleanPreferencesKey("class_notice_evening_briefing_enabled")
         val KEY_CLASS_NOTICE_EVENING_BRIEFING_HOUR = intPreferencesKey("class_notice_evening_briefing_hour")
         val KEY_CLASS_NOTICE_EVENING_BRIEFING_MINUTE = intPreferencesKey("class_notice_evening_briefing_minute")
@@ -1463,6 +1495,8 @@ class DataStoreUserPreferencesRepository(
             remove(KEY_SCHEDULE_DISPLAY_TIMELINE_INDICATOR_ENABLED)
             remove(KEY_SCHEDULE_DISPLAY_GRID_DASHED_LINES_ENABLED)
             remove(KEY_SCHEDULE_DISPLAY_TIME_COLUMN_WIDTH_DP)
+            remove(KEY_SCHEDULE_DISPLAY_INACTIVE_COURSE_MODE)
+            remove(KEY_SCHEDULE_DISPLAY_PERIOD_BREAK_DIVIDERS_ENABLED)
         }
 
         internal fun MutablePreferences.updateCustomCourseColor(courseKey: String, colorArgb: Long?) {

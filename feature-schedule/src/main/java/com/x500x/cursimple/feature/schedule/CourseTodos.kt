@@ -1,7 +1,16 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -15,13 +24,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,6 +54,10 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.UUID
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.Checklist
 
 /** Open to-do counts by course notebook key, provided once by the schedule screen. */
 internal val LocalPendingTodoCounts = androidx.compose.runtime.compositionLocalOf<Map<String, Int>> { emptyMap() }
@@ -75,6 +87,7 @@ internal fun newCourseTodo(course: CourseItem, title: String, due: LocalDate?, n
  * Homework and to-dos of one course inside its detail: tick them off, add a new one with a quick deadline.
  * They are ordinary notes in the course's notebook, so they also show up in Notes and on the to-do widget.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CourseTodosSection(
     course: CourseItem,
@@ -90,26 +103,66 @@ internal fun CourseTodosSection(
     val open = todos.filter { !it.completed }
     val doneCount = todos.size - open.size
     Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier.fillMaxWidth().testTag("course-todos-section"),
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.course_todos_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                )
-                if (open.isNotEmpty()) {
-                    Text(
-                        text = stringResource(R.string.course_todos_open_count, open.size),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.testTag("course-todos-count"),
+        Column(
+            modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 10.dp).padding(end = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            // Title group and Add button sit on one line while they fit; on a narrow screen or a large font the
+            // button drops to its own line (right-aligned) instead of squeezing the title or being clipped.
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    modifier = Modifier.padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(
+                        Icons.Rounded.Checklist,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
                     )
+                    Text(
+                        text = stringResource(R.string.course_todos_title),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (open.isNotEmpty()) {
+                        Text(
+                            text = "· " + stringResource(R.string.course_todos_open_count, open.size),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            modifier = Modifier.testTag("course-todos-count"),
+                        )
+                    }
+                }
+                if (!readOnly) {
+                    TextButton(
+                        onClick = { adding = true },
+                        modifier = Modifier.heightIn(min = 40.dp).testTag("course-todo-add"),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                    ) {
+                        Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Text(
+                            stringResource(R.string.course_todos_add),
+                            modifier = Modifier.padding(start = 4.dp),
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            // Never wraps inside the button: the row moves the whole button to the next line instead.
+                            softWrap = false,
+                        )
+                    }
                 }
             }
             if (open.isEmpty()) {
@@ -117,6 +170,7 @@ internal fun CourseTodosSection(
                     text = stringResource(R.string.course_todos_none),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp),
                 )
             }
             open.take(MAX_SHOWN_TODOS).forEach { todo ->
@@ -136,22 +190,17 @@ internal fun CourseTodosSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (!readOnly) {
-                AppOutlinedButton(onClick = { adding = true }, shape = CircleShape, modifier = Modifier.testTag("course-todo-add")) {
-                    Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text(stringResource(R.string.course_todos_add), modifier = Modifier.padding(start = 6.dp))
-                }
-            }
         }
     }
     pendingComplete?.let { todo ->
         val label = todo.title.ifBlank { todo.body.lineSequence().firstOrNull().orEmpty() }
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { pendingComplete = null },
+            icon = { Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.course_todo_complete_title, label)) },
             text = { Text(stringResource(R.string.course_todo_complete_body)) },
             confirmButton = {
-                Button(
+                AppDialogPrimaryButton(
                     onClick = {
                         onSave(todo.copy(completed = true, updatedAt = System.currentTimeMillis()))
                         pendingComplete = null
@@ -161,7 +210,7 @@ internal fun CourseTodosSection(
                 ) { Text(stringResource(R.string.course_todo_complete_confirm)) }
             },
             dismissButton = {
-                AppOutlinedButton(
+                AppDialogSecondaryButton(
                     onClick = { pendingComplete = null },
                     shape = CircleShape,
                     modifier = Modifier.heightIn(min = 48.dp),
@@ -187,34 +236,45 @@ private const val MAX_SHOWN_TODOS = 4
 
 @Composable
 private fun CourseTodoRow(todo: MemoNote, today: LocalDate, readOnly: Boolean, onComplete: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
     val due = todo.dueDateTime
     val overdue = due != null && due.toLocalDate().isBefore(today)
+    val markDone = stringResource(R.string.course_todos_mark_done)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .let { if (readOnly) it else it.clickable(onClick = onComplete) }
+            .heightIn(min = 44.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .let { if (readOnly) it else it.clickable(role = Role.Checkbox, onClickLabel = markDone, onClick = onComplete) }
             .testTag("course-todo-row-${todo.id}"),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(
-            imageVector = Icons.Rounded.RadioButtonUnchecked,
-            contentDescription = stringResource(R.string.course_todos_mark_done),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(22.dp),
+        // A bordered empty box reads as "tick me"; the row itself is the single touch target.
+        Box(
+            modifier = Modifier
+                .size(20.dp)
+                .border(1.5.dp, scheme.outline, RoundedCornerShape(6.dp))
+                .semantics { contentDescription = markDone },
         )
-        Column(modifier = Modifier.weight(1f).padding(vertical = 6.dp)) {
-            Text(
-                text = todo.title.ifBlank { todo.body.lineSequence().firstOrNull().orEmpty() },
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-            )
-            if (due != null) {
+        Text(
+            text = todo.title.ifBlank { todo.body.lineSequence().firstOrNull().orEmpty() },
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            modifier = Modifier.weight(1f).padding(vertical = 6.dp),
+        )
+        if (due != null) {
+            Surface(
+                shape = CircleShape,
+                color = if (overdue) scheme.errorContainer else scheme.surfaceVariant,
+            ) {
                 Text(
                     text = stringResource(R.string.course_todos_due, due.monthValue, due.dayOfMonth),
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Bold,
+                    color = if (overdue) scheme.onErrorContainer else scheme.onSurfaceVariant,
+                    maxLines = 1,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                 )
             }
         }
@@ -242,12 +302,13 @@ private fun CourseTodoDialog(
         DueChoice.NextClass -> nextClass
         DueChoice.Custom -> picked?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
     }
-    androidx.compose.material3.AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Checklist, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.course_todos_dialog_title, courseTitle)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text(stringResource(R.string.course_todos_field)) },
@@ -293,13 +354,13 @@ private fun CourseTodoDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(
+            AppDialogPrimaryButton(
                 onClick = { onConfirm(title, due) },
                 enabled = title.isNotBlank() && (choice != DueChoice.Custom || due != null),
                 modifier = Modifier.testTag("course-todo-save"),
             ) { Text(stringResource(R.string.schedule_action_save)) }
         },
-        dismissButton = { AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
+        dismissButton = { AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
     )
     if (pickingDate) {
         AlarmDatePickerDialog(

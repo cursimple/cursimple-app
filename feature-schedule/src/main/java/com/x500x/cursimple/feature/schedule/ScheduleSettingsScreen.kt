@@ -10,6 +10,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,6 +63,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
@@ -95,6 +97,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.School
 
 @Composable
 fun ScheduleSettingsRoute(
@@ -763,8 +769,9 @@ private fun ExamReminderRow(
         )
     }
     if (showConfirm) {
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { showConfirm = false },
+            icon = { Icon(Icons.Rounded.School, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.schedule_exam_confirm_title)) },
             text = {
                 Text(
@@ -779,12 +786,12 @@ private fun ExamReminderRow(
                 )
             },
             confirmButton = {
-                Button(onClick = {
+                AppDialogPrimaryButton(onClick = {
                     onSave(true, EXAM_ADVANCE_MINUTES, null)
                     showConfirm = false
                 }) { Text(stringResource(R.string.schedule_exam_confirm_ok)) }
             },
-            dismissButton = { AppOutlinedButton(onClick = { showConfirm = false }) { Text(stringResource(R.string.schedule_action_cancel)) } },
+            dismissButton = { AppDialogSecondaryButton(onClick = { showConfirm = false }) { Text(stringResource(R.string.schedule_action_cancel)) } },
         )
     }
 }
@@ -975,9 +982,23 @@ private fun ReminderSection(
                 .semantics { heading() },
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            // Same green section label as the rest of settings.
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 13.sp,
+                    letterSpacing = 0.4.sp,
+                    lineHeight = 18.sp,
+                ),
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+            )
             description?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 17.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
         content()
@@ -995,12 +1016,16 @@ private fun SubsectionLabel(title: String, description: String?) {
         // Neutral color: green text reads as a link next to the section's tappable rows.
         Text(
             title,
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp, lineHeight = 18.sp, letterSpacing = 0.sp),
             color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
         )
         description?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 16.5.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -1012,8 +1037,9 @@ private fun ReminderRowCard(
     trailing: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val shape = RoundedCornerShape(16.dp)
-    val color = MaterialTheme.colorScheme.surfaceVariant
+    val shape = RoundedCornerShape(22.dp)
+    val color = MaterialTheme.colorScheme.surface
+    val border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     val body: @Composable () -> Unit = {
         Row(
             modifier = Modifier.padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
@@ -1029,22 +1055,32 @@ private fun ReminderRowCard(
         }
     }
     if (onClick != null) {
-        Surface(onClick = onClick, modifier = Modifier.fillMaxWidth(), shape = shape, color = color) { body() }
+        Surface(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth(),
+            shape = shape,
+            color = color,
+            border = border,
+        ) { body() }
     } else {
-        Surface(modifier = Modifier.fillMaxWidth(), shape = shape, color = color) { body() }
+        Surface(modifier = Modifier.fillMaxWidth(), shape = shape, color = color, border = border) { body() }
     }
 }
 
 @Composable
 private fun RowTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+    Text(
+        text,
+        style = MaterialTheme.typography.titleSmall.copy(lineHeight = 18.sp, letterSpacing = 0.sp),
+        fontWeight = FontWeight.Bold,
+    )
 }
 
 @Composable
 private fun RowSupporting(text: String, maxLines: Int = Int.MAX_VALUE) {
     Text(
         text = text,
-        style = MaterialTheme.typography.bodySmall,
+        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 16.5.sp),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = maxLines,
     )
@@ -1064,13 +1100,13 @@ private fun RowStatus(text: String, error: Boolean = false) {
 private fun EmptyHint(text: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
     ) {
         Text(
             text = text,
-            modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 17.sp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
@@ -1118,8 +1154,9 @@ fun ReminderExpandableSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics { stateDescription = state },
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {
             Row(
                 modifier = Modifier
@@ -1129,12 +1166,8 @@ fun ReminderExpandableSection(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        summary,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    RowTitle(title)
+                    RowSupporting(summary)
                 }
                 Icon(
                     imageVector = Icons.Rounded.ExpandMore,

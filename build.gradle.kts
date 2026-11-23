@@ -18,6 +18,7 @@ buildscript {
                 requested.group == "org.apache.commons" && requested.name == "commons-compress" -> "1.28.0"
                 requested.group == "org.bitbucket.b_c" && requested.name == "jose4j" -> "0.9.7"
                 requested.group == "org.jdom" && requested.name == "jdom2" -> "2.0.6.1"
+                requested.group == "com.google.guava" && requested.name == "guava" -> "33.7.2-jre"
                 else -> null
             }
             if (fixedVersion != null) {
@@ -34,5 +35,17 @@ plugins {
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.kotlin.serialization) apply false
+}
+
+// Media3 and CameraX pull older Guava; GHSA-xxph-c9ww-hj94 (CVE-2026-102554) is fixed in 33.7.2.
+allprojects {
+    configurations.configureEach {
+        resolutionStrategy.eachDependency {
+            if (requested.group == "com.google.guava" && requested.name == "guava") {
+                useVersion("33.7.2-android")
+                because("GHSA-xxph-c9ww-hj94: Guava deserialization memory exhaustion fixed in 33.7.2")
+            }
+        }
+    }
 }
 

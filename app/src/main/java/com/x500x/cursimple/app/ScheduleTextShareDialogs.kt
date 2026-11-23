@@ -26,6 +26,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.rounded.Upload
 
 @Composable
 internal fun ScheduleTextShareDialog(payload: ScheduleSharePayload, onDismiss: () -> Unit) {
@@ -38,7 +46,8 @@ internal fun ScheduleTextShareDialog(payload: ScheduleSharePayload, onDismiss: (
         catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { error = context.getString(R.string.ie_export_failed_retry) }
     }
-    AlertDialog(onDismissRequest = onDismiss,
+    AppAlertDialog(onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.ie_text_share_title)) },
         text = {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -51,7 +60,7 @@ internal fun ScheduleTextShareDialog(payload: ScheduleSharePayload, onDismiss: (
                         onValueChange = {}, readOnly = true, minLines = 2, maxLines = 4,
                         textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                         modifier = Modifier.fillMaxWidth().testTag("schedule-share-code"))
-                    Button(onClick = {
+                    AppDialogPrimaryButton(onClick = {
                         runCatching {
                             (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
                                 .setPrimaryClip(ClipData.newPlainText(context.getString(R.string.ie_text_share_title), value))
@@ -72,7 +81,7 @@ internal fun ScheduleTextShareDialog(payload: ScheduleSharePayload, onDismiss: (
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
-        confirmButton = { AppOutlinedButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.ie_close)) } },
+        confirmButton = { AppDialogPrimaryButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.ie_close)) } },
     )
 }
 
@@ -83,7 +92,8 @@ internal fun ScheduleTextImportDialog(onDecoded: (ScheduleSharePayload) -> Unit,
     var input by rememberSaveable { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    AlertDialog(onDismissRequest = { if (!busy) onDismiss() },
+    AppAlertDialog(onDismissRequest = { if (!busy) onDismiss() },
+        icon = { Icon(Icons.Rounded.Upload, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.ie_text_import_title)) },
         text = {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -105,7 +115,7 @@ internal fun ScheduleTextImportDialog(onDecoded: (ScheduleSharePayload) -> Unit,
             }
         },
         confirmButton = {
-            Button(onClick = {
+            AppDialogPrimaryButton(onClick = {
                 busy = true; error = null
                 scope.launch {
                     val result = withContext(Dispatchers.Default) { ScheduleShareCodec.decode(input) }
@@ -116,6 +126,6 @@ internal fun ScheduleTextImportDialog(onDecoded: (ScheduleSharePayload) -> Unit,
                 AppAtomicText(stringResource(if (busy) R.string.ie_processing else R.string.ie_text_read))
             }
         },
-        dismissButton = { AppOutlinedButton(onClick = onDismiss, enabled = !busy) { AppAtomicText(stringResource(R.string.ie_cancel)) } },
+        dismissButton = { AppDialogSecondaryButton(onClick = onDismiss, enabled = !busy) { AppAtomicText(stringResource(R.string.ie_cancel)) } },
     )
 }

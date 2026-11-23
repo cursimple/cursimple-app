@@ -58,16 +58,16 @@ enum class VendorRom {
     }
 }
 
-/**
- * Vendor AppOps checks return null when unavailable; treat that as unknown and ask for manual
- * confirmation.
- */
+/** Read explicit decisions from MIUI AppOps where the system exposes them. */
 object MiuiPermissions {
     private const val OP_AUTO_START = 10008
+    private const val OP_INSTALL_SHORTCUT = 10017
     private const val OP_SHOW_WHEN_LOCKED = 10020
     private const val OP_BACKGROUND_START_ACTIVITY = 10021
 
     fun autoStart(context: Context): Boolean? = checkOp(context, OP_AUTO_START)
+
+    fun installShortcut(context: Context): Boolean? = checkOp(context, OP_INSTALL_SHORTCUT)
 
     fun backgroundStartActivity(context: Context): Boolean? = checkOp(context, OP_BACKGROUND_START_ACTIVITY)
 
@@ -84,7 +84,13 @@ object MiuiPermissions {
                 String::class.java,
             )
             val mode = method.invoke(manager, op, Process.myUid(), context.packageName) as Int
-            mode == AppOpsManager.MODE_ALLOWED
+            miuiPermissionFromMode(mode)
         }.getOrNull()
     }
+}
+
+internal fun miuiPermissionFromMode(mode: Int): Boolean? = when (mode) {
+    AppOpsManager.MODE_ALLOWED -> true
+    AppOpsManager.MODE_IGNORED, AppOpsManager.MODE_ERRORED -> false
+    else -> null
 }

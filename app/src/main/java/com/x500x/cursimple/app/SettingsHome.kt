@@ -22,6 +22,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -72,15 +73,16 @@ internal fun SettingsQuickTile(
     tile: SettingsQuickTileSpec,
     modifier: Modifier = Modifier,
     valueMaxLines: Int = 1,
-    color: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surfaceVariant,
+    color: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surface,
+    border: BorderStroke? = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
 ) {
     val press = remember { MutableInteractionSource() }
     Surface(
         interactionSource = press,
         onClick = tile.onClick,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(22.dp),
         color = color,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        border = border,
         modifier = modifier.pressFeedback(press),
     ) {
         Column(
@@ -88,8 +90,8 @@ internal fun SettingsQuickTile(
         ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(17.dp))
                     .background(
                         if (tile.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
                     ),
@@ -98,22 +100,22 @@ internal fun SettingsQuickTile(
                 Icon(
                     imageVector = tile.icon,
                     contentDescription = null,
-                    tint = if (tile.active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(20.dp),
+                    tint = if (tile.active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(19.dp),
                 )
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 text = tile.title,
                 style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 minLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = tile.value,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Normal),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = valueMaxLines,
                 overflow = TextOverflow.Ellipsis,
@@ -149,8 +151,8 @@ internal fun SettingsHomeLayoutToggle(layout: SettingsHomeLayout, onToggle: () -
             onToggle()
         },
         shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier.size(48.dp),
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -169,14 +171,15 @@ internal fun SettingsHomeLayoutToggle(layout: SettingsHomeLayout, onToggle: () -
 /** Render [SettingsActionRow] as a tile for [SettingsTileGrid]. */
 internal val LocalSettingsRowAsTile = staticCompositionLocalOf { false }
 
-/** Equal-height rows of [SETTINGS_GRID_COLUMNS]; zero-height entries take no space. */
+/** Equal-height rows of [SETTINGS_GRID_COLUMNS], two per row at large text scales; zero-height entries take no space. */
 @Composable
 internal fun SettingsTileGrid(content: @Composable () -> Unit) {
     val density = LocalDensity.current
     val gap = with(density) { 8.dp.roundToPx() }
+    val largeText = density.fontScale > LARGE_TEXT_FONT_SCALE
     CompositionLocalProvider(LocalSettingsRowAsTile provides true) {
         Layout(content = content) { measurables, constraints ->
-            val columns = SETTINGS_GRID_COLUMNS
+            val columns = settingsTileColumns(constraints.maxWidth, gap, SETTINGS_GRID_COLUMNS, largeText)
             val cellWidth = ((constraints.maxWidth - gap * (columns - 1)) / columns).coerceAtLeast(0)
             val shown = measurables.filter { it.minIntrinsicHeight(cellWidth) > 0 }
             val rows = shown.chunked(columns)
@@ -199,6 +202,25 @@ internal fun SettingsTileGrid(content: @Composable () -> Unit) {
 }
 
 private const val SETTINGS_GRID_COLUMNS = 3
+
+/** Narrower tiles than this break the longer titles mid-word ("Timetabl / e"). */
+private val SETTINGS_TILE_MIN_CELL_WIDTH = 90.dp
+
+/**
+ * Tiles per row: large text or a narrow screen needs wider tiles, and two columns keep every title
+ * whole where three would split a word.
+ */
+internal fun Density.settingsTileColumns(
+    availableWidthPx: Int,
+    gapPx: Int,
+    maxColumns: Int,
+    largeText: Boolean,
+): Int {
+    if (maxColumns < 3) return maxColumns
+    if (largeText) return 2
+    val cellWidth = (availableWidthPx - gapPx * (maxColumns - 1)) / maxColumns
+    return if (cellWidth < SETTINGS_TILE_MIN_CELL_WIDTH.roundToPx()) 2 else maxColumns
+}
 
 /** Searchable setting with a navigation [path] and related [keywords]. */
 internal data class SettingsSearchEntry(

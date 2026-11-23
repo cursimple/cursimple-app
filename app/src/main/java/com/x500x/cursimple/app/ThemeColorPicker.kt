@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -27,7 +28,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,6 +52,12 @@ import com.x500x.cursimple.R
 import com.x500x.cursimple.app.theme.appColorScheme
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material3.Icon
 
 /** Opaque theme-color picker with HSV, presets, RGB input and derived palette preview. */
 @OptIn(ExperimentalLayoutApi::class)
@@ -95,8 +101,9 @@ internal fun ThemeColorPickerDialog(
         hexText = formatRgbHex(color)
     }
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Palette, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.theme_color_picker_title)) },
         text = {
             Column(
@@ -149,7 +156,7 @@ internal fun ThemeColorPickerDialog(
                         )
                     }
                 }
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = hexText,
                     onValueChange = { input ->
                         hexText = input
@@ -171,7 +178,7 @@ internal fun ThemeColorPickerDialog(
                         Triple("G", greenText) { text: String -> greenText = text },
                         Triple("B", blueText) { text: String -> blueText = text },
                     ).forEach { (label, text, setText) ->
-                        OutlinedTextField(
+                        AppOutlinedTextField(
                             value = text,
                             onValueChange = { input ->
                                 setText(input.filter(Char::isDigit).take(3))
@@ -188,10 +195,10 @@ internal fun ThemeColorPickerDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(argb) }) { Text(stringResource(R.string.settings_apply)) }
+            AppDialogPrimaryButton(onClick = { onConfirm(argb) }) { Text(stringResource(R.string.settings_apply)) }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }

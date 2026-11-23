@@ -29,6 +29,9 @@ internal object WidgetBoundaryRefreshScheduler {
             now = now,
             limit = SLOT_COUNT,
             eventSpans = widgetEventSpans(events, now.toLocalDate()),
+            includeCapsuleWarning = WidgetCatalog.entries(app)
+                .firstOrNull { it.id == CourseCapsuleWidgetReceiver.CATALOG_ID }
+                ?.let { WidgetCatalog.installedCount(app, it) > 0 } == true,
         )
         // Cancel unused boundary slots after the schedule shrinks.
         for (index in boundaries.size until SLOT_COUNT) {

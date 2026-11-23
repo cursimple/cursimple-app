@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import androidx.activity.compose.BackHandler
 import com.x500x.cursimple.feature.plugin.ui.AppMotion
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.ui.platform.testTag
@@ -14,13 +15,11 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +30,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -39,28 +40,32 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Place
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.ClearAll
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,15 +79,21 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.ScheduleEvent
 import com.x500x.cursimple.core.kernel.model.weekdayNameRes
+import com.x500x.cursimple.feature.plugin.ui.AppAssistChip
 import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
@@ -91,19 +102,29 @@ import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import com.x500x.cursimple.feature.plugin.ui.AppSearchField
 import com.x500x.cursimple.feature.plugin.ui.appItemMotion
 import com.x500x.cursimple.feature.plugin.ui.pressFeedback
+import com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents
 import com.x500x.cursimple.feature.schedule.time.LocalAppZone
 import com.x500x.cursimple.feature.schedule.time.today
 import java.time.LocalDate
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogDangerButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import androidx.compose.material.icons.rounded.OpenWith
 
 private const val COMPACT_HEADER_MAX_HEIGHT_DP = 500
+
+internal fun libraryTabMovesForward(initial: LibraryTab, target: LibraryTab): Boolean =
+    target == LibraryTab.Events && initial == LibraryTab.Courses
 
 /** Searchable term-wide course list with reversible manual overrides for plugin courses. */
 @Composable
 internal fun CourseLibraryScreen(
     entries: List<CourseLibraryEntry>,
     columnDayOfWeeks: List<Int>,
-    onAddCourse: (CourseItem) -> Unit,
+    onAddCourses: (List<CourseItem>) -> Unit,
     onUpdateCourse: (CourseItem) -> Unit,
     onRemoveCourse: (String) -> Unit,
     maxNodeCount: Int,
@@ -114,15 +135,30 @@ internal fun CourseLibraryScreen(
     hiddenCourses: List<CourseItem> = emptyList(),
     onRestoreCourse: (String) -> Unit = {},
     onPurgeCourse: (String) -> Unit = {},
+    /** Courses deleted by hand and kept for restore. */
+    deletedCourses: List<com.x500x.cursimple.core.data.DeletedCourse> = emptyList(),
+    onRestoreDeleted: (String) -> Unit = {},
+    onClearRecycleBin: () -> Unit = {},
     onSetReminder: (CourseItem) -> Unit = {},
     events: List<ScheduleEvent> = emptyList(),
     onSaveEvent: (ScheduleEvent) -> Unit = {},
     onRemoveEvent: (String) -> Unit = {},
+    onRemoveCourses: (Set<String>) -> Unit,
+    onRemoveEvents: (Set<String>) -> Unit,
+    onReorderEvents: (List<String>) -> Unit,
+    eventCustomOrder: Boolean,
+    eventOrderSaving: Boolean,
+    libraryTermId: String,
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     val haptics = rememberAppHaptics()
     var tab by rememberSaveable { mutableStateOf(LibraryTab.Courses) }
+    var selection by remember(libraryTermId) { mutableStateOf(emptySet<String>()) }
+    var batchDelete by remember(libraryTermId) { mutableStateOf<Set<String>?>(null) }
+    var selectedEventSourceNames by rememberSaveable(libraryTermId) {
+        mutableStateOf(EventSourceKind.entries.map { it.name })
+    }
     var eventEditing by remember { mutableStateOf<ScheduleEvent?>(null) }
     var addingEvent by remember { mutableStateOf(false) }
     val appZone = LocalAppZone.current
@@ -145,7 +181,21 @@ internal fun CourseLibraryScreen(
             maxWeekCount = maxWeekCount,
         )
     }
-    val matchedEvents = remember(events, query) { events.filter { matchesEventQuery(it, query) } }
+    val orderedEvents = remember(events, today, eventCustomOrder) {
+        if (eventCustomOrder) events else chronologicalLibraryEvents(events, today)
+    }
+    val showEventSourceFilters = remember(events) {
+        events.any { it.eventSourceKind() == EventSourceKind.Plugin }
+    }
+    val selectedEventSources = remember(selectedEventSourceNames) {
+        selectedEventSourceNames.mapNotNull { name -> EventSourceKind.entries.firstOrNull { it.name == name } }.toSet()
+    }
+    val sourceMatchedEvents = remember(orderedEvents, selectedEventSources, showEventSourceFilters) {
+        if (showEventSourceFilters) filterLibraryEvents(orderedEvents, selectedEventSources) else orderedEvents
+    }
+    val matchedEvents = remember(sourceMatchedEvents, query) {
+        sourceMatchedEvents.filter { matchesEventQuery(it, query) }
+    }
     var sortMode by rememberSaveable { mutableStateOf(CourseSortMode.ByWeekday) }
     var editing by remember { mutableStateOf<CourseItem?>(null) }
     var adding by remember { mutableStateOf(false) }
@@ -155,18 +205,74 @@ internal fun CourseLibraryScreen(
     var pendingMove by remember { mutableStateOf<Pair<CourseItem, CourseTimeSlot>?>(null) }
     var showHidden by rememberSaveable { mutableStateOf(false) }
     var pendingPurge by remember { mutableStateOf<CourseItem?>(null) }
+    var showBin by remember { mutableStateOf(false) }
+    var pendingBinRestore by remember { mutableStateOf<Pair<String, CourseItem>?>(null) }
+    var pendingClearBin by remember { mutableStateOf(false) }
+    var binDetail by remember { mutableStateOf<Pair<String, CourseItem>?>(null) }
 
     val allCourses = remember(entries) { entries.map { it.course } }
     val matched = remember(entries, query, sortMode) {
         sortCourseLibrary(entries.filter { matchesCourseQuery(it.course, query) }, sortMode)
+    }
+    val matchingIds = remember(tab, matched, matchedEvents) {
+        if (tab == LibraryTab.Courses) matched.mapTo(hashSetOf()) { it.course.id }
+        else matchedEvents.mapTo(hashSetOf()) { it.id }
+    }
+    val selectedIds = selection.intersect(matchingIds)
+    val selecting = selectedIds.isNotEmpty()
+    LaunchedEffect(matchingIds) { selection = selection.intersect(matchingIds) }
+
+    // Register on entry so this handler takes precedence over the host page's Back action.
+    if (selecting) {
+        BackHandler { selection = emptySet() }
+    }
+    val toggleSelection = { ids: Set<String> ->
+        selection = if (selectedIds.containsAll(ids)) selectedIds - ids else selectedIds + ids
+    }
+    batchDelete?.let { ids ->
+        val courses = tab == LibraryTab.Courses
+        AppAlertDialog(
+            onDismissRequest = { batchDelete = null },
+            tone = AppDialogTone.Danger,
+            icon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null, modifier = Modifier.size(22.dp)) },
+            title = { Text(stringResource(R.string.library_management_delete_selected)) },
+            text = {
+                Text(
+                    pluralStringResource(
+                        if (courses) R.plurals.library_management_delete_courses else R.plurals.library_management_delete_events,
+                        ids.size,
+                        ids.size,
+                    ),
+                )
+            },
+            confirmButton = {
+                AppDialogDangerButton(
+                    modifier = Modifier.testTag("library-confirm-delete"),
+                    onClick = {
+                        if (courses) onRemoveCourses(ids) else onRemoveEvents(ids)
+                        batchDelete = null
+                        selection = emptySet()
+                    },
+                ) { Text(stringResource(R.string.schedule_action_delete)) }
+            },
+            dismissButton = {
+                AppDialogSecondaryButton(
+                    onClick = { batchDelete = null },
+                    modifier = Modifier.testTag("library-cancel-delete"),
+                ) {
+                    Text(stringResource(R.string.schedule_action_cancel))
+                }
+            },
+        )
     }
 
     if (adding || editing != null) {
         val initial = editing
         AddCourseDialog(
             onDismiss = { adding = false; editing = null },
-            onConfirm = { course ->
-                if (initial == null) onAddCourse(course) else onUpdateCourse(course)
+            onConfirm = onUpdateCourse,
+            onConfirmBatch = { courses ->
+                if (initial == null) onAddCourses(courses) else onUpdateCourse(courses.single())
                 adding = false
                 editing = null
             },
@@ -185,18 +291,20 @@ internal fun CourseLibraryScreen(
     }
 
     pendingDelete?.let { target ->
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { pendingDelete = null },
+            tone = AppDialogTone.Danger,
+            icon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.schedule_library_delete_title)) },
             text = { Text(stringResource(R.string.schedule_library_delete_body, target.course.title)) },
             confirmButton = {
-                AppOutlinedButton(onClick = {
+                AppDialogDangerButton(onClick = {
                     onRemoveCourse(target.course.id)
                     pendingDelete = null
                 }) { Text(stringResource(R.string.schedule_library_delete_confirm)) }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = { pendingDelete = null }) {
+                AppDialogSecondaryButton(onClick = { pendingDelete = null }) {
                     Text(stringResource(R.string.schedule_library_delete_cancel))
                 }
             },
@@ -205,43 +313,149 @@ internal fun CourseLibraryScreen(
 
     // Removing a manual override reveals the plugin original; label this as restoration.
     pendingRestore?.let { target ->
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { pendingRestore = null },
+            icon = { Icon(Icons.Rounded.Restore, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.schedule_library_restore_title)) },
             text = { Text(stringResource(R.string.schedule_library_restore_body, target.course.title)) },
             confirmButton = {
-                AppOutlinedButton(onClick = {
+                AppDialogPrimaryButton(onClick = {
                     onRemoveCourse(target.course.id)
                     pendingRestore = null
                 }) { Text(stringResource(R.string.schedule_library_restore_confirm)) }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = { pendingRestore = null }) {
+                AppDialogSecondaryButton(onClick = { pendingRestore = null }) {
                     Text(stringResource(R.string.schedule_library_delete_cancel))
                 }
             },
         )
     }
 
+    if (showBin) {
+        val binCount = deletedCourses.size + hiddenCourses.size
+        AppAlertDialog(
+            onDismissRequest = { showBin = false },
+            icon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null, modifier = Modifier.size(22.dp)) },
+            title = { Text(stringResource(R.string.schedule_library_bin_title, binCount)) },
+            text = {
+                Column(
+                    modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (binCount == 0) {
+                        Text(stringResource(R.string.schedule_library_bin_empty), style = MaterialTheme.typography.bodyMedium)
+                    }
+                    deletedCourses.forEach { deleted ->
+                        BinRow(
+                            course = deleted.course,
+                            onOpen = { binDetail = "deleted" to deleted.course },
+                            onRestore = { pendingBinRestore = "deleted" to deleted.course },
+                        )
+                    }
+                    hiddenCourses.forEach { course ->
+                        BinRow(
+                            course = course,
+                            onOpen = { binDetail = "hidden" to course },
+                            onRestore = { pendingBinRestore = "hidden" to course },
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                AppDialogPrimaryButton(onClick = { showBin = false }) { Text(stringResource(R.string.schedule_action_close)) }
+            },
+            dismissButton = if (binCount > 0) {
+                {
+                    AppDialogSecondaryButton(onClick = { pendingClearBin = true }) {
+                        Text(stringResource(R.string.schedule_library_bin_clear))
+                    }
+                }
+            } else null,
+        )
+    }
+
+    binDetail?.let { (_, course) ->
+        AppAlertDialog(
+            onDismissRequest = { binDetail = null },
+            icon = { Icon(Icons.Rounded.Info, contentDescription = null, modifier = Modifier.size(22.dp)) },
+            title = { Text(course.title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(stringResource(R.string.schedule_library_bin_detail_weekday, binWeekdayText(course)))
+                    Text(stringResource(R.string.schedule_library_bin_detail_period_line, binPeriodText(course)))
+                    binClockText(course)?.let { clock ->
+                        Text(stringResource(R.string.schedule_library_bin_detail_clock, clock))
+                    }
+                    Text(stringResource(R.string.schedule_library_bin_detail_weeks, binWeeksText(course)))
+                    if (course.location.isNotBlank()) {
+                        Text(stringResource(R.string.schedule_library_bin_detail_location, course.location))
+                    }
+                    if (course.teacher.isNotBlank()) {
+                        Text(stringResource(R.string.schedule_library_bin_detail_teacher, course.teacher))
+                    }
+                }
+            },
+            confirmButton = {
+                AppDialogPrimaryButton(onClick = { binDetail = null }) { Text(stringResource(R.string.schedule_action_close)) }
+            },
+        )
+    }
+
+    pendingBinRestore?.let { (kind, course) ->
+        AppAlertDialog(
+            onDismissRequest = { pendingBinRestore = null },
+            icon = { Icon(Icons.Rounded.Restore, contentDescription = null, modifier = Modifier.size(22.dp)) },
+            title = { Text(stringResource(R.string.schedule_library_bin_restore_title)) },
+            text = { Text(stringResource(R.string.schedule_library_bin_restore_body, course.title)) },
+            confirmButton = {
+                AppDialogPrimaryButton(onClick = {
+                    pendingBinRestore = null
+                    if (kind == "deleted") onRestoreDeleted(course.id) else onRestoreCourse(course.id)
+                }) { Text(stringResource(R.string.schedule_library_bin_restore)) }
+            },
+            dismissButton = {
+                AppDialogSecondaryButton(onClick = { pendingBinRestore = null }) { Text(stringResource(R.string.schedule_action_cancel)) }
+            },
+        )
+    }
+
+    if (pendingClearBin) {
+        AppAlertDialog(
+            onDismissRequest = { pendingClearBin = false },
+            icon = { Icon(Icons.Rounded.DeleteForever, contentDescription = null, modifier = Modifier.size(22.dp)) },
+            title = { Text(stringResource(R.string.schedule_library_bin_clear_title)) },
+            text = { Text(stringResource(R.string.schedule_library_bin_clear_body)) },
+            confirmButton = {
+                AppDialogPrimaryButton(onClick = {
+                    pendingClearBin = false
+                    onClearRecycleBin()
+                    hiddenCourses.forEach { onPurgeCourse(it.id) }
+                }) { Text(stringResource(R.string.schedule_library_bin_clear_confirm)) }
+            },
+            dismissButton = {
+                AppDialogSecondaryButton(onClick = { pendingClearBin = false }) { Text(stringResource(R.string.schedule_action_cancel)) }
+            },
+        )
+    }
+
     pendingPurge?.let { target ->
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { pendingPurge = null },
+            tone = AppDialogTone.Danger,
+            icon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.schedule_library_purge_title)) },
             text = { Text(stringResource(R.string.schedule_library_purge_body, target.title)) },
             confirmButton = {
-                Button(
+                AppDialogDangerButton(
                     onClick = {
                         onPurgeCourse(target.id)
                         pendingPurge = null
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError,
-                    ),
-                ) { Text(stringResource(R.string.schedule_library_purge)) }
+                    ) { Text(stringResource(R.string.schedule_library_purge)) }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = { pendingPurge = null }) {
+                AppDialogSecondaryButton(onClick = { pendingPurge = null }) {
                     Text(stringResource(R.string.schedule_library_delete_cancel))
                 }
             },
@@ -252,6 +466,7 @@ internal fun CourseLibraryScreen(
         MoveCourseDialog(
             course = course,
             maxNodeCount = maxNodeCount,
+            slotTimes = slotTimes,
             existingCourses = allCourses,
             onDismiss = { moving = null },
             onConfirm = { time ->
@@ -262,8 +477,9 @@ internal fun CourseLibraryScreen(
     }
 
     pendingMove?.let { (course, time) ->
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { pendingMove = null },
+            icon = { Icon(Icons.Rounded.OpenWith, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.schedule_drag_confirm_title)) },
             text = {
                 Text(
@@ -277,20 +493,20 @@ internal fun CourseLibraryScreen(
                 )
             },
             confirmButton = {
-                AppOutlinedButton(onClick = {
+                AppDialogPrimaryButton(onClick = {
                     onUpdateCourse(course.copy(time = time))
                     pendingMove = null
                 }) { Text(stringResource(R.string.schedule_move_dialog_confirm)) }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = { pendingMove = null }) {
+                AppDialogSecondaryButton(onClick = { pendingMove = null }) {
                     Text(stringResource(R.string.schedule_action_cancel))
                 }
             },
         )
     }
 
-    // Compact landscape keeps search and tabs on one row to preserve list height.
+    // Compact landscape puts search above the tabs to preserve list height.
     val compactHeader = LocalConfiguration.current.screenHeightDp < COMPACT_HEADER_MAX_HEIGHT_DP
     val searchField = @Composable { fieldModifier: Modifier ->
         AppSearchField(
@@ -300,30 +516,36 @@ internal fun CourseLibraryScreen(
             clearLabel = stringResource(R.string.memo_search_clear),
             modifier = fieldModifier,
             onClear = { query = "" },
+            cornerRadius = 18.dp,
+            minHeight = 52.dp,
+            borderWidth = 1.5.dp,
         )
     }
     val tabSwitch = @Composable { switchModifier: Modifier ->
-        SingleChoiceSegmentedButtonRow(modifier = switchModifier) {
-            LibraryTab.entries.forEachIndexed { index, entry ->
-                SegmentedButton(
+        Row(
+            modifier = switchModifier,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            LibraryTab.entries.forEach { entry ->
+                // Same pill as the sort filters below, so the two chip rows read as one system.
+                AppFilterChip(
                     selected = tab == entry,
-                    onClick = { haptics.click(); tab = entry },
-                    shape = SegmentedButtonDefaults.itemShape(index, LibraryTab.entries.size),
-                    // Match the selected filter chips below instead of the secondary tint.
-                    colors = SegmentedButtonDefaults.colors(
-                        activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    ),
-                ) {
-                    Text(
-                        stringResource(
-                            if (entry == LibraryTab.Courses) R.string.schedule_library_tab_courses
-                            else R.string.schedule_library_tab_events,
-                            if (entry == LibraryTab.Courses) entries.size else events.size,
-                        ),
-                        maxLines = 1,
-                    )
-                }
+                    onClick = {
+                        haptics.click()
+                        if (tab != entry) selection = emptySet()
+                        tab = entry
+                    },
+                    label = {
+                        Text(
+                            stringResource(
+                                if (entry == LibraryTab.Courses) R.string.schedule_library_tab_courses
+                                else R.string.schedule_library_tab_events,
+                                if (entry == LibraryTab.Courses) entries.size else events.size,
+                            ),
+                            maxLines = 1,
+                        )
+                    },
+                )
             }
         }
     }
@@ -334,85 +556,275 @@ internal fun CourseLibraryScreen(
             .background(MaterialTheme.colorScheme.background),
     ) {
         Column(Modifier.fillMaxSize()) {
+            val binCount = deletedCourses.size + hiddenCourses.size
+            val binButton = @Composable {
+                if (binCount > 0) {
+                    AppCircleIconButton(onClick = { showBin = true }) {
+                        Icon(
+                            Icons.Rounded.DeleteOutline,
+                            contentDescription = stringResource(R.string.schedule_library_bin_open, binCount),
+                        )
+                    }
+                }
+            }
             if (compactHeader) {
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    searchField(Modifier.weight(1f))
-                    tabSwitch(Modifier.weight(1f))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        searchField(Modifier.weight(1f))
+                        binButton()
+                    }
+                    tabSwitch(Modifier.fillMaxWidth())
                 }
             } else {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        tabSwitch(Modifier.weight(1f))
+                        binButton()
+                    }
                     searchField(Modifier)
-                    tabSwitch(Modifier.fillMaxWidth())
                 }
             }
 
             AnimatedContent(
                 targetState = tab,
                 transitionSpec = {
-                    val forward = targetState == LibraryTab.Events
-                    AppMotion.sharedAxisX(forward)
+                    AppMotion.sharedAxisX(libraryTabMovesForward(initialState, targetState))
                 },
                 label = "library_tab_transition",
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             ) { currentTab ->
-                if (currentTab == LibraryTab.Events) {
-                    when {
-                        events.isEmpty() -> CenteredLibraryHint(stringResource(R.string.schedule_library_events_empty))
-                        matchedEvents.isEmpty() -> CenteredLibraryHint(stringResource(R.string.schedule_library_no_match))
-                        else -> EventLibraryList(
-                            events = matchedEvents,
-                            today = today,
-                            onEdit = { eventEditing = it },
-                            onDelete = onRemoveEvent,
-                            contentPadding = LibraryListPadding,
+                Column(Modifier.fillMaxSize()) {
+                    if (currentTab == LibraryTab.Events && showEventSourceFilters) {
+                        EventSourceFilters(
+                            selectedSources = selectedEventSources,
+                            onSelectionChange = { sources ->
+                                haptics.click()
+                                selectedEventSourceNames = sources.map { it.name }
+                                selection = emptySet()
+                            },
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
                         )
                     }
-                } else {
-                    CourseLibraryList(
-                        entries = entries,
-                        matched = matched,
-                        searching = query.isNotBlank(),
-                        sortMode = sortMode,
-                        onSortModeChange = { sortMode = it },
-                        columnDayOfWeeks = columnDayOfWeeks,
-                        hiddenCourses = hiddenCourses,
-                        showHidden = showHidden,
-                        onToggleHidden = { showHidden = !showHidden },
-                        onRestoreHidden = onRestoreCourse,
-                        onPurgeHidden = { pendingPurge = it },
-                        onEdit = { editing = it },
-                        onDelete = { pendingDelete = it },
-                        onRestore = { pendingRestore = it },
-                        onMove = { moving = it },
-                        onSetReminder = onSetReminder,
-                    )
+
+                    if (selecting && currentTab == tab) {
+                        LibrarySelectionBar(
+                            count = selectedIds.size,
+                            allSelected = selectedIds.size == matchingIds.size,
+                            onClear = { selection = emptySet() },
+                            onSelectAll = { selection = matchingIds },
+                            onDelete = { batchDelete = selectedIds },
+                        )
+                    }
+
+                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                        if (currentTab == LibraryTab.Events) {
+                            when {
+                                events.isEmpty() -> CenteredLibraryHint(stringResource(R.string.schedule_library_events_empty))
+                                matchedEvents.isEmpty() && sourceMatchedEvents.isEmpty() ->
+                                    CenteredLibraryHint(stringResource(R.string.schedule_library_event_source_no_match))
+                                matchedEvents.isEmpty() -> CenteredLibraryHint(stringResource(R.string.schedule_library_event_no_match))
+                                else -> EventLibraryList(
+                                    events = matchedEvents,
+                                    today = today,
+                                    selectedIds = if (tab == currentTab) selectedIds else emptySet(),
+                                    reorderEnabled = tab == currentTab && !eventOrderSaving,
+                                    onSelect = { id -> if (tab == currentTab) selection = selectedIds + id },
+                                    onClearDragSelection = { id -> if (selection == setOf(id)) selection = emptySet() },
+                                    onToggleSelection = { id -> if (tab == currentTab) toggleSelection(setOf(id)) },
+                                    onMove = { source, target ->
+                                        val order = moveLibraryEvent(orderedEvents, matchedEvents, source, target)
+                                        if (order.isNotEmpty()) onReorderEvents(order)
+                                    },
+                                    onEdit = { eventEditing = it },
+                                    onDelete = onRemoveEvent,
+                                    contentPadding = LibraryListPadding,
+                                )
+                            }
+                        } else {
+                            CourseLibraryList(
+                                entries = entries,
+                                matched = matched,
+                                selectedIds = if (tab == currentTab) selectedIds else emptySet(),
+                                onSelect = { ids -> if (tab == currentTab) selection = selectedIds + ids },
+                                onToggleSelection = { ids -> if (tab == currentTab) toggleSelection(ids) },
+                                searching = query.isNotBlank(),
+                                sortMode = sortMode,
+                                onSortModeChange = { sortMode = it },
+                                columnDayOfWeeks = columnDayOfWeeks,
+                                hiddenCourses = hiddenCourses,
+                                showHidden = showHidden,
+                                onToggleHidden = { showHidden = !showHidden },
+                                onRestoreHidden = onRestoreCourse,
+                                onPurgeHidden = { pendingPurge = it },
+                                onEdit = { editing = it },
+                                onDelete = { pendingDelete = it },
+                                onRestore = { pendingRestore = it },
+                                onMove = { moving = it },
+                                onSetReminder = onSetReminder,
+                            )
+                        }
+                    }
                 }
             }
         }
         // The add action follows the visible tab, as on the notes page.
-        ExtendedFloatingActionButton(
+        if (!selecting) ExtendedFloatingActionButton(
             onClick = { haptics.click(); if (tab == LibraryTab.Courses) adding = true else addingEvent = true },
-            icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+            icon = { Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
             text = {
                 Text(
                     stringResource(
                         if (tab == LibraryTab.Courses) R.string.schedule_library_add else R.string.schedule_library_add_event,
                     ),
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.5.sp),
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                 )
             },
+            shape = RoundedCornerShape(21.dp),
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            elevation = FloatingActionButtonDefaults.elevation(
+                defaultElevation = 2.dp,
+                pressedElevation = 2.dp,
+                focusedElevation = 2.dp,
+                hoveredElevation = 2.dp,
+            ),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(20.dp),
         )
     }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun EventSourceFilters(
+    selectedSources: Set<EventSourceKind>,
+    onSelectionChange: (Set<EventSourceKind>) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FlowRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        EventSourceKind.entries.forEach { source ->
+            val labelRes = when (source) {
+                EventSourceKind.Plugin -> R.string.library_management_event_source_plugin
+                EventSourceKind.UserCreated -> R.string.library_management_event_source_user
+            }
+            val selected = source in selectedSources
+            AppFilterChip(
+                selected = selected,
+                onClick = {
+                    onSelectionChange(if (selected) selectedSources - source else selectedSources + source)
+                },
+                label = { Text(stringResource(labelRes), maxLines = 1) },
+                modifier = Modifier.testTag("event-source-${source.name}"),
+            )
+        }
+        val clearDescription = stringResource(R.string.library_management_event_source_clear_content_description)
+        AppAssistChip(
+            onClick = { onSelectionChange(EventSourceKind.entries.toSet()) },
+            label = { Text(stringResource(R.string.library_management_event_source_all), maxLines = 1) },
+            modifier = Modifier.testTag("event-source-all").height(36.dp),
+            enabled = selectedSources.size < EventSourceKind.entries.size,
+        )
+        AppAssistChip(
+            onClick = { onSelectionChange(emptySet()) },
+            label = { Text(stringResource(R.string.library_management_event_source_clear), maxLines = 1) },
+            leadingIcon = {
+                Icon(
+                    Icons.Rounded.ClearAll,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+            },
+            modifier = Modifier
+                .testTag("event-source-clear")
+                .semantics {
+                    contentDescription = clearDescription
+                }
+                .height(36.dp),
+            enabled = selectedSources.isNotEmpty(),
+            colors = AssistChipDefaults.assistChipColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.72f),
+                labelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                leadingIconContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                disabledLeadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+            ),
+            border = AssistChipDefaults.assistChipBorder(
+                enabled = selectedSources.isNotEmpty(),
+                borderColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.48f),
+                disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f),
+            ),
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LibrarySelectionBar(
+    count: Int,
+    allSelected: Boolean,
+    onClear: () -> Unit,
+    onSelectAll: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val error = MaterialTheme.colorScheme.error
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        AppCircleIconButton(onClick = onClear) {
+            Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.library_management_clear))
+        }
+        Text(
+            stringResource(R.string.library_management_count, count),
+            style = MaterialTheme.typography.labelLarge,
+        )
+        AppOutlinedButton(onClick = onSelectAll, enabled = !allSelected, modifier = Modifier.heightIn(min = 48.dp)) {
+            Text(stringResource(R.string.library_management_select_all))
+        }
+        AppOutlinedButton(
+            onClick = onDelete,
+            modifier = Modifier.heightIn(min = 48.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = error),
+            border = BorderStroke(1.dp, error),
+        ) {
+            Text(stringResource(R.string.library_management_delete_selected))
+        }
+    }
+}
+
+@Composable
+internal fun LibrarySelectionMark(isSelected: Boolean) {
+    Icon(
+        if (isSelected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+        contentDescription = null,
+        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+        modifier = Modifier.size(24.dp),
+    )
 }
 
 /** Leaves room under the last card for the floating add button. */
@@ -423,6 +835,9 @@ private val LibraryListPadding = PaddingValues(start = 16.dp, end = 16.dp, top =
 private fun CourseLibraryList(
     entries: List<CourseLibraryEntry>,
     matched: List<CourseLibraryEntry>,
+    selectedIds: Set<String>,
+    onSelect: (Set<String>) -> Unit,
+    onToggleSelection: (Set<String>) -> Unit,
     searching: Boolean,
     sortMode: CourseSortMode,
     onSortModeChange: (CourseSortMode) -> Unit,
@@ -454,7 +869,7 @@ private fun CourseLibraryList(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = LibraryListPadding,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item(key = "controls") {
             FlowRow(
@@ -469,28 +884,16 @@ private fun CourseLibraryList(
                         label = { Text(stringResource(courseSortModeLabel(mode)), maxLines = 1) },
                     )
                 }
-                if (hiddenCourses.isNotEmpty()) {
-                    AppFilterChip(
-                        selected = showHidden,
-                        onClick = onToggleHidden,
-                        leadingIcon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null, Modifier.size(18.dp)) },
-                        label = {
-                            Text(
-                                stringResource(
-                                    if (showHidden) R.string.schedule_library_hidden_hide else R.string.schedule_library_hidden_show,
-                                    hiddenCourses.size,
-                                ),
-                                maxLines = 1,
-                            )
-                        },
-                    )
-                }
             }
         }
-        if (showHidden && hiddenCourses.isNotEmpty()) {
+        if (selectedIds.isEmpty() && showHidden && hiddenCourses.isNotEmpty()) {
             items(hiddenCourses, key = { "hidden-${it.id}" }) { course ->
                 Box(appItemMotion()) {
-                    HiddenCourseRow(course = course, onRestore = onRestoreHidden, onPurge = onPurgeHidden)
+                    HiddenCourseRow(
+                        course = course,
+                        onRestore = { onRestoreHidden(course.id) },
+                        onPurge = onPurgeHidden,
+                    )
                 }
             }
         }
@@ -522,7 +925,7 @@ private fun CourseLibraryList(
                 if (grouped.isEmpty()) {
                     items(flat, key = { it.key }) { group ->
                         Box(appItemMotion()) {
-                            CourseLibraryRow(group, onEdit, onDelete, onRestore, onMove, onSetReminder)
+                            CourseLibraryRow(group, selectedIds, onSelect, onToggleSelection, onEdit, onDelete, onRestore, onMove, onSetReminder)
                         }
                     }
                 } else {
@@ -536,8 +939,11 @@ private fun CourseLibraryList(
                             ) {
                                 Text(
                                     text = stringResource(weekdayNameRes(dayOfWeek)),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.SemiBold,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 12.5.sp,
+                                        letterSpacing = 0.5.sp,
+                                    ),
+                                    fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary,
                                 )
                                 Text(
@@ -549,7 +955,7 @@ private fun CourseLibraryList(
                         }
                         items(dayGroups, key = { it.key }) { group ->
                             Box(appItemMotion()) {
-                                CourseLibraryRow(group, onEdit, onDelete, onRestore, onMove, onSetReminder)
+                                CourseLibraryRow(group, selectedIds, onSelect, onToggleSelection, onEdit, onDelete, onRestore, onMove, onSetReminder)
                             }
                         }
                     }
@@ -565,7 +971,7 @@ private fun PluginEditableHint() {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
             .padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -573,7 +979,7 @@ private fun PluginEditableHint() {
             Icons.Rounded.Info,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(16.dp),
         )
         Text(
             text = stringResource(R.string.schedule_library_plugin_editable_hint),
@@ -587,6 +993,9 @@ private fun PluginEditableHint() {
 @Composable
 private fun CourseLibraryRow(
     group: CourseLibraryGroup,
+    selectedIds: Set<String>,
+    onSelect: (Set<String>) -> Unit,
+    onToggleSelection: (Set<String>) -> Unit,
     onEdit: (CourseItem) -> Unit,
     onDelete: (CourseLibraryEntry) -> Unit,
     onRestore: (CourseLibraryEntry) -> Unit,
@@ -595,34 +1004,60 @@ private fun CourseLibraryRow(
 ) {
     val entry = group.main
     val course = entry.course
-    // Several courses share this card, so their actions move onto the variant rows.
     val shared = group.entries.size > 1
     var expanded by rememberSaveable(group.key) { mutableStateOf(false) }
     val press = remember { MutableInteractionSource() }
+    val haptics = rememberAppHaptics()
+    val ids = remember(group) { group.entries.mapTo(hashSetOf()) { it.course.id } }
+    val selecting = selectedIds.isNotEmpty()
+    val isSelected = selectedIds.containsAll(ids)
+    val shape = RoundedCornerShape(20.dp)
     Surface(
-        interactionSource = press,
-        onClick = { if (shared) expanded = !expanded else onEdit(course) },
-        enabled = entry.editable,
-        modifier = Modifier.fillMaxWidth().pressFeedback(press).testTag("course-library-card"),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+        modifier = Modifier.fillMaxWidth().pressFeedback(press),
+        shape = shape,
+        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            1.dp,
+            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+        ),
     ) {
         Column(
-            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .testTag("course-library-card")
+                .then(if (selecting) Modifier.semantics { selected = isSelected } else Modifier)
+                .combinedClickable(
+                    interactionSource = press,
+                    indication = ripple(),
+                    enabled = entry.editable,
+                    role = Role.Button,
+                    onLongClickLabel = stringResource(R.string.library_management_select),
+                    hapticFeedbackEnabled = false,
+                    onLongClick = { haptics.heavy(); onSelect(ids) },
+                    onClick = {
+                        when {
+                            selecting -> onToggleSelection(ids)
+                            shared -> expanded = !expanded
+                            else -> onEdit(course)
+                        }
+                    },
+                )
+                .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.Top) {
+                CourseLibrarySwatch(course)
                 FlowRow(
-                    modifier = Modifier.weight(1f).padding(top = 4.dp),
+                    modifier = Modifier.weight(1f).padding(top = 2.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     itemVerticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         text = course.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -659,8 +1094,18 @@ private fun CourseLibraryRow(
                         )
                     }
                 }
-                Spacer(Modifier.width(8.dp))
-                if (!shared) CourseEntryMenu(entry, onEdit, onDelete, onRestore)
+                if (selecting) {
+                    Box(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                        LibrarySelectionMark(isSelected)
+                    }
+                } else {
+                    CourseEntryMenu(
+                        entry, onEdit, onDelete, onRestore,
+                        onSelect = { onSelect(ids) },
+                        onMove = onMove.takeUnless { shared },
+                        onSetReminder = onSetReminder.takeUnless { shared },
+                    )
+                }
             }
             FlowRow(
                 modifier = Modifier.padding(end = 8.dp),
@@ -671,35 +1116,20 @@ private fun CourseLibraryRow(
                 course.location.takeIf { it.isNotBlank() }?.let { CourseLibraryFact(Icons.Rounded.Place, it) }
                 course.teacher.takeIf { it.isNotBlank() }?.let { CourseLibraryFact(Icons.Rounded.Person, it) }
             }
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (!shared) {
-                    AppOutlinedButton(onClick = { onMove(course) }) {
-                        AppAtomicText(stringResource(R.string.schedule_course_action_move))
-                    }
-                    AppOutlinedButton(onClick = { onSetReminder(course) }) {
-                        AppAtomicText(stringResource(R.string.schedule_action_reminder))
-                    }
-                }
-                if (group.hasVariants) {
-                    AppOutlinedButton(
-                        onClick = { expanded = !expanded },
-                        modifier = Modifier.testTag("course-library-variants-toggle"),
-                    ) {
-                        Icon(
-                            if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        AppAtomicText(
-                            stringResource(
-                                if (expanded) R.string.schedule_library_variants_collapse else R.string.schedule_library_variants_expand,
-                            ),
-                        )
-                    }
+            if (group.hasVariants) {
+                AppOutlinedButton(
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("course-library-variants-toggle"),
+                ) {
+                    Icon(
+                        if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(stringResource(
+                        if (expanded) R.string.schedule_library_variants_collapse else R.string.schedule_library_variants_expand,
+                    ))
                 }
             }
             AnimatedVisibility(
@@ -718,10 +1148,15 @@ private fun CourseLibraryRow(
                     )
                     group.variants.forEach { variant ->
                         val siblings = group.variants.count { it.entry === variant.entry }
+                        val variantIds = setOf(variant.entry.course.id)
                         CourseVariantRow(
                             variant = variant,
                             otherWeeks = siblings > 1,
                             showActions = shared,
+                            selecting = selecting,
+                            isSelected = variant.entry.course.id in selectedIds,
+                            onSelect = { onSelect(variantIds) },
+                            onToggleSelection = { onToggleSelection(variantIds) },
                             onEdit = onEdit,
                             onDelete = onDelete,
                             onRestore = onRestore,
@@ -735,54 +1170,52 @@ private fun CourseLibraryRow(
     }
 }
 
+/** The course colour as a rounded swatch, so rows can be scanned by colour like the grid. */
+@Composable
+private fun CourseLibrarySwatch(course: CourseItem) {
+    val accents = LocalScheduleAccents.current
+    val palette = remember(course.title, course.colorArgb, course.colorEndArgb, accents) {
+        courseColor(course.title, accents.coursePalette, course.colorArgb, course.colorEndArgb)
+    }
+    val shape = RoundedCornerShape(8.dp)
+    Box(
+        modifier = Modifier
+            .padding(top = 4.dp, end = 12.dp)
+            .size(16.dp)
+            .clip(shape)
+            .background(palette.container)
+            .border(2.dp, palette.onContainer.copy(alpha = 0.85f), shape),
+    )
+}
+
 @Composable
 private fun CourseEntryMenu(
     entry: CourseLibraryEntry,
     onEdit: (CourseItem) -> Unit,
     onDelete: (CourseLibraryEntry) -> Unit,
     onRestore: (CourseLibraryEntry) -> Unit,
+    onSelect: () -> Unit,
     onMove: ((CourseItem) -> Unit)? = null,
     onSetReminder: ((CourseItem) -> Unit)? = null,
 ) {
-    var menu by remember { mutableStateOf(false) }
-    Box {
-        AppCircleIconButton(onClick = { menu = true }) {
-            Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.memo_more))
+    LibraryCardMenu(onEdit = { onEdit(entry.course) }, onSelect = onSelect, onDelete = { onDelete(entry) }) { dismiss ->
+        onMove?.let { move ->
+            LibraryMenuAction(stringResource(R.string.schedule_course_action_move), Icons.Rounded.Schedule) {
+                dismiss()
+                move(entry.course)
+            }
         }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.schedule_action_edit)) },
-                leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
-                onClick = { menu = false; onEdit(entry.course) },
-            )
-            onMove?.let { move ->
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.schedule_course_action_move)) },
-                    leadingIcon = { Icon(Icons.Rounded.Schedule, contentDescription = null) },
-                    onClick = { menu = false; move(entry.course) },
-                )
+        onSetReminder?.let { remind ->
+            LibraryMenuAction(stringResource(R.string.schedule_action_reminder), Icons.Rounded.Notifications) {
+                dismiss()
+                remind(entry.course)
             }
-            onSetReminder?.let { remind ->
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.schedule_action_reminder)) },
-                    leadingIcon = { Icon(Icons.Rounded.Notifications, contentDescription = null) },
-                    onClick = { menu = false; remind(entry.course) },
-                )
+        }
+        if (entry.restorable) {
+            LibraryMenuAction(stringResource(R.string.schedule_action_restore_plugin), Icons.Rounded.Restore) {
+                dismiss()
+                onRestore(entry)
             }
-            if (entry.restorable) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.schedule_action_restore_plugin)) },
-                    leadingIcon = { Icon(Icons.Rounded.Restore, contentDescription = null) },
-                    onClick = { menu = false; onRestore(entry) },
-                )
-            }
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.schedule_action_delete), color = MaterialTheme.colorScheme.error) },
-                leadingIcon = {
-                    Icon(Icons.Rounded.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                },
-                onClick = { menu = false; onDelete(entry) },
-            )
         }
     }
 }
@@ -793,6 +1226,10 @@ private fun CourseVariantRow(
     variant: CourseVariant,
     otherWeeks: Boolean,
     showActions: Boolean,
+    selecting: Boolean,
+    isSelected: Boolean,
+    onSelect: () -> Unit,
+    onToggleSelection: () -> Unit,
     onEdit: (CourseItem) -> Unit,
     onDelete: (CourseLibraryEntry) -> Unit,
     onRestore: (CourseLibraryEntry) -> Unit,
@@ -807,15 +1244,31 @@ private fun CourseVariantRow(
     }
     val unset = stringResource(R.string.schedule_library_variant_unset)
     val press = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(16.dp)
+    val haptics = rememberAppHaptics()
     Surface(
-        interactionSource = press,
-        onClick = { onEdit(variant.entry.course) },
-        modifier = Modifier.fillMaxWidth().pressFeedback(press).testTag("course-library-variant"),
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth().pressFeedback(press),
+        shape = shape,
+        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer
+            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
     ) {
         Row(
-            modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .testTag("course-library-variant")
+                .then(if (selecting) Modifier.semantics { selected = isSelected } else Modifier)
+                .combinedClickable(
+                    interactionSource = press,
+                    indication = ripple(),
+                    role = Role.Button,
+                    onLongClickLabel = stringResource(R.string.library_management_select),
+                    hapticFeedbackEnabled = false,
+                    onLongClick = { haptics.heavy(); onSelect() },
+                    onClick = { if (selecting) onToggleSelection() else onEdit(variant.entry.course) },
+                )
+                .padding(start = 12.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -848,8 +1301,10 @@ private fun CourseVariantRow(
                     }
                 }
             }
-            if (showActions) {
-                CourseEntryMenu(variant.entry, onEdit, onDelete, onRestore, onMove, onSetReminder)
+            if (selecting) {
+                Box(Modifier.padding(horizontal = 12.dp)) { LibrarySelectionMark(isSelected) }
+            } else if (showActions) {
+                CourseEntryMenu(variant.entry, onEdit, onDelete, onRestore, onSelect, onMove, onSetReminder)
             }
         }
     }
@@ -867,10 +1322,10 @@ private fun VariantFact(icon: ImageVector, text: String, changed: Boolean) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(16.dp))
+        Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(13.dp))
         Text(
             text = text,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             fontWeight = if (changed) FontWeight.SemiBold else FontWeight.Normal,
             color = content,
         )
@@ -885,10 +1340,10 @@ private fun courseTimeText(time: CourseTimeSlot): String =
 @Composable
 private fun CourseLibraryFact(icon: ImageVector, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(13.dp))
         Text(
             text = text,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
@@ -902,8 +1357,9 @@ private fun HiddenCourseRow(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column(
             modifier = Modifier.padding(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
@@ -1026,4 +1482,69 @@ private fun courseSortModeLabel(mode: CourseSortMode): Int = when (mode) {
     CourseSortMode.ByWeekday -> R.string.schedule_library_sort_weekday
     CourseSortMode.ByTitle -> R.string.schedule_library_sort_title
     CourseSortMode.BySource -> R.string.schedule_library_sort_source
+}
+
+/** One deleted course in the recycle bin: readable summary, tap for details, restore on the side. */
+@Composable
+private fun BinRow(course: CourseItem, onOpen: () -> Unit, onRestore: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(course.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+            // One label per fact instead of a dotted line, so each value stays readable on its own.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                BinTag(binWeekdayText(course))
+                BinTag(binPeriodText(course))
+                binClockText(course)?.let { BinTag(it) }
+                if (course.location.isNotBlank()) BinTag(stringResource(R.string.schedule_library_bin_tag_location, course.location))
+                if (course.teacher.isNotBlank()) BinTag(stringResource(R.string.schedule_library_bin_tag_teacher, course.teacher))
+            }
+        }
+        AppOutlinedButton(onClick = onRestore, modifier = Modifier.heightIn(min = 44.dp)) {
+            Text(stringResource(R.string.schedule_library_bin_restore))
+        }
+    }
+}
+
+/** A small grey label for one fact in a bin row. */
+@Composable
+private fun BinTag(text: String) {
+    Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Text(
+            text,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun binWeekdayText(course: CourseItem): String =
+    stringResource(scheduleWeekdayFullRes(course.time.dayOfWeek))
+
+@Composable
+private fun binPeriodText(course: CourseItem): String =
+    stringResource(R.string.schedule_library_bin_detail_period, course.time.startNode, course.time.endNode)
+
+/** Typed clock times when the course has them; the period row already covers the timetable slot. */
+@Composable
+private fun binClockText(course: CourseItem): String? {
+    val start = course.reminderStartTime?.takeIf { it.isNotBlank() } ?: return null
+    val end = course.reminderEndTime?.takeIf { it.isNotBlank() }
+    return if (end != null) "$start-$end" else start
+}
+
+@Composable
+private fun binWeeksText(course: CourseItem): String {
+    val weeks = course.weeks.filter { it > 0 }.sorted()
+    return if (weeks.isEmpty()) {
+        stringResource(R.string.schedule_library_bin_detail_weeks_unknown)
+    } else {
+        LocalContext.current.weeksDetailText(describeWeeksDetail(weeks))
+    }
 }

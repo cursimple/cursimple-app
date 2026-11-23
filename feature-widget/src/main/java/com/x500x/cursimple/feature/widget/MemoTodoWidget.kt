@@ -14,6 +14,7 @@ import com.x500x.cursimple.core.data.memo.DataStoreMemoRepository
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import com.x500x.cursimple.core.data.widget.resolveAccent
+import com.x500x.cursimple.core.data.widget.resolveThemeMode
 import com.x500x.cursimple.core.kernel.model.MemoNote
 import com.x500x.cursimple.core.kernel.model.MemoImageRef
 import com.x500x.cursimple.core.kernel.model.MemoPriority
@@ -52,6 +53,7 @@ internal suspend fun loadMemoTodos(context: Context): MemoTodoData {
     val prefs = DataStoreUserPreferencesRepository(context).preferencesFlow.first()
     val theme = DataStoreWidgetPreferencesRepository(context).themePreferencesFlow.first()
         .resolveAccent(prefs.themeAccent, prefs.themeCustomColorArgb)
+        .resolveThemeMode(prefs.themeMode)
     BeijingTime.setForcedNow(prefs.debugForcedDateTime)
     val now = BeijingTime.nowDateTimeIn(BeijingTime.zone)
     return MemoTodoData(memoTodoRows(DataStoreMemoRepository(context).notesFlow.first(), now), theme, now)
@@ -226,7 +228,7 @@ internal fun memoTodoView(
         setViewVisibility(R.id.memo_row_pin, if (row.note.pinned && !layout.minimal) View.VISIBLE else View.GONE)
         setInt(R.id.memo_row_pin, "setColorFilter", accent)
         val metadata = listOf(row.note.courseTitle, row.note.title.takeIf { row.lineIndex != null }.orEmpty())
-            .filter(String::isNotBlank).joinToString(" · ").ifBlank { context.getString(R.string.widget_memo_notebook_other) }
+            .filter(String::isNotBlank).joinToString(" ").ifBlank { context.getString(R.string.widget_memo_notebook_other) }
         setTextViewText(R.id.memo_row_source, metadata)
         val showSource = !layout.minimal && layout.rowHeightDp >= 36
         setViewVisibility(R.id.memo_row_source_row, if (showSource) View.VISIBLE else View.GONE)
@@ -253,7 +255,7 @@ internal fun memoTodoView(
             memoWidgetPriorityLabel(context, row.note.priority),
         )
         setContentDescription(R.id.memo_row_root, (listOf(row.title) + flags + listOf(metadata, dueText))
-            .filter(String::isNotBlank).joinToString(" · "))
+            .filter(String::isNotBlank).joinToString("，"))
         setContentDescription(R.id.memo_checkbox, context.getString(R.string.widget_memo_complete_action, row.title))
         setContentDescription(R.id.memo_row_edit, context.getString(R.string.widget_memo_edit_action, row.title))
         widgetId?.let { id ->

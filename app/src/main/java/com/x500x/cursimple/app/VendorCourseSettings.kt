@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -24,6 +25,9 @@ import com.x500x.cursimple.app.vendor.*
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
 import com.x500x.cursimple.core.data.UserPreferences
 import kotlinx.coroutines.launch
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
 
 @Composable
 internal fun VendorCourseSettingsSection() {
@@ -48,7 +52,8 @@ internal fun VendorCourseSettingsSection() {
         } })
     SettingsActionRow(icon = Icons.Rounded.Star, title = stringResource(R.string.vendor_course_title),
         subtitle = stringResource(R.string.vendor_course_description), onClick = { opened = true })
-    if (opened) AlertDialog(onDismissRequest = { opened = false },
+    if (opened) AppAlertDialog(onDismissRequest = { opened = false },
+        icon = { Icon(Icons.Rounded.Star, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.vendor_course_title)) },
         text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.vendor_course_explanation), style = MaterialTheme.typography.bodySmall)
@@ -74,8 +79,8 @@ internal fun VendorCourseSettingsSection() {
                 cm?.setPrimaryClip(ClipData.newPlainText("report", text))
             }) { Text(stringResource(R.string.vendor_course_copy)) }
         } },
-        confirmButton = { TextButton(onClick = { opened = false }) { Text(stringResource(R.string.notice_guide_close)) } },
-        dismissButton = { TextButton(enabled = !busy, onClick = { busy = true; scope.launch {
+        confirmButton = { AppDialogPrimaryButton(onClick = { opened = false }) { Text(stringResource(R.string.notice_guide_close)) } },
+        dismissButton = { AppDialogSecondaryButton(enabled = !busy, onClick = { busy = true; scope.launch {
             try { VendorCourseSync.refresh(context) } catch (_: Exception) { VendorCourseStore.status(context, "android", "failed") }
             finally { busy = false }
         } }) { Text(stringResource(R.string.vendor_course_refresh)) } },
@@ -88,21 +93,23 @@ internal fun VendorCourseSettingsSection() {
         var card by remember { mutableStateOf(config.honorCardType) }
         var icon by remember { mutableStateOf(config.honorAodIconUrl) }
         var invalid by remember { mutableStateOf(false) }
-        AlertDialog(onDismissRequest = { configure = false }, title = { Text(stringResource(R.string.vendor_course_configuration)) },
+        AppAlertDialog(onDismissRequest = { configure = false },
+            icon = { Icon(Icons.Rounded.Settings, contentDescription = null, modifier = Modifier.size(22.dp)) },
+            title = { Text(stringResource(R.string.vendor_course_configuration)) },
             text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.vendor_course_configuration_description))
-                OutlinedTextField(vivoId, { vivoId = it }, label = { Text(stringResource(R.string.vendor_course_vivo_id)) }, singleLine = true)
-                OutlinedTextField(vivoName, { vivoName = it }, label = { Text(stringResource(R.string.vendor_course_vivo_name)) }, singleLine = true)
-                OutlinedTextField(vivoEntity, { vivoEntity = it }, label = { Text(stringResource(R.string.vendor_course_vivo_entity)) }, singleLine = true)
-                OutlinedTextField(capsule, { capsule = it }, label = { Text(stringResource(R.string.vendor_course_capsule_id)) }, singleLine = true)
-                OutlinedTextField(card, { card = it }, label = { Text(stringResource(R.string.vendor_course_card_id)) }, singleLine = true)
-                OutlinedTextField(icon, { icon = it }, label = { Text(stringResource(R.string.vendor_course_icon_url)) }, singleLine = true)
+                AppOutlinedTextField(vivoId, { vivoId = it }, label = { Text(stringResource(R.string.vendor_course_vivo_id)) }, singleLine = true)
+                AppOutlinedTextField(vivoName, { vivoName = it }, label = { Text(stringResource(R.string.vendor_course_vivo_name)) }, singleLine = true)
+                AppOutlinedTextField(vivoEntity, { vivoEntity = it }, label = { Text(stringResource(R.string.vendor_course_vivo_entity)) }, singleLine = true)
+                AppOutlinedTextField(capsule, { capsule = it }, label = { Text(stringResource(R.string.vendor_course_capsule_id)) }, singleLine = true)
+                AppOutlinedTextField(card, { card = it }, label = { Text(stringResource(R.string.vendor_course_card_id)) }, singleLine = true)
+                AppOutlinedTextField(icon, { icon = it }, label = { Text(stringResource(R.string.vendor_course_icon_url)) }, singleLine = true)
                 if (invalid) Text(stringResource(R.string.vendor_course_invalid), color = MaterialTheme.colorScheme.error)
-            } }, confirmButton = { TextButton(onClick = {
+            } }, confirmButton = { AppDialogPrimaryButton(onClick = {
                 invalid = runCatching { VendorCourseStore.save(context, config.copy(vivoIntentId = vivoId.trim(), vivoIntentName = vivoName.trim(), vivoEntityName = vivoEntity.trim(), honorCapsuleType = capsule.trim(), honorCardType = card.trim(), honorAodIconUrl = icon.trim())) }.isFailure
                 if (!invalid) configure = false
             }) { Text(stringResource(R.string.vendor_course_save)) } },
-            dismissButton = { TextButton(onClick = { configure = false }) { Text(stringResource(R.string.notice_guide_close)) } })
+            dismissButton = { AppDialogSecondaryButton(onClick = { configure = false }) { Text(stringResource(R.string.notice_guide_close)) } })
     }
 }
 

@@ -53,21 +53,36 @@ internal data class TodayFreeSlot(
     val startNode: Int,
     val endNode: Int,
     val descriptionRes: Int,
+    val label: String? = null,
 )
 
 internal fun computeTodayFreeSlots(
     courses: List<TodayOverviewItem>,
     maxNode: Int = 12,
+    slotRanges: List<IntRange> = emptyList(),
+    slotLabels: Map<IntRange, String> = emptyMap(),
 ): List<TodayFreeSlot> {
-    if (courses.isEmpty()) {
-        return listOf(TodayFreeSlot(1, maxNode, R.string.schedule_today_free_all_day))
-    }
     val occupied = BooleanArray(maxNode + 1)
     courses.forEach { item ->
         val range = item.course.time.nodeRange()
         for (n in range.first.coerceAtLeast(1)..range.last.coerceAtMost(maxNode)) {
             occupied[n] = true
         }
+    }
+    if (slotRanges.isNotEmpty()) {
+        return slotRanges.mapNotNull { range ->
+            val bounded = range.first.coerceAtLeast(1)..range.last.coerceAtMost(maxNode)
+            if (bounded.isEmpty() || bounded.any { occupied[it] }) return@mapNotNull null
+            TodayFreeSlot(
+                startNode = bounded.first,
+                endNode = bounded.last,
+                descriptionRes = R.string.schedule_today_free_nodes,
+                label = slotLabels[range]?.takeIf { it.isNotBlank() },
+            )
+        }
+    }
+    if (courses.isEmpty()) {
+        return listOf(TodayFreeSlot(1, maxNode, R.string.schedule_today_free_all_day))
     }
     val spans = mutableListOf<IntRange>()
     var start = -1
@@ -134,7 +149,16 @@ internal fun buildTodayOverview(
     val makeUpWeekdayRes = if (!day.isHoliday && day.sourceDate.dayOfWeek != day.date.dayOfWeek) {
         scheduleWeekdayFullRes(day.sourceDate.dayOfWeek.value)
     } else null
-    val freeSlots = computeTodayFreeSlots(coursesToday)
+    val slotRanges = timingProfile?.slotTimes.orEmpty().map { it.startNode..it.endNode }
+    val slotLabels = timingProfile?.slotTimes.orEmpty().associate {
+        it.startNode..it.endNode to it.label.ifBlank { "第${it.startNode}节" }
+    }
+    val freeSlots = computeTodayFreeSlots(
+        courses = coursesToday,
+        maxNode = slotRanges.maxOfOrNull { it.last } ?: 12,
+        slotRanges = slotRanges,
+        slotLabels = slotLabels,
+    )
 
     return TodayOverviewState(
         date = date,

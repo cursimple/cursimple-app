@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.rounded.Close
@@ -49,6 +50,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.EventAvailable
+import androidx.compose.material.icons.rounded.EditCalendar
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
@@ -65,7 +68,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -99,6 +101,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppDialogDangerButton
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -420,13 +427,15 @@ fun TermManagementScreen(
     }
 
     deleteTarget?.let { term ->
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { deleteTarget = null },
+            tone = AppDialogTone.Danger,
             shape = RoundedCornerShape(28.dp),
+            icon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.term_delete_title)) },
             text = { Text(stringResource(R.string.term_delete_message, term.name)) },
             confirmButton = {
-                AppOutlinedButton(
+                AppDialogDangerButton(
                     onClick = {
                         onDelete(term.id)
                         deleteTarget = null
@@ -435,7 +444,7 @@ fun TermManagementScreen(
                 ) { Text(stringResource(R.string.term_delete_confirm)) }
             },
             dismissButton = {
-                AppOutlinedButton(
+                AppDialogSecondaryButton(
                     onClick = { deleteTarget = null },
                     modifier = Modifier.height(44.dp),
                 ) { Text(stringResource(R.string.term_cancel)) }
@@ -572,7 +581,7 @@ private fun TermRow(
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .clip(CircleShape)
+                        .clip(RoundedCornerShape(14.dp))
                         .background(
                             if (isHighlighted) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.surfaceVariant
@@ -787,7 +796,7 @@ private fun MergeDialog(
         mutableStateOf(if (isCrossYear) TermMergeAlignment.ByWeekNumber else TermMergeAlignment.ByRealDate)
     }
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(28.dp),
         title = {
@@ -810,11 +819,7 @@ private fun MergeDialog(
                     )
                 }
                 Column {
-                    Text(
-                        text = stringResource(R.string.term_merge_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
+                    Text(text = stringResource(R.string.term_merge_title))
                     Text(
                         text = stringResource(R.string.term_merge_dialog_subtitle),
                         style = MaterialTheme.typography.bodySmall,
@@ -1046,7 +1051,7 @@ private fun MergeDialog(
                     }
                 }
 
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text(stringResource(R.string.term_new_name_label)) },
@@ -1058,7 +1063,7 @@ private fun MergeDialog(
                     trailingIcon = {
                         if (name.isNotEmpty()) {
                             IconButton(onClick = { name = "" }) {
-                                Icon(Icons.Rounded.Clear, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Rounded.Clear, contentDescription = stringResource(R.string.settings_clear), modifier = Modifier.size(18.dp))
                             }
                         }
                     },
@@ -1067,7 +1072,7 @@ private fun MergeDialog(
             }
         },
         confirmButton = {
-            Button(
+            AppDialogPrimaryButton(
                 enabled = name.isNotBlank(),
                 onClick = { onConfirm(name.trim(), alignment, selectedAnchorId) },
                 shape = RoundedCornerShape(50),
@@ -1088,7 +1093,7 @@ private fun MergeDialog(
             }
         },
         dismissButton = {
-            AppOutlinedButton(
+            AppDialogSecondaryButton(
                 onClick = onDismiss,
                 modifier = Modifier.height(44.dp),
             ) {
@@ -1146,13 +1151,14 @@ private fun CreateTermDialog(
     var name by rememberSaveable { mutableStateOf("") }
     var date by remember { mutableStateOf<LocalDate?>(BeijingTime.today()) }
     var showDate by rememberSaveable { mutableStateOf(false) }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(28.dp),
+        icon = { Icon(Icons.Rounded.EditCalendar, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.term_create_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text(stringResource(R.string.term_name_label)) },
@@ -1194,14 +1200,14 @@ private fun CreateTermDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(
+            AppDialogPrimaryButton(
                 enabled = name.isNotBlank(),
                 onClick = { onConfirm(name.trim(), date) },
                 modifier = Modifier.height(44.dp),
             ) { Text(stringResource(R.string.term_create_confirm)) }
         },
         dismissButton = {
-            AppOutlinedButton(
+            AppDialogSecondaryButton(
                 onClick = onDismiss,
                 modifier = Modifier.height(44.dp),
             ) { Text(stringResource(R.string.term_cancel)) }
@@ -1226,12 +1232,13 @@ private fun RenameDialog(
     onConfirm: (String) -> Unit,
 ) {
     var name by rememberSaveable { mutableStateOf(initial) }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(28.dp),
+        icon = { Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.term_rename_title)) },
         text = {
-            OutlinedTextField(
+            AppOutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
                 singleLine = true,
@@ -1244,14 +1251,14 @@ private fun RenameDialog(
             )
         },
         confirmButton = {
-            AppOutlinedButton(
+            AppDialogPrimaryButton(
                 enabled = name.isNotBlank(),
                 onClick = { onConfirm(name.trim()) },
                 modifier = Modifier.height(44.dp),
             ) { Text(stringResource(R.string.term_save)) }
         },
         dismissButton = {
-            AppOutlinedButton(
+            AppDialogSecondaryButton(
                 onClick = onDismiss,
                 modifier = Modifier.height(44.dp),
             ) { Text(stringResource(R.string.term_cancel)) }
@@ -1267,12 +1274,13 @@ private fun TermDatePickerDialog(
     onConfirm: (LocalDate) -> Unit,
 ) {
     var selectedDate by remember(initial) { mutableStateOf(initial) }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(28.dp),
+        icon = { Icon(Icons.Rounded.EventAvailable, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.term_action_date)) },
         confirmButton = {
-            AppOutlinedButton(
+            AppDialogPrimaryButton(
                 onClick = { onConfirm(selectedDate) },
                 modifier = Modifier.height(44.dp),
             ) {
@@ -1280,7 +1288,7 @@ private fun TermDatePickerDialog(
             }
         },
         dismissButton = {
-            AppOutlinedButton(
+            AppDialogSecondaryButton(
                 onClick = onDismiss,
                 modifier = Modifier.height(44.dp),
             ) { Text(stringResource(R.string.term_cancel)) }
@@ -1303,9 +1311,10 @@ private fun CopyTermDialog(
     var startDate by remember(source.id) { mutableStateOf<LocalDate?>(null) }
     var keepReminders by rememberSaveable(source.id) { mutableStateOf(false) }
     var pickingDate by remember { mutableStateOf(false) }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(28.dp),
+        icon = { Icon(Icons.Rounded.ContentCopy, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.term_copy_title, source.name)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1314,7 +1323,7 @@ private fun CopyTermDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     singleLine = true,
@@ -1338,14 +1347,14 @@ private fun CopyTermDialog(
             }
         },
         confirmButton = {
-            Button(
+            AppDialogPrimaryButton(
                 onClick = { onConfirm(name.trim().ifBlank { source.name }, startDate, keepReminders) },
                 enabled = true,
                 modifier = Modifier.testTag("term-copy-confirm"),
             ) { Text(stringResource(R.string.term_copy_confirm)) }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(com.x500x.cursimple.feature.schedule.R.string.schedule_action_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(com.x500x.cursimple.feature.schedule.R.string.schedule_action_cancel)) }
         },
     )
     if (pickingDate) {

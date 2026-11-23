@@ -2,6 +2,8 @@ package com.x500x.cursimple.feature.schedule
 
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
+import com.x500x.cursimple.core.kernel.model.ScheduleEvent
+import com.x500x.cursimple.core.kernel.model.ScheduleEventSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -24,6 +26,47 @@ class CourseLibraryTest {
         location = location,
         reminderOnly = reminderOnly,
         time = CourseTimeSlot(dayOfWeek = dayOfWeek, startNode = startNode, endNode = startNode + 1),
+    )
+
+    @Test
+    fun `event source filter keeps all events selected by default`() {
+        val events = listOf(event("manual"), event("plugin", source = ScheduleEventSource("plugin", "item")))
+
+        assertEquals(events, filterLibraryEvents(events, EventSourceKind.entries.toSet()))
+    }
+
+    @Test
+    fun `event source filter supports plugin and user-created selections`() {
+        val manual = event("manual")
+        val plugin = event("plugin", source = ScheduleEventSource("plugin", "item"))
+        val anotherPlugin = event("plugin-2", source = ScheduleEventSource("plugin", "item-2"))
+        val events = listOf(manual, plugin, anotherPlugin)
+
+        assertEquals(listOf(plugin, anotherPlugin), filterLibraryEvents(events, setOf(EventSourceKind.Plugin)))
+        assertEquals(listOf(manual), filterLibraryEvents(events, setOf(EventSourceKind.UserCreated)))
+        assertEquals(events, filterLibraryEvents(events, EventSourceKind.entries.toSet()))
+        assertEquals(emptyList<ScheduleEvent>(), filterLibraryEvents(events, emptySet()))
+    }
+
+    @Test
+    fun `event source filter preserves original order`() {
+        val firstPlugin = event("plugin-1", source = ScheduleEventSource("plugin", "1"))
+        val manual = event("manual")
+        val secondPlugin = event("plugin-2", source = ScheduleEventSource("plugin", "2"))
+
+        assertEquals(
+            listOf(firstPlugin, secondPlugin),
+            filterLibraryEvents(listOf(firstPlugin, manual, secondPlugin), setOf(EventSourceKind.Plugin)),
+        )
+    }
+
+    private fun event(id: String, source: ScheduleEventSource? = null) = ScheduleEvent(
+        id = id,
+        title = id,
+        date = "2026-09-25",
+        startTime = "12:00",
+        endTime = "13:00",
+        source = source,
     )
 
     @Test

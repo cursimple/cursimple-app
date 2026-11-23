@@ -116,6 +116,17 @@
             android:textStyle="bold"
             android:visibility="gone" />
 
+        <!-- Chips are added at render time: a real round badge plus its label, matching the course corner badge. -->
+        <LinearLayout
+            android:id="@+id/widget_end_legend_row"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_marginTop="4dp"
+            android:layout_marginEnd="4dp"
+            android:orientation="horizontal"
+            android:visibility="gone" />
+
         <!-- Wrap short lists so empty space remains app-clickable; use row-masked ripples rather than rectangular list selection. -->
         <ListView
             android:id="@+id/widget_course_list"
@@ -126,8 +137,8 @@
             android:drawSelectorOnTop="false"
             android:listSelector="@android:color/transparent"
             android:clipToPadding="false"
-            android:divider="@null"
-            android:dividerHeight="0dp"
+            android:divider="@drawable/widget_gap_transparent"
+            android:dividerHeight="6dp"
             android:fadeScrollbars="false"
             android:overScrollMode="ifContentScrolls"
             android:scrollbarStyle="insideOverlay"

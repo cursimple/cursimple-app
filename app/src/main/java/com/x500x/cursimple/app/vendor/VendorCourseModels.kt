@@ -14,7 +14,7 @@ data class VendorCourse(
 )
 
 @Serializable
-data class VendorCourseSnapshot(val generatedAt: Long = 0, val zone: String = "Asia/Shanghai", val advanceMinutes: Int = 20, val accentColor: String = "#3FA277", val courses: List<VendorCourse> = emptyList())
+data class VendorCourseSnapshot(val generatedAt: Long = 0, val zone: String = "Asia/Shanghai", val advanceMinutes: Int = 20, val accentColor: String = "#26805A", val courses: List<VendorCourse> = emptyList())
 
 internal fun vendorCourses(
     date: LocalDate, courses: List<CourseItem>, timing: TermTimingProfile?, termStart: LocalDate?,

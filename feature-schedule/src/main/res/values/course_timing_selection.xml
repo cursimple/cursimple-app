@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="schedule_course_by_weekday">按星期</string>
+    <string name="schedule_course_by_date">按日期</string>
+    <string name="schedule_course_date_needs_term">先在学期管理中设置开学日期，才能换算上课周次。</string>
+    <string name="schedule_course_date_outside_term">请选择本学期内的日期。</string>
+    <string name="schedule_course_pick_dates">选择日期</string>
+    <string name="schedule_course_pick_weekdays">可多选上课日</string>
+    <plurals name="schedule_course_selected_dates">
+
+        <item quantity="other">已选 %1$d 天</item>
+    </plurals>
+</resources>

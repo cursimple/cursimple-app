@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -16,7 +17,6 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -123,7 +123,7 @@ internal fun CourseReuseTextField(
     ExposedDropdownMenuBox(expanded = expanded && options.isNotEmpty() && enabled,
         onExpandedChange = { expanded = it && enabled && options.isNotEmpty() },
         modifier = modifier.fillMaxWidth()) {
-        OutlinedTextField(value, onValueChange = onChange, enabled = enabled, singleLine = true,
+        AppOutlinedTextField(value, onValueChange = onChange, enabled = enabled, singleLine = true,
             label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             placeholder = placeholder?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
             supportingText = supportingText, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),

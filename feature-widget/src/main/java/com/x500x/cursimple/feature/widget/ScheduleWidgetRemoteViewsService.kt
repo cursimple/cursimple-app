@@ -9,6 +9,7 @@ import android.widget.RemoteViewsService
 import androidx.core.content.ContextCompat
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
+import com.x500x.cursimple.core.kernel.model.CourseEndWarning
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
@@ -82,6 +83,26 @@ internal fun buildScheduleCourseRow(
         isDark = resolveWidgetIsDark(context, widgetTheme.widgetThemeMode),
     )
     row.applyOpenAppFillInIntent(R.id.course_row_root, widgetTheme)
+    val warningActive = rowData.endWarning != CourseEndWarning.None && !rowData.onHoliday
+    if (warningActive) {
+        val final = rowData.endWarning == CourseEndWarning.FinalWeek
+        row.setViewVisibility(R.id.widget_course_end_warning_overlay, View.VISIBLE)
+        row.setInt(
+            R.id.widget_course_end_warning_overlay,
+            "setBackgroundResource",
+            if (final) R.drawable.widget_bg_end_warning_final else R.drawable.widget_bg_end_warning_near,
+        )
+        row.setViewVisibility(R.id.widget_course_end_warning_badge, View.VISIBLE)
+        row.setTextViewText(R.id.widget_course_end_warning_badge, if (final) "1" else "2")
+        row.setInt(
+            R.id.widget_course_end_warning_badge,
+            "setBackgroundResource",
+            if (final) R.drawable.widget_bg_end_badge_final else R.drawable.widget_bg_end_badge_near,
+        )
+    } else {
+        row.setViewVisibility(R.id.widget_course_end_warning_overlay, View.GONE)
+        row.setViewVisibility(R.id.widget_course_end_warning_badge, View.GONE)
+    }
     row.setTextViewText(
         R.id.course_nodes,
         widgetSlotCellText(rowData.slotLabel, rowData.nodeNumbers, fallback = rowData.nodeRange),

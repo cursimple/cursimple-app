@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,10 +13,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
@@ -40,6 +39,11 @@ import com.x500x.cursimple.core.kernel.model.sortedUserEntries
 import com.x500x.cursimple.core.kernel.model.userEntryOn
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import java.time.LocalDate
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material3.Icon
 
 @Composable
 internal fun HolidayCalendarDialog(
@@ -56,8 +60,9 @@ internal fun HolidayCalendarDialog(
     val userEntry = settings.userEntryOn(targetDate)
     val effectiveEntry = settings.entryOn(targetDate)
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.settings_dest_holidays)) },
         text = {
             Column(
@@ -77,14 +82,14 @@ internal fun HolidayCalendarDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = name,
                     onValueChange = { name = it.take(12) },
                     label = { Text(stringResource(R.string.settings_holiday_note_label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Button(
+                AppDialogPrimaryButton(
                     onClick = {
                         onUpsert(
                             HolidayCalendarEntry(
@@ -141,7 +146,7 @@ internal fun HolidayCalendarDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_done)) }
+            AppDialogPrimaryButton(onClick = onDismiss) { Text(stringResource(R.string.settings_done)) }
         },
         dismissButton = if (settings.entries.isNotEmpty()) {
             {

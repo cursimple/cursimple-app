@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="widget_course_end_weeks_left">
+        <item quantity="one">1 week left</item>
+        <item quantity="other">%d weeks left</item>
+    </plurals>
+</resources>

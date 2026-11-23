@@ -13,10 +13,10 @@ import com.x500x.cursimple.core.data.restoreSnapshot
 import com.x500x.cursimple.core.data.term.TermProfileRepository
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 private val Context.manualCoursesDataStore: DataStore<Preferences> by preferencesDataStore(name = "manual_courses_store")
@@ -29,6 +29,7 @@ class DataStoreManualCourseRepository(
 
     private val store = context.applicationContext.manualCoursesDataStore
     private val serializer = ListSerializer(CourseItem.serializer())
+    private val deletedSerializer = ListSerializer(DeletedCourse.serializer())
 
     override val manualCoursesFlow: Flow<List<CourseItem>> = if (termProfileRepository != null) {
         combine(store.data, termProfileRepository.activeTermIdFlow) { prefs, termId ->
@@ -38,11 +39,14 @@ class DataStoreManualCourseRepository(
         store.data.map { decode(it, "") }
     }
 
-    override suspend fun addCourse(course: CourseItem) {
+    override suspend fun addCourse(course: CourseItem) = addCourses(listOf(course))
+
+    override suspend fun addCourses(courses: List<CourseItem>) {
+        if (courses.isEmpty()) return
         val termId = termProfileRepository?.activeTermId().orEmpty()
         store.edit { prefs ->
             val current = decode(prefs, termId)
-            prefs[coursesKey(termId)] = json.encodeToString(serializer, current + course)
+            prefs[coursesKey(termId)] = json.encodeToString(serializer, current + courses)
         }
     }
 
@@ -67,9 +71,61 @@ class DataStoreManualCourseRepository(
         val termId = termProfileRepository?.activeTermId().orEmpty()
         store.edit { prefs ->
             val current = decode(prefs, termId)
+            val removed = current.filter { it.id == courseId }
             prefs[coursesKey(termId)] = json.encodeToString(
                 serializer,
                 current.filterNot { it.id == courseId },
+            )
+            // Deleted manual courses go to the recycle bin so they can be restored; tombstones of synced
+            // courses keep their own "hidden" flag.
+            if (removed.isNotEmpty()) prefs[KEY_DELETED_COURSES] = json.encodeToString(
+                deletedSerializer,
+                decodeDeleted(prefs) + removed.map { DeletedCourse(it, System.currentTimeMillis(), termId) },
+            )
+        }
+    }
+
+    override val deletedCoursesFlow: Flow<List<DeletedCourse>> = store.data.map { prefs ->
+        decodeDeleted(prefs).sortedByDescending { it.deletedAt }
+    }
+
+    override suspend fun restoreCourse(courseId: String) {
+        store.edit { prefs ->
+            val deleted = decodeDeleted(prefs)
+            val restored = deleted.firstOrNull { it.course.id == courseId } ?: return@edit
+            prefs[KEY_DELETED_COURSES] = json.encodeToString(
+                deletedSerializer,
+                deleted.filterNot { it.course.id == courseId },
+            )
+            val key = coursesKey(restored.termId)
+            val current = decode(prefs, restored.termId)
+            if (current.none { it.id == restored.course.id }) {
+                prefs[key] = json.encodeToString(serializer, current + restored.course)
+            }
+        }
+    }
+
+    override suspend fun clearDeletedCourses() {
+        store.edit { prefs -> prefs.remove(KEY_DELETED_COURSES) }
+    }
+
+    private fun decodeDeleted(prefs: androidx.datastore.preferences.core.Preferences): List<DeletedCourse> =
+        runCatching {
+            prefs[KEY_DELETED_COURSES]?.let { json.decodeFromString(deletedSerializer, it) }.orEmpty()
+        }.getOrDefault(emptyList())
+
+    override suspend fun removeFromLibrary(termId: String, selectedIds: Set<String>, syncedCourses: List<CourseItem>) {
+        if (selectedIds.isEmpty()) return
+        store.edit { prefs ->
+            val before = decode(prefs, termId)
+            val remaining = applyCourseLibraryDeletion(before, selectedIds, syncedCourses)
+            prefs[coursesKey(termId)] = json.encodeToString(serializer, remaining)
+            // Manual courses are deleted outright, so keep them in the recycle bin; synced ones keep tombstones.
+            val syncedIds = syncedCourses.mapTo(hashSetOf()) { it.id }
+            val gone = before.filter { it.id in selectedIds && it.id !in syncedIds }
+            if (gone.isNotEmpty()) prefs[KEY_DELETED_COURSES] = json.encodeToString(
+                deletedSerializer,
+                decodeDeleted(prefs) + gone.map { DeletedCourse(it, System.currentTimeMillis(), termId) },
             )
         }
     }
@@ -122,7 +178,21 @@ class DataStoreManualCourseRepository(
 
     private companion object {
         val KEY_LEGACY_COURSES_JSON = stringPreferencesKey("manual_courses_json")
+        val KEY_DELETED_COURSES = stringPreferencesKey("manual_courses_deleted")
     }
+}
+
+internal fun applyCourseLibraryDeletion(
+    current: List<CourseItem>,
+    selectedIds: Set<String>,
+    syncedCourses: List<CourseItem>,
+): List<CourseItem> {
+    val remaining = current.filterNot { it.id in selectedIds && !it.hidden }
+    val existingIds = remaining.mapTo(hashSetOf()) { it.id }
+    return remaining + syncedCourses
+        .filter { it.id in selectedIds && existingIds.add(it.id) }
+        .map { it.copy(hidden = true) }
+
 }
 
 /** 空学期 id 读取时回落到旧的无学期桶。 */

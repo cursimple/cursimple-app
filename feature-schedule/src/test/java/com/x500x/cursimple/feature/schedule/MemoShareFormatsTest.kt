@@ -62,8 +62,8 @@ class MemoShareFormatsTest {
     @Test fun `plain text strips inline markers and renders checkboxes`() {
         val text = memoSharePlainText(all)
         assertTrue(text.contains("【Lab <3>】"))
-        assertTrue(text.contains("☐ Upload report"))
-        assertTrue(text.contains("☑ Draft"))
+        assertTrue(text.contains("[ ] Upload report"))
+        assertTrue(text.contains("[x] Draft"))
         assertTrue(text.contains("• item"))
         assertTrue(text.contains("1. first"))
         assertTrue(text.contains("plain code & old"))
@@ -89,7 +89,7 @@ class MemoShareFormatsTest {
         assertTrue(document.contains("<w:pStyle w:val=\"Heading2\"/>"))
         assertTrue(document.contains("<w:numId w:val=\"1\"/>"))
         assertTrue(document.contains("<w:b/></w:rPr><w:t xml:space=\"preserve\">Upload</w:t>"))
-        assertTrue(document.contains("☑ "))
+        assertTrue(document.contains("[x] "))
         assertTrue(document.contains("&amp;"))
     }
 

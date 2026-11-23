@@ -66,6 +66,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setTermStartDate(date) }
     }
 
+    fun markFirstRunPermissionsReviewed() {
+        viewModelScope.launch { repository.markFirstRunPermissionsReviewed() }
+    }
+
     fun setFirstRunGuideCompleted(completed: Boolean) {
         viewModelScope.launch { repository.setFirstRunGuideCompleted(completed) }
     }
@@ -260,6 +264,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setTodayOverviewEnabled(enabled) }
     }
 
+    fun setCourseEndWarningEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setCourseEndWarningEnabled(enabled) }
+    }
+
     fun setScheduleSaturdayVisible(visible: Boolean) {
         viewModelScope.launch { repository.setScheduleSaturdayVisible(visible) }
     }
@@ -317,6 +325,18 @@ class AppPreferencesViewModel(
 
     fun setGridDashedLinesEnabled(enabled: Boolean) {
         viewModelScope.launch { repository.setGridDashedLinesEnabled(enabled) }
+    }
+
+    fun setInactiveCourseDisplayMode(mode: com.x500x.cursimple.core.data.InactiveCourseDisplayMode) {
+        viewModelScope.launch { repository.setInactiveCourseDisplayMode(mode) }
+    }
+
+    fun setDayViewEventsEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setDayViewEventsEnabled(enabled) }
+    }
+
+    fun setPeriodBreakDividersEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setPeriodBreakDividersEnabled(enabled) }
     }
 
     fun setTimeColumnWidthDp(widthDp: Int) {

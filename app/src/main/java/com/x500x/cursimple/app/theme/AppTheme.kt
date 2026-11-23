@@ -1,8 +1,11 @@
 package com.x500x.cursimple.app.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -10,6 +13,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.x500x.cursimple.core.data.CoursePaletteStyle
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.theme.AccentColors
@@ -25,279 +31,116 @@ private data class AccentSwatch(
     val dark: ColorScheme,
 )
 
+// Neutral surfaces shared by every accent: a sage page behind white cards.
+private val LightBackground = Color(0xFFF0F4EC)
+private val LightSurfaceVariant = Color(0xFFE8EEE6)
+private val LightInk = Color(0xFF16241D)
+private val LightInkMuted = Color(0xFF4F6458)
+private val LightOutline = Color(0xFFB7C4B9)
+private val LightOutlineVariant = Color(0xFFDDE6DC)
+
+private val DarkBackground = Color(0xFF0E1411)
+private val DarkSurface = Color(0xFF161E1A)
+private val DarkSurfaceVariant = Color(0xFF1F2A24)
+private val DarkInk = Color(0xFFE3EBE4)
+private val DarkInkMuted = Color(0xFFA9BBB0)
+private val DarkOutline = Color(0xFF56655B)
+private val DarkOutlineVariant = Color(0xFF2C3731)
+
+/** Accent-independent roles: secondary text, amber tertiary and the error red of the design. */
+private fun lightScheme(
+    primary: Color,
+    primaryContainer: Color,
+    onPrimaryContainer: Color,
+): ColorScheme = lightColorScheme(
+    primary = primary,
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = primaryContainer,
+    onPrimaryContainer = onPrimaryContainer,
+    inversePrimary = primary,
+    secondary = Color(0xFF3D5F4C),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFE1E9DF),
+    onSecondaryContainer = Color(0xFF22352A),
+    tertiary = Color(0xFF8A6416),
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFFBEFCE),
+    onTertiaryContainer = Color(0xFF40260A),
+    background = LightBackground,
+    onBackground = LightInk,
+    surface = Color(0xFFFFFFFF),
+    onSurface = LightInk,
+    surfaceVariant = LightSurfaceVariant,
+    onSurfaceVariant = LightInkMuted,
+    surfaceTint = primary,
+    inverseSurface = Color(0xFF22302A),
+    inverseOnSurface = Color(0xFFF2F6F1),
+    outline = LightOutline,
+    outlineVariant = LightOutlineVariant,
+    error = Color(0xFFB3372F),
+    onError = Color(0xFFFFFFFF),
+    errorContainer = Color(0xFFFBE3E1),
+    onErrorContainer = Color(0xFF4A0F0B),
+)
+
+private fun darkScheme(
+    primary: Color,
+    primaryContainer: Color,
+    onPrimaryContainer: Color,
+): ColorScheme = darkColorScheme(
+    primary = primary,
+    onPrimary = Color(0xFF08251A),
+    primaryContainer = primaryContainer,
+    onPrimaryContainer = onPrimaryContainer,
+    inversePrimary = primary,
+    secondary = Color(0xFFA9C7B5),
+    onSecondary = Color(0xFF13251C),
+    secondaryContainer = Color(0xFF2A3A31),
+    onSecondaryContainer = Color(0xFFD7E5DB),
+    tertiary = Color(0xFFEEC086),
+    onTertiary = Color(0xFF3A2A08),
+    tertiaryContainer = Color(0xFF614021),
+    onTertiaryContainer = Color(0xFFFCE5C7),
+    background = DarkBackground,
+    onBackground = DarkInk,
+    surface = DarkSurface,
+    onSurface = DarkInk,
+    surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = DarkInkMuted,
+    surfaceTint = primary,
+    inverseSurface = Color(0xFFE3EBE4),
+    inverseOnSurface = Color(0xFF17201B),
+    outline = DarkOutline,
+    outlineVariant = DarkOutlineVariant,
+    error = Color(0xFFF2B8B5),
+    onError = Color(0xFF601410),
+    errorContainer = Color(0xFF8C1D18),
+    onErrorContainer = Color(0xFFF9DEDC),
+)
+
 private val GreenSwatch = AccentSwatch(
-    light = lightColorScheme(
-        primary = Color(0xFF3FA277),
-        onPrimary = Color(0xFFFFFFFF),
-        primaryContainer = Color(0xFFCBEBD9),
-        onPrimaryContainer = Color(0xFF0E3A26),
-        secondary = Color(0xFF4A86CC),
-        onSecondary = Color(0xFFFFFFFF),
-        secondaryContainer = Color(0xFFD7E5F8),
-        onSecondaryContainer = Color(0xFF0F2F52),
-        tertiary = Color(0xFFD89A4A),
-        onTertiary = Color(0xFFFFFFFF),
-        tertiaryContainer = Color(0xFFFCE5C7),
-        onTertiaryContainer = Color(0xFF40260A),
-        background = Color(0xFFF4F8F4),
-        onBackground = Color(0xFF1A2620),
-        surface = Color(0xFFFFFFFF),
-        onSurface = Color(0xFF1A2620),
-        surfaceVariant = Color(0xFFE6EEE7),
-        onSurfaceVariant = Color(0xFF566B5F),
-        outline = Color(0xFFB6C4BB),
-        outlineVariant = Color(0xFFD4DDD7),
-        error = Color(0xFFB3261E),
-        onError = Color(0xFFFFFFFF),
-        errorContainer = Color(0xFFF9DEDC),
-        onErrorContainer = Color(0xFF410E0B),
-    ),
-    dark = darkColorScheme(
-        primary = Color(0xFF8AD7AF),
-        onPrimary = Color(0xFF003824),
-        primaryContainer = Color(0xFF1F5A3E),
-        onPrimaryContainer = Color(0xFFCBEBD9),
-        secondary = Color(0xFF9CC2EC),
-        onSecondary = Color(0xFF0F2F52),
-        secondaryContainer = Color(0xFF274A73),
-        onSecondaryContainer = Color(0xFFD7E5F8),
-        tertiary = Color(0xFFEEC086),
-        onTertiary = Color(0xFF40260A),
-        tertiaryContainer = Color(0xFF614021),
-        onTertiaryContainer = Color(0xFFFCE5C7),
-        background = Color(0xFF0F1612),
-        onBackground = Color(0xFFE2EBE5),
-        surface = Color(0xFF161E1A),
-        onSurface = Color(0xFFE2EBE5),
-        surfaceVariant = Color(0xFF1F2A24),
-        onSurfaceVariant = Color(0xFFA9BBB0),
-        outline = Color(0xFF566B5F),
-        outlineVariant = Color(0xFF374239),
-        error = Color(0xFFF2B8B5),
-        onError = Color(0xFF601410),
-        errorContainer = Color(0xFF8C1D18),
-        onErrorContainer = Color(0xFFF9DEDC),
-    ),
+    light = lightScheme(Color(0xFF26805A), Color(0xFFDCEFE2), Color(0xFF0A3222)),
+    dark = darkScheme(Color(0xFF7FD3A9), Color(0xFF1E5540), Color(0xFFCBEBD9)),
 )
 
 private val BlueSwatch = AccentSwatch(
-    light = lightColorScheme(
-        primary = Color(0xFF3F6FB5),
-        onPrimary = Color(0xFFFFFFFF),
-        primaryContainer = Color(0xFFD3E3FB),
-        onPrimaryContainer = Color(0xFF0C2A52),
-        secondary = Color(0xFF55879A),
-        onSecondary = Color(0xFFFFFFFF),
-        secondaryContainer = Color(0xFFD3EAF1),
-        onSecondaryContainer = Color(0xFF143844),
-        tertiary = Color(0xFFD89A4A),
-        onTertiary = Color(0xFFFFFFFF),
-        tertiaryContainer = Color(0xFFFCE5C7),
-        onTertiaryContainer = Color(0xFF40260A),
-        background = Color(0xFFF3F6FB),
-        onBackground = Color(0xFF192029),
-        surface = Color(0xFFFFFFFF),
-        onSurface = Color(0xFF192029),
-        surfaceVariant = Color(0xFFE3EAF2),
-        onSurfaceVariant = Color(0xFF566372),
-        outline = Color(0xFFB1BCCB),
-        outlineVariant = Color(0xFFD2D9E1),
-        error = Color(0xFFB3261E),
-        onError = Color(0xFFFFFFFF),
-        errorContainer = Color(0xFFF9DEDC),
-        onErrorContainer = Color(0xFF410E0B),
-    ),
-    dark = darkColorScheme(
-        primary = Color(0xFFA9C7F5),
-        onPrimary = Color(0xFF0A2647),
-        primaryContainer = Color(0xFF234471),
-        onPrimaryContainer = Color(0xFFD3E3FB),
-        secondary = Color(0xFFA0CCDB),
-        onSecondary = Color(0xFF143844),
-        secondaryContainer = Color(0xFF2C5562),
-        onSecondaryContainer = Color(0xFFD3EAF1),
-        tertiary = Color(0xFFEEC086),
-        onTertiary = Color(0xFF40260A),
-        tertiaryContainer = Color(0xFF614021),
-        onTertiaryContainer = Color(0xFFFCE5C7),
-        background = Color(0xFF0F141B),
-        onBackground = Color(0xFFE2E8F0),
-        surface = Color(0xFF161D26),
-        onSurface = Color(0xFFE2E8F0),
-        surfaceVariant = Color(0xFF1F2832),
-        onSurfaceVariant = Color(0xFFAAB6C4),
-        outline = Color(0xFF566372),
-        outlineVariant = Color(0xFF374253),
-        error = Color(0xFFF2B8B5),
-        onError = Color(0xFF601410),
-        errorContainer = Color(0xFF8C1D18),
-        onErrorContainer = Color(0xFFF9DEDC),
-    ),
+    light = lightScheme(Color(0xFF2563A8), Color(0xFFDDEBFA), Color(0xFF0B2A47)),
+    dark = darkScheme(Color(0xFF9CC2F0), Color(0xFF1D4066), Color(0xFFDDEBFA)),
 )
 
 private val PurpleSwatch = AccentSwatch(
-    light = lightColorScheme(
-        primary = Color(0xFF7259B5),
-        onPrimary = Color(0xFFFFFFFF),
-        primaryContainer = Color(0xFFE3DAF7),
-        onPrimaryContainer = Color(0xFF2B1D4F),
-        secondary = Color(0xFFB35591),
-        onSecondary = Color(0xFFFFFFFF),
-        secondaryContainer = Color(0xFFFAD7EC),
-        onSecondaryContainer = Color(0xFF4F1740),
-        tertiary = Color(0xFFD89A4A),
-        onTertiary = Color(0xFFFFFFFF),
-        tertiaryContainer = Color(0xFFFCE5C7),
-        onTertiaryContainer = Color(0xFF40260A),
-        background = Color(0xFFF6F4FB),
-        onBackground = Color(0xFF1F1B29),
-        surface = Color(0xFFFFFFFF),
-        onSurface = Color(0xFF1F1B29),
-        surfaceVariant = Color(0xFFEAE5F2),
-        onSurfaceVariant = Color(0xFF625873),
-        outline = Color(0xFFB9B1CB),
-        outlineVariant = Color(0xFFD7D2E1),
-        error = Color(0xFFB3261E),
-        onError = Color(0xFFFFFFFF),
-        errorContainer = Color(0xFFF9DEDC),
-        onErrorContainer = Color(0xFF410E0B),
-    ),
-    dark = darkColorScheme(
-        primary = Color(0xFFC0AEF0),
-        onPrimary = Color(0xFF2B1D4F),
-        primaryContainer = Color(0xFF453072),
-        onPrimaryContainer = Color(0xFFE3DAF7),
-        secondary = Color(0xFFEDA5D2),
-        onSecondary = Color(0xFF4F1740),
-        secondaryContainer = Color(0xFF6E325A),
-        onSecondaryContainer = Color(0xFFFAD7EC),
-        tertiary = Color(0xFFEEC086),
-        onTertiary = Color(0xFF40260A),
-        tertiaryContainer = Color(0xFF614021),
-        onTertiaryContainer = Color(0xFFFCE5C7),
-        background = Color(0xFF14101D),
-        onBackground = Color(0xFFE6E2F0),
-        surface = Color(0xFF1B1726),
-        onSurface = Color(0xFFE6E2F0),
-        surfaceVariant = Color(0xFF231E32),
-        onSurfaceVariant = Color(0xFFB1A8C4),
-        outline = Color(0xFF625873),
-        outlineVariant = Color(0xFF3E364D),
-        error = Color(0xFFF2B8B5),
-        onError = Color(0xFF601410),
-        errorContainer = Color(0xFF8C1D18),
-        onErrorContainer = Color(0xFFF9DEDC),
-    ),
+    light = lightScheme(Color(0xFF7A4FC4), Color(0xFFE5DEF6), Color(0xFF251347)),
+    dark = darkScheme(Color(0xFFC4AEF2), Color(0xFF3E2A6B), Color(0xFFE5DEF6)),
 )
 
 private val OrangeSwatch = AccentSwatch(
-    light = lightColorScheme(
-        primary = Color(0xFFD0763B),
-        onPrimary = Color(0xFFFFFFFF),
-        primaryContainer = Color(0xFFFCDBC2),
-        onPrimaryContainer = Color(0xFF4A1F08),
-        secondary = Color(0xFF7B6042),
-        onSecondary = Color(0xFFFFFFFF),
-        secondaryContainer = Color(0xFFEEDBC4),
-        onSecondaryContainer = Color(0xFF2A1B0A),
-        tertiary = Color(0xFF4A86CC),
-        onTertiary = Color(0xFFFFFFFF),
-        tertiaryContainer = Color(0xFFD7E5F8),
-        onTertiaryContainer = Color(0xFF0F2F52),
-        background = Color(0xFFFAF5EE),
-        onBackground = Color(0xFF24201A),
-        surface = Color(0xFFFFFFFF),
-        onSurface = Color(0xFF24201A),
-        surfaceVariant = Color(0xFFEFE5D6),
-        onSurfaceVariant = Color(0xFF6E6555),
-        outline = Color(0xFFC2B59C),
-        outlineVariant = Color(0xFFE0D6C2),
-        error = Color(0xFFB3261E),
-        onError = Color(0xFFFFFFFF),
-        errorContainer = Color(0xFFF9DEDC),
-        onErrorContainer = Color(0xFF410E0B),
-    ),
-    dark = darkColorScheme(
-        primary = Color(0xFFEFB48A),
-        onPrimary = Color(0xFF4A1F08),
-        primaryContainer = Color(0xFF6D391A),
-        onPrimaryContainer = Color(0xFFFCDBC2),
-        secondary = Color(0xFFD8C0A0),
-        onSecondary = Color(0xFF2A1B0A),
-        secondaryContainer = Color(0xFF4D3D26),
-        onSecondaryContainer = Color(0xFFEEDBC4),
-        tertiary = Color(0xFF9CC2EC),
-        onTertiary = Color(0xFF0F2F52),
-        tertiaryContainer = Color(0xFF274A73),
-        onTertiaryContainer = Color(0xFFD7E5F8),
-        background = Color(0xFF1A1611),
-        onBackground = Color(0xFFEEE7DC),
-        surface = Color(0xFF221C15),
-        onSurface = Color(0xFFEEE7DC),
-        surfaceVariant = Color(0xFF2D261C),
-        onSurfaceVariant = Color(0xFFC0B49E),
-        outline = Color(0xFF6E6555),
-        outlineVariant = Color(0xFF463E2F),
-        error = Color(0xFFF2B8B5),
-        onError = Color(0xFF601410),
-        errorContainer = Color(0xFF8C1D18),
-        onErrorContainer = Color(0xFFF9DEDC),
-    ),
+    light = lightScheme(Color(0xFFC2410C), Color(0xFFFBE0CB), Color(0xFF431404)),
+    dark = darkScheme(Color(0xFFF3A97B), Color(0xFF5C2A10), Color(0xFFFBE0CB)),
 )
 
 private val PinkSwatch = AccentSwatch(
-    light = lightColorScheme(
-        primary = Color(0xFFC25B7D),
-        onPrimary = Color(0xFFFFFFFF),
-        primaryContainer = Color(0xFFFAD7DF),
-        onPrimaryContainer = Color(0xFF4A0F1F),
-        secondary = Color(0xFF8C5687),
-        onSecondary = Color(0xFFFFFFFF),
-        secondaryContainer = Color(0xFFF1D7EC),
-        onSecondaryContainer = Color(0xFF361432),
-        tertiary = Color(0xFFD89A4A),
-        onTertiary = Color(0xFFFFFFFF),
-        tertiaryContainer = Color(0xFFFCE5C7),
-        onTertiaryContainer = Color(0xFF40260A),
-        background = Color(0xFFFAF4F6),
-        onBackground = Color(0xFF261A20),
-        surface = Color(0xFFFFFFFF),
-        onSurface = Color(0xFF261A20),
-        surfaceVariant = Color(0xFFF1E4E9),
-        onSurfaceVariant = Color(0xFF735865),
-        outline = Color(0xFFC9B0BA),
-        outlineVariant = Color(0xFFE5D2DA),
-        error = Color(0xFFB3261E),
-        onError = Color(0xFFFFFFFF),
-        errorContainer = Color(0xFFF9DEDC),
-        onErrorContainer = Color(0xFF410E0B),
-    ),
-    dark = darkColorScheme(
-        primary = Color(0xFFEFA9BD),
-        onPrimary = Color(0xFF4A0F1F),
-        primaryContainer = Color(0xFF73314A),
-        onPrimaryContainer = Color(0xFFFAD7DF),
-        secondary = Color(0xFFD7AED2),
-        onSecondary = Color(0xFF361432),
-        secondaryContainer = Color(0xFF553050),
-        onSecondaryContainer = Color(0xFFF1D7EC),
-        tertiary = Color(0xFFEEC086),
-        onTertiary = Color(0xFF40260A),
-        tertiaryContainer = Color(0xFF614021),
-        onTertiaryContainer = Color(0xFFFCE5C7),
-        background = Color(0xFF1B1216),
-        onBackground = Color(0xFFEFE0E5),
-        surface = Color(0xFF231A1F),
-        onSurface = Color(0xFFEFE0E5),
-        surfaceVariant = Color(0xFF302229),
-        onSurfaceVariant = Color(0xFFC4ADB6),
-        outline = Color(0xFF735865),
-        outlineVariant = Color(0xFF483038),
-        error = Color(0xFFF2B8B5),
-        onError = Color(0xFF601410),
-        errorContainer = Color(0xFF8C1D18),
-        onErrorContainer = Color(0xFFF9DEDC),
-    ),
+    light = lightScheme(Color(0xFFC25B7D), Color(0xFFFAD7DF), Color(0xFF4A0F1F)),
+    dark = darkScheme(Color(0xFFEFA9BD), Color(0xFF73314A), Color(0xFFFAD7DF)),
 )
 
 /**
@@ -319,8 +162,8 @@ private fun swatchFor(accent: ThemeAccent, customArgb: Int): AccentSwatch = when
 }
 
 /**
- * Derive readable light and dark palettes from the selected hue, limiting saturation and
- * preserving common error colors.
+ * Derive a readable light and dark accent from the selected hue on the shared sage-neutral
+ * surfaces, so custom themes keep the design's background, cards and text hierarchy.
  */
 private fun customSwatch(seed: Int): AccentSwatch {
     fun tone(lightness: Float, maxSat: Float, minSat: Float = 0f, hueShift: Float = 0f): Color {
@@ -328,82 +171,41 @@ private fun customSwatch(seed: Int): AccentSwatch {
         val s = saturation.coerceIn(minSat.coerceAtMost(maxSat), maxSat)
         return Color(AccentColors.fromHsl(hue + hueShift, s, lightness))
     }
-    val light = lightColorScheme(
-        primary = Color(AccentColors.primary(seed, dark = false)),
-        onPrimary = Color(0xFFFFFFFF),
-        primaryContainer = tone(0.87f, 0.55f, 0.2f),
-        onPrimaryContainer = tone(0.15f, 0.7f, 0.2f),
-        secondary = tone(0.45f, 0.45f, 0.15f, hueShift = 30f),
-        onSecondary = Color(0xFFFFFFFF),
-        secondaryContainer = tone(0.89f, 0.45f, 0.15f, hueShift = 30f),
-        onSecondaryContainer = tone(0.16f, 0.5f, 0.15f, hueShift = 30f),
-        tertiary = Color(0xFFD89A4A),
-        onTertiary = Color(0xFFFFFFFF),
-        tertiaryContainer = Color(0xFFFCE5C7),
-        onTertiaryContainer = Color(0xFF40260A),
-        background = tone(0.965f, 0.25f),
-        onBackground = tone(0.12f, 0.15f),
-        surface = Color(0xFFFFFFFF),
-        onSurface = tone(0.12f, 0.15f),
-        surfaceVariant = tone(0.92f, 0.18f),
-        onSurfaceVariant = tone(0.38f, 0.12f),
-        outline = tone(0.73f, 0.12f),
-        outlineVariant = tone(0.85f, 0.10f),
-        error = Color(0xFFB3261E),
-        onError = Color(0xFFFFFFFF),
-        errorContainer = Color(0xFFF9DEDC),
-        onErrorContainer = Color(0xFF410E0B),
+    return AccentSwatch(
+        light = lightScheme(
+            primary = Color(AccentColors.primary(seed, dark = false)),
+            primaryContainer = tone(0.90f, 0.45f, 0.18f),
+            onPrimaryContainer = tone(0.18f, 0.60f, 0.18f),
+        ),
+        dark = darkScheme(
+            primary = Color(AccentColors.primary(seed, dark = true)),
+            primaryContainer = tone(0.26f, 0.45f, 0.18f),
+            onPrimaryContainer = tone(0.90f, 0.45f, 0.18f),
+        ),
     )
-    val dark = darkColorScheme(
-        primary = Color(AccentColors.primary(seed, dark = true)),
-        onPrimary = tone(0.13f, 0.7f, 0.2f),
-        primaryContainer = tone(0.26f, 0.5f, 0.2f),
-        onPrimaryContainer = tone(0.87f, 0.55f, 0.2f),
-        secondary = tone(0.76f, 0.45f, 0.15f, hueShift = 30f),
-        onSecondary = tone(0.16f, 0.5f, 0.15f, hueShift = 30f),
-        secondaryContainer = tone(0.30f, 0.4f, 0.15f, hueShift = 30f),
-        onSecondaryContainer = tone(0.89f, 0.45f, 0.15f, hueShift = 30f),
-        tertiary = Color(0xFFEEC086),
-        onTertiary = Color(0xFF40260A),
-        tertiaryContainer = Color(0xFF614021),
-        onTertiaryContainer = Color(0xFFFCE5C7),
-        background = tone(0.07f, 0.18f),
-        onBackground = tone(0.90f, 0.12f),
-        surface = tone(0.10f, 0.16f),
-        onSurface = tone(0.90f, 0.12f),
-        surfaceVariant = tone(0.15f, 0.14f),
-        onSurfaceVariant = tone(0.70f, 0.12f),
-        outline = tone(0.38f, 0.10f),
-        outlineVariant = tone(0.24f, 0.10f),
-        error = Color(0xFFF2B8B5),
-        onError = Color(0xFF601410),
-        errorContainer = Color(0xFF8C1D18),
-        onErrorContainer = Color(0xFFF9DEDC),
-    )
-    return AccentSwatch(light = light, dark = dark)
 }
 
 private val LightAccents = ScheduleAccents(
-    gridBackground = Color(0xFFF6F8F6),
-    gridLine = Color(0xFFE2E7E3),
+    gridBackground = Color(0xFFFFFFFF),
+    gridLine = Color(0xFFE0E8DE),
     coursePalette = listOf(
-        CoursePaletteEntry(Color(0xFFDDEBFA), Color(0xFF2C5587)),
-        CoursePaletteEntry(Color(0xFFDCEFD7), Color(0xFF325E2A)),
-        CoursePaletteEntry(Color(0xFFFBE0E4), Color(0xFF872E48)),
-        CoursePaletteEntry(Color(0xFFE5DEF6), Color(0xFF4F388B)),
-        CoursePaletteEntry(Color(0xFFFBEFCE), Color(0xFF7E5B14)),
-        CoursePaletteEntry(Color(0xFFD5EBE6), Color(0xFF1F5C50)),
-        CoursePaletteEntry(Color(0xFFFBE0CB), Color(0xFF8C4A1F)),
+        CoursePaletteEntry(Color(0xFFDAE7FB), Color(0xFF173A70)),
+        CoursePaletteEntry(Color(0xFFD6EFDC), Color(0xFF1B5632)),
+        CoursePaletteEntry(Color(0xFFFBDCE3), Color(0xFF7E1A39)),
+        CoursePaletteEntry(Color(0xFFE5DEF8), Color(0xFF43278A)),
+        CoursePaletteEntry(Color(0xFFFAE9BD), Color(0xFF5E4108)),
+        CoursePaletteEntry(Color(0xFFD8EFF0), Color(0xFF145A5C)),
+        CoursePaletteEntry(Color(0xFFFBE0CB), Color(0xFF7A3A12)),
     ),
-    inactiveContainer = Color(0xFFEEF1ED),
-    inactiveOnContainer = Color(0xFF8E988F),
-    todayContainer = Color(0xFF1F2A24),
+    inactiveContainer = Color(0xFFF0F5EF),
+    inactiveOnContainer = Color(0xFF8FA196),
+    todayContainer = Color(0xFF26805A),
     todayOnContainer = Color(0xFFFFFFFF),
 )
 
 private val DarkAccents = ScheduleAccents(
-    gridBackground = Color(0xFF181E1B),
-    gridLine = Color(0xFF272F2B),
+    gridBackground = Color(0xFF161E1A),
+    gridLine = Color(0xFF26312B),
     coursePalette = listOf(
         CoursePaletteEntry(Color(0xFF243A52), Color(0xFFB5D3F0)),
         CoursePaletteEntry(Color(0xFF263F23), Color(0xFFB8DDB1)),
@@ -413,10 +215,59 @@ private val DarkAccents = ScheduleAccents(
         CoursePaletteEntry(Color(0xFF1F3A36), Color(0xFFA8D7CC)),
         CoursePaletteEntry(Color(0xFF4A3220), Color(0xFFF4C49E)),
     ),
-    inactiveContainer = Color(0xFF23292A),
-    inactiveOnContainer = Color(0xFF6B7479),
-    todayContainer = Color(0xFFE5EAE6),
-    todayOnContainer = Color(0xFF1A1A1A),
+    inactiveContainer = Color(0xFF232B27),
+    inactiveOnContainer = Color(0xFF6B7770),
+    todayContainer = Color(0xFF7FD3A9),
+    todayOnContainer = Color(0xFF08251A),
+)
+
+/** Compact, heavy type scale of the redesign: bold 13.5–17sp titles over 11–13.5sp support text. */
+private val AppTypography = Typography().run {
+    copy(
+        headlineSmall = headlineSmall.copy(fontWeight = FontWeight.Bold),
+        titleLarge = titleLarge.copy(
+            fontSize = 20.sp,
+            lineHeight = 26.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.2.sp,
+        ),
+        titleMedium = titleMedium.copy(
+            fontSize = 16.sp,
+            lineHeight = 22.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.1.sp,
+        ),
+        titleSmall = titleSmall.copy(
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+            fontWeight = FontWeight.SemiBold,
+        ),
+        bodyLarge = bodyLarge.copy(fontSize = 15.sp, lineHeight = 22.sp),
+        bodyMedium = bodyMedium.copy(fontSize = 13.5.sp, lineHeight = 20.sp),
+        bodySmall = bodySmall.copy(fontSize = 12.sp, lineHeight = 18.sp),
+        labelLarge = labelLarge.copy(
+            fontSize = 13.5.sp,
+            lineHeight = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.1.sp,
+        ),
+        labelMedium = labelMedium.copy(fontWeight = FontWeight.Medium),
+        labelSmall = labelSmall.copy(
+            fontSize = 11.sp,
+            lineHeight = 15.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 0.1.sp,
+        ),
+    )
+}
+
+/** Rounded card surfaces: 16dp list cards, 22dp tiles, 28dp sheets and dialogs. */
+private val AppShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(22.dp),
+    extraLarge = RoundedCornerShape(28.dp),
 )
 
 @Composable
@@ -442,7 +293,12 @@ fun ClassScheduleTheme(
         LocalScheduleAccents provides accents,
         LocalAppThemeChoice provides AppThemeChoice(themeAccent, isDark, customAccentArgb),
     ) {
-        MaterialTheme(colorScheme = colors, content = content)
+        MaterialTheme(
+            colorScheme = colors,
+            typography = AppTypography,
+            shapes = AppShapes,
+            content = content,
+        )
     }
 }
 

@@ -220,6 +220,13 @@ internal class WebLoginAssist(
 
     var suppressAutofill = false
 
+    /**
+     * When true, the first saved-account fill also presses the form's sign-in button, once.
+     * The page clears it through the bridge right before pressing, so a wrong password never loops.
+     */
+    @Volatile
+    var autoSubmitOnce = false
+
     fun install(webView: WebView) {
         webView.addJavascriptInterface(Bridge(webView), BRIDGE_NAME)
     }
@@ -228,7 +235,7 @@ internal class WebLoginAssist(
         val host = hostOf(url) ?: return
         if (!isLoginPageAllowed(url)) return
         val saved = if (suppressAutofill) null else store.find(pluginId, host)
-        webView.evaluateJavascript(webLoginAssistScript(host, saved), null)
+        webView.evaluateJavascript(webLoginAssistScript(host, saved, autoSubmit = autoSubmitOnce && saved != null), null)
     }
 
     private inner class Bridge(private val webView: WebView) {
@@ -244,6 +251,14 @@ internal class WebLoginAssist(
                 if (store.rememberAccount(pluginId, currentHost, user)) onAccountChanged(currentHost)
             }
         }
+        /** The page is about to press sign-in by itself; true only for the first such request. */
+        @JavascriptInterface
+        fun claimAutoSubmit(): Boolean {
+            if (!autoSubmitOnce) return false
+            autoSubmitOnce = false
+            return true
+        }
+
         /** Accept credential reports only from the current allowlisted top-level host. */
         @JavascriptInterface
         fun onLoginSubmit(host: String?, username: String?, password: String?) {
@@ -292,7 +307,7 @@ private fun normalizeHost(host: String): String = host.trim().trimEnd('.').lower
  * Observe clicks, Enter and form.submit before page encryption. MutationObserver handles
  * delayed forms; native setters and input/change events update framework bindings.
  */
-internal fun webLoginAssistScript(host: String, saved: WebLoginCredential?): String {
+internal fun webLoginAssistScript(host: String, saved: WebLoginCredential?, autoSubmit: Boolean = false): String {
     fun literal(value: String) = JsonPrimitive(value).toString().replace("<", "\\u003c")
     val hostLiteral = literal(host)
     val userLiteral = saved?.let { literal(it.username) } ?: "null"
@@ -356,6 +371,32 @@ internal fun webLoginAssistScript(host: String, saved: WebLoginCredential?): Str
               var user = usernameField(pwd);
               if (user && !user.value) { setValue(user, currentSaved.u); }
               if (!user || user.value === currentSaved.u) { setValue(pwd, currentSaved.p); }
+              if ($autoSubmit && user && user.value === currentSaved.u && pwd.value === currentSaved.p) {
+                setTimeout(function () { autoSubmitNow(pwd, user); }, 700);
+              }
+            }
+            // Presses sign-in only when nothing else visible is left empty (a captcha, an SMS code).
+            function autoSubmitNow(pwd, user) {
+              if (!pwd.isConnected || pwd.value !== currentSaved.p || user.value !== currentSaved.u) { return; }
+              var scope = pwd.form || document;
+              var inputs = scope.querySelectorAll("input");
+              for (var i = 0; i < inputs.length; i++) {
+                var el = inputs[i];
+                var type = (el.getAttribute("type") || "text").toLowerCase();
+                if (el === pwd || el === user || !visible(el)) { continue; }
+                if ((type === "text" || type === "tel" || type === "number" || type === "password") && !el.value) { return; }
+              }
+              var buttons = scope.querySelectorAll('button, input[type="submit"], input[type="button"], a, [role="button"]');
+              var target = null;
+              for (var j = 0; j < buttons.length && !target; j++) {
+                var b = buttons[j];
+                if (!visible(b)) { continue; }
+                var label = (b.value || b.textContent || "").trim();
+                if (b.type === "submit" || LOGIN_TEXT.test(label)) { target = b; }
+              }
+              if (!target) { return; }
+              try { if (!window.${WebLoginAssist.BRIDGE_NAME}.claimAutoSubmit()) { return; } } catch (e) { return; }
+              target.click();
             }
             state.fill = function (value) { currentSaved = value; fillNow(); };
             // Typing another account must not submit the saved account's password.

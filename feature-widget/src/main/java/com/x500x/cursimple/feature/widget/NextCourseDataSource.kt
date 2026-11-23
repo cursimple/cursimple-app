@@ -13,6 +13,7 @@ import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import com.x500x.cursimple.core.data.widget.courseSlotLabelText
 import com.x500x.cursimple.core.data.widget.resolveAccent
+import com.x500x.cursimple.core.data.widget.resolveThemeMode
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
@@ -95,6 +96,7 @@ internal object NextCourseDataSource {
         val userPrefs = userPreferencesRepository.preferencesFlow.first()
         val widgetTheme = widgetPreferencesRepository.themePreferencesFlow.first()
             .resolveAccent(userPrefs.themeAccent, userPrefs.themeCustomColorArgb)
+            .resolveThemeMode(userPrefs.themeMode)
         val zone = BeijingTime.zone
         BeijingTime.setForcedNow(userPrefs.debugForcedDateTime)
         val today = BeijingTime.todayIn(zone)
@@ -213,7 +215,7 @@ internal object NextCourseDataSource {
             val label = appContext.getString(widgetCourseStatusRes(entry.status, exam))
             val sub = listOf(course.location, course.teacher)
                 .filter { it.isNotBlank() }
-                .joinToString(" · ")
+                .joinToString(" ")
                 .ifBlank { appContext.getString(R.string.widget_course_subtitle_placeholder) }
             NextCourseRow(
                 id = course.id,

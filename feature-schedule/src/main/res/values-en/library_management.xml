@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_management_select">Select</string>
+    <string name="library_management_clear">Exit selection</string>
+    <string name="library_management_count">%1$d selected</string>
+    <string name="library_management_select_all">Select all</string>
+    <string name="library_management_delete_selected">Delete selected</string>
+    <string name="library_management_move_up">Move up</string>
+    <string name="library_management_move_down">Move down</string>
+    <string name="library_management_delete_failed">Couldn’t finish deleting. Try again.</string>
+    <string name="library_management_reorder_failed">Couldn’t save the event order. Try again.</string>
+    <string name="library_management_event_source_plugin">Plugin</string>
+    <string name="library_management_event_source_user">My events</string>
+    <string name="library_management_event_source_all">All sources</string>
+    <string name="library_management_event_source_clear">Clear</string>
+    <string name="library_management_event_source_clear_content_description">Clear selected sources</string>
+    <plurals name="library_management_delete_courses">
+        <item quantity="one">Delete %1$d selected course? Synced courses can be restored from Deleted courses.</item>
+        <item quantity="other">Delete %1$d selected courses? Synced courses can be restored from Deleted courses.</item>
+    </plurals>
+    <plurals name="library_management_delete_events">
+        <item quantity="one">Delete %1$d selected event? All occurrences of a repeating event will be deleted.</item>
+        <item quantity="other">Delete %1$d selected events? All occurrences of repeating events will be deleted.</item>
+    </plurals>
+</resources>

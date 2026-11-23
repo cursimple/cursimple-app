@@ -30,7 +30,9 @@ class AlarmRingingUiQaTest {
     @Before fun gate() {
         val args = InstrumentationRegistry.getArguments()
         assumeTrue(args.getString("alarmUiQa") == "true")
-        AppLanguage.entries.firstOrNull { it.tag.isNotEmpty() && it.tag == args.getString("alarmUiLanguage") }?.let { language ->
+        // "system" restores the follow-the-device language after a capture run.
+        val requested = args.getString("alarmUiLanguage")?.let { if (it == "system") "" else it }
+        AppLanguage.entries.firstOrNull { it.tag == requested }?.let { language ->
             runBlocking { (context.applicationContext as ClassScheduleApplication).appContainer.userPreferencesRepository.setAppLanguage(language) }
             AppLocale.cache(context, language)
         }
@@ -48,6 +50,18 @@ class AlarmRingingUiQaTest {
 
     @Test fun ringingScreenSlidesToStop() {
         ActivityScenario.launch<AlarmRingingActivity>(ringingIntent()).use { scenario ->
+            // API 34 does not force edge-to-edge like API 35+; mimic it so the capture matches what current devices show.
+            scenario.onActivity { activity ->
+                androidx.core.view.WindowCompat.setDecorFitsSystemWindows(activity.window, false)
+                activity.window.statusBarColor = android.graphics.Color.TRANSPARENT
+                activity.window.navigationBarColor = android.graphics.Color.TRANSPARENT
+                // The camera cutout would otherwise leave a black band; the release image is full-bleed without system bars.
+                activity.window.attributes = activity.window.attributes.apply {
+                    layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                }
+                androidx.core.view.WindowInsetsControllerCompat(activity.window, activity.window.decorView)
+                    .hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            }
             compose.waitForIdle()
             Thread.sleep(900)
             save("alarm-ringing.png")

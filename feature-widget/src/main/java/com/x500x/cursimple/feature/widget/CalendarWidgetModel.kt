@@ -3,6 +3,8 @@ package com.x500x.cursimple.feature.widget
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.CourseEndWarning
+import com.x500x.cursimple.core.kernel.model.courseEndWarning
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
@@ -20,6 +22,7 @@ internal data class CalendarCourseBlock(
     val isExam: Boolean,
     val colorSeed: String,
     val inactive: Boolean,
+    val endWarning: CourseEndWarning = CourseEndWarning.None,
     val lane: Int = 0,
     val laneCount: Int = 1,
 )
@@ -31,6 +34,8 @@ internal data class CalendarDay(
     val makeUpWorkday: Boolean,
     val courses: List<CourseItem>,
     val eventCount: Int,
+    val weekIndex: Int? = null,
+    val courseEndWarningEnabled: Boolean = false,
 ) {
     val hasExam: Boolean get() = !onHoliday && courses.any { it.category == CourseCategory.Exam }
     val classCount: Int get() = if (onHoliday) 0 else courses.count { it.category != CourseCategory.Exam }
@@ -148,6 +153,11 @@ internal fun calendarBlocksOf(day: CalendarDay): List<CalendarCourseBlock> {
             isExam = course.category == CourseCategory.Exam,
             colorSeed = course.title,
             inactive = day.onHoliday,
+            endWarning = if (day.courseEndWarningEnabled) {
+                courseEndWarning(day.weekIndex, course.weeks)
+            } else {
+                CourseEndWarning.None
+            },
             lane = lane,
             laneCount = (overlapping.maxOf { it.second } + 1).coerceAtLeast(lane + 1),
         )
@@ -160,8 +170,10 @@ internal data class CalendarWeekLegend(
     val exam: Boolean,
     val holiday: Boolean,
     val makeUp: Boolean,
+    val endFinal: Boolean = false,
+    val endNear: Boolean = false,
 ) {
-    val isEmpty: Boolean get() = !events && !exam && !holiday && !makeUp
+    val isEmpty: Boolean get() = !events && !exam && !holiday && !makeUp && !endFinal && !endNear
 }
 
 internal fun CalendarWeekData.legend(): CalendarWeekLegend = CalendarWeekLegend(
@@ -169,6 +181,8 @@ internal fun CalendarWeekData.legend(): CalendarWeekLegend = CalendarWeekLegend(
     exam = blocks.any { day -> day.any { it.isExam && !it.inactive } },
     holiday = days.any { it.onHoliday },
     makeUp = days.any { it.makeUpWorkday },
+    endFinal = blocks.any { day -> day.any { !it.inactive && it.endWarning == CourseEndWarning.FinalWeek } },
+    endNear = blocks.any { day -> day.any { !it.inactive && it.endWarning == CourseEndWarning.NearEnd } },
 )
 
 internal fun looseClock(raw: String): LocalTime? {

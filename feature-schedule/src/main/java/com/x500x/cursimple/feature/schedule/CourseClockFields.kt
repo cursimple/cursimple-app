@@ -128,6 +128,7 @@ internal fun CourseClockFields(
     picking?.let { isStart ->
         EventTimePickerDialog(
             initialMinute = if (isStart) startMinute else endMinute,
+            titleRes = if (isStart) R.string.schedule_time_select_start else R.string.schedule_time_select_end,
             onDismiss = { picking = null },
             onPick = { minute ->
                 if (isStart) {

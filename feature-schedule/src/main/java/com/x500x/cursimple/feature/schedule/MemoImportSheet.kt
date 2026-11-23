@@ -11,7 +11,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import com.x500x.cursimple.feature.plugin.ui.AppModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
@@ -82,7 +82,7 @@ internal fun MemoImportSheet(
         } catch (cancel: CancellationException) { throw cancel }
         catch (_: Exception) { failure = true }
     }
-    ModalBottomSheet(
+    AppModalBottomSheet(
         onDismissRequest = { if (!saving) onDismiss() },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         modifier = Modifier.testTag("memo-import-sheet"),

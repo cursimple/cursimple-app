@@ -18,6 +18,7 @@ internal fun widgetRefreshBoundaries(
     soonMinutes: Long = SOON_THRESHOLD_MINUTES,
     limit: Int = 8,
     eventSpans: List<Pair<LocalDateTime, LocalDateTime>> = emptyList(),
+    includeCapsuleWarning: Boolean = false,
 ): List<LocalDateTime> {
     if (limit <= 0) return emptyList()
     val today = now.toLocalDate()
@@ -37,6 +38,7 @@ internal fun widgetRefreshBoundaries(
             val startAt = date.atTime(start)
             val endAt = if (end.isAfter(start)) date.atTime(end) else date.plusDays(1).atTime(end)
             boundaries.add(startAt.minusMinutes(soonMinutes))
+            if (includeCapsuleWarning) boundaries.add(startAt.minusMinutes(CAPSULE_WARNING_MINUTES))
             boundaries.add(startAt.minusMinutes(leadMinutes))
             boundaries.add(startAt)
             boundaries.add(endAt)

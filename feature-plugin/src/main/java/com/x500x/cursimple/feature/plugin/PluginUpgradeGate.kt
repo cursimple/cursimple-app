@@ -9,6 +9,16 @@ import androidx.compose.ui.res.stringResource
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 
 /** Shared pre-import upgrade gate for both school search and plugin pages. */
 @Composable
@@ -23,8 +33,10 @@ internal fun PluginUpgradeGate(
         onSyncPlugin(key)
     }
     uiState.pendingUpgrade?.let { pending ->
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = viewModel::dismissPendingUpgrade,
+            tone = AppDialogTone.Warning,
+            icon = { Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.plugin_upgrade_required_title)) },
             text = {
                 Text(
@@ -37,12 +49,12 @@ internal fun PluginUpgradeGate(
                 )
             },
             confirmButton = {
-                Button(onClick = viewModel::startPendingUpgrade) {
+                AppDialogPrimaryButton(onClick = viewModel::startPendingUpgrade) {
                     Text(stringResource(R.string.plugin_upgrade_required_confirm))
                 }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = viewModel::dismissPendingUpgrade) {
+                AppDialogSecondaryButton(onClick = viewModel::dismissPendingUpgrade) {
                     Text(stringResource(R.string.plugin_upgrade_required_dismiss))
                 }
             },

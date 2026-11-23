@@ -52,6 +52,9 @@ import androidx.compose.ui.unit.sp
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents
 import java.time.LocalDate
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import androidx.compose.material.icons.rounded.EventAvailable
 
 /** One day's courses for both people: the course name on each period, or null where that period is free. */
 internal data class DayBusy(val date: LocalDate, val mine: List<String?>, val theirs: List<String?>) {
@@ -270,10 +273,11 @@ private fun BlockDetailDialog(block: PickedBlock, onDismiss: () -> Unit) {
         stringResource(R.string.free_time_periods, block.startNode, block.endNode)
     }
     val dayLine = "${stringResource(shortWeekdayRes(block.date.dayOfWeek))} ${block.date.monthValue}/${block.date.dayOfMonth} · $periods"
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag("shared-free-block-detail"),
-        title = { Text(block.name, fontWeight = FontWeight.SemiBold) },
+        icon = { Icon(Icons.Rounded.EventAvailable, contentDescription = null, modifier = Modifier.size(22.dp)) },
+        title = { Text(block.name) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(dayLine, style = MaterialTheme.typography.bodyMedium)
@@ -286,7 +290,7 @@ private fun BlockDetailDialog(block: PickedBlock, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_close)) }
+            AppDialogPrimaryButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_close)) }
         },
     )
 }

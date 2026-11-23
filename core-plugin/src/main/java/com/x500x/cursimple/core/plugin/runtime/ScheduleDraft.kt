@@ -13,13 +13,24 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.security.MessageDigest
 import java.time.OffsetDateTime
+import java.time.LocalDate
+import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 
 @Serializable
 data class ScheduleDraft(
     @SerialName("termId") val termId: String,
     @SerialName("courses") val courses: List<ScheduleDraftCourse> = emptyList(),
     @SerialName("updatedAt") val updatedAt: String? = null,
+    @SerialName("termStartDate") val termStartDate: String? = null,
 ) {
+    /** Dates come from the current response, never from the device clock. */
+    fun resolveTimingProfile(profile: TermTimingProfile?): TermTimingProfile? {
+        val date = termStartDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+            ?: return profile
+        return profile?.copy(termStartDate = date.toString())
+            ?: TermTimingProfile(termStartDate = date.toString(), slotTimes = emptyList())
+    }
+
     fun toTermSchedule(limits: PluginRuntimeLimits = PluginRuntimeLimits()): TermSchedule {
         val normalized = validateAndNormalizeCourses(limits)
         return TermSchedule(

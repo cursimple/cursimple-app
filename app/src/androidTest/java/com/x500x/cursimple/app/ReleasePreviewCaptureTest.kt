@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
@@ -37,6 +38,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -153,6 +155,16 @@ class ReleasePreviewCaptureTest {
 
     /** Demo records are passed to the real screen; no alarms or Clock requests are created. */
     @Test fun captureSystemClock() {
+        // The export plan reads BeijingTime.zone, which defaults to the device zone; pin it so "tomorrow" is Shanghai's.
+        BeijingTime.setOverrideZone(fixtureZone)
+        try {
+            runSystemClockCapture()
+        } finally {
+            BeijingTime.setOverrideZone(null)
+        }
+    }
+
+    private fun runSystemClockCapture() {
         val activity = compose.activity
         val fixtureContext = AppLocale.wrap(activity, AppLanguage.Chinese)
         val now = System.currentTimeMillis()
@@ -163,7 +175,7 @@ class ReleasePreviewCaptureTest {
                 pluginId = "manual", planId = "$fixturePrefix-plan-$index",
                 triggerAtMillis = tomorrow.atTime(LocalTime.parse(time)).atZone(fixtureZone).toInstant().toEpochMilli(),
                 message = title, displayTitle = title, backend = ReminderAlarmBackend.AppAlarmClock,
-                enabled = true, manualAlarm = true, createdAtMillis = now,
+                enabled = true, manualAlarm = true, allowOnHoliday = true, createdAtMillis = now,
             )
         }
         compose.runOnUiThread {
@@ -204,7 +216,11 @@ class ReleasePreviewCaptureTest {
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithText("写入系统时钟").performClick()
+        // The export button now sits in the collapsed "更多" section.
+        compose.onNodeWithText("更多").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onNode(hasText("写入系统时钟") and hasClickAction()).performScrollTo().performClick()
+        compose.waitForIdle()
         compose.onAllNodes(hasText("07:45", substring = true) and hasAnyAncestor(isDialog())).fetchSemanticsNodes().also { check(it.isNotEmpty()) }
         compose.onAllNodes(hasText("09:45", substring = true) and hasAnyAncestor(isDialog())).fetchSemanticsNodes().also { check(it.isNotEmpty()) }
         // Keep the screenshot focused on the real pre-export summary, without sending any request.

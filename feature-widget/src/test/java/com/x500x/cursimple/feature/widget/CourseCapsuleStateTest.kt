@@ -22,12 +22,17 @@ class CourseCapsuleStateTest {
     fun `warning uses exact positive duration including seconds`() {
         val rows = listOf(row("today", "2026-09-07T08:00", "2026-09-07T09:00"))
         assertFalse(resolveCourseCapsuleState(rows, at("2026-09-07T07:49:59"))!!.urgent)
-        assertTrue(resolveCourseCapsuleState(rows, at("2026-09-07T07:50"))!!.urgent)
-        assertTrue(resolveCourseCapsuleState(rows, at("2026-09-07T07:59:59"))!!.urgent)
+        val tenMinutesBefore = resolveCourseCapsuleState(rows, at("2026-09-07T07:50"))!!
+        assertTrue(tenMinutesBefore.urgent)
+        assertEquals(10L, tenMinutesBefore.remainingMinutes)
+        val oneSecondBefore = resolveCourseCapsuleState(rows, at("2026-09-07T07:59:59"))!!
+        assertTrue(oneSecondBefore.urgent)
+        assertEquals(1L, oneSecondBefore.remainingMinutes)
         for (now in listOf("2026-09-07T08:00", "2026-09-07T08:00:30", "2026-09-07T08:30")) {
             val state = resolveCourseCapsuleState(rows, at(now))!!
             assertFalse(state.urgent)
             assertTrue(state.inProgress)
+            assertEquals(0L, state.remainingMinutes)
         }
         assertNull(resolveCourseCapsuleState(rows, at("2026-09-07T09:00")))
     }

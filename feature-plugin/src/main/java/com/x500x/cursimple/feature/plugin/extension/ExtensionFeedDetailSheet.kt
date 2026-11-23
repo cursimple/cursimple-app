@@ -25,7 +25,7 @@ import androidx.compose.material3.Icon
 import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import com.x500x.cursimple.feature.plugin.ui.AppModalBottomSheet
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -154,7 +154,7 @@ internal fun FeedItemDetailSheet(
         skipPartiallyExpanded = true,
         confirmValueChange = { value -> value != SheetValue.Hidden || contentScroll.value <= 0 },
     )
-    ModalBottomSheet(
+    AppModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         sheetMaxWidth = Dp.Unspecified,

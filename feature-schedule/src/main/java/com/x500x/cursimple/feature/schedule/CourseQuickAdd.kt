@@ -22,10 +22,16 @@ internal fun quickAddPosition(
     return course.time.copy(dayOfWeek = (if (followsSource) sourceDate else displayedDate).dayOfWeek.value)
 }
 
+/** Lets a grid card report the courses sharing its cell to the screen that hosts the action sheet. */
+internal val LocalCellSiblingsSink =
+    androidx.compose.runtime.compositionLocalOf<(List<CourseItem>) -> Unit> { {} }
+
 internal data class CourseActionRequest(
     val course: CourseItem,
     val position: CourseTimeSlot,
     val date: LocalDate? = null,
+    /** Every course sharing the pressed cell, so the sheet can retarget without a second dialog. */
+    val siblings: List<CourseItem> = emptyList(),
 )
 
 internal data class QuickAddPositionRequest(

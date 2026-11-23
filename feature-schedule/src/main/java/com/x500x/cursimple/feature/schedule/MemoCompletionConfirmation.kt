@@ -26,6 +26,9 @@ import com.x500x.cursimple.core.kernel.model.toggleChecklistLine
 import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import com.x500x.cursimple.feature.plugin.ui.AppConfirmationDialog
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CheckCircle
 
 /** Capture the tapped task; confirmation applies only to the same unfinished content. */
 class MemoCompletionRequest private constructor(
@@ -61,6 +64,7 @@ class MemoCompletionRequest private constructor(
 @Composable
 internal fun MemoCompletionDialog(label: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AppConfirmationDialog(
+        icon = Icons.Rounded.Check,
         title = stringResource(R.string.memo_complete_confirm_title),
         message = stringResource(R.string.memo_complete_confirm_body, label.ifBlank { stringResource(R.string.memo_untitled) }),
         confirmLabel = stringResource(R.string.memo_complete_confirm_action),

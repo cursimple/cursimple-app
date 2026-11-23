@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
@@ -92,7 +93,9 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                     appWidgetId,
                     buildScheduleViews(appContext, appWidgetId, sizeClass, dayData),
                 )
-                manager.notifyAppWidgetViewDataChanged(intArrayOf(appWidgetId), R.id.widget_course_list)
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                    manager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.widget_course_list)
+                }
             }
         }
 
@@ -125,6 +128,20 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             views.applyWidgetBackground(context, dayData.widgetTheme)
             views.applyOpenAppClick(context, R.id.widget_root, appWidgetId, dayData.widgetTheme, openDay)
 
+            views.setOnClickPendingIntent(
+                R.id.widget_title,
+                PendingIntent.getActivity(
+                    context,
+                    appWidgetId * 31 + "pick_date".hashCode(),
+                    Intent().setClassName(context, WidgetDeepLinks.DATE_PICKER_ACTIVITY)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                        .setData(Uri.Builder().scheme("cursimple-widget").authority("pick-date").appendPath(appWidgetId.toString()).build())
+                        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        .putExtra(WidgetDeepLinks.EXTRA_SHOWN_DATE, dayData.targetDate.toString()),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                    android.app.ActivityOptions.makeCustomAnimation(context, 0, 0).toBundle(),
+                ),
+            )
             views.setTextViewText(
                 R.id.widget_title,
                 context.getString(
@@ -168,6 +185,27 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_prev, View.VISIBLE)
             views.setViewVisibility(R.id.widget_next, View.VISIBLE)
             views.setViewVisibility(R.id.widget_reset, if (dayData.manualOffset == 0) View.GONE else View.VISIBLE)
+            // Chips mirror the card badge exactly: a filled circle with the count, then the wording.
+            val warningFlags = listOf(
+                true to dayData.rows.any { it.endWarning == com.x500x.cursimple.core.kernel.model.CourseEndWarning.FinalWeek && !it.onHoliday },
+                false to dayData.rows.any { it.endWarning == com.x500x.cursimple.core.kernel.model.CourseEndWarning.NearEnd && !it.onHoliday },
+            ).filter { it.second }
+            views.removeAllViews(R.id.widget_end_legend_row)
+            warningFlags.forEach { (final, _) ->
+                val chip = RemoteViews(context.packageName, R.layout.widget_end_legend_chip)
+                chip.setTextViewText(R.id.end_legend_badge, if (final) "1" else "2")
+                chip.setInt(
+                    R.id.end_legend_badge,
+                    "setBackgroundResource",
+                    if (final) R.drawable.widget_bg_end_badge_final else R.drawable.widget_bg_end_badge_near,
+                )
+                chip.setTextViewText(
+                    R.id.end_legend_label,
+                    context.getString(if (final) R.string.widget_legend_end_final else R.string.widget_legend_end_near),
+                )
+                views.addView(R.id.widget_end_legend_row, chip)
+            }
+            views.setViewVisibility(R.id.widget_end_legend_row, if (warningFlags.isEmpty()) View.GONE else View.VISIBLE)
             views.setTextViewText(R.id.widget_reset, context.getString(R.string.widget_today_reset))
             views.setOnClickPendingIntent(
                 R.id.widget_reset,

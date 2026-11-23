@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.*
+import com.x500x.cursimple.feature.plugin.ui.AppModalBottomSheet
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -100,7 +101,7 @@ internal fun MemoCodeShareSheet(notes: List<MemoNote>, initiallyQr: Boolean,
             if (intent.clipData != null) addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         })
     }
-    ModalBottomSheet(onDismissRequest = { if (!busy) onDismiss() },
+    AppModalBottomSheet(onDismissRequest = { if (!busy) onDismiss() },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         modifier = Modifier.testTag("memo-code-share-sheet")) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)

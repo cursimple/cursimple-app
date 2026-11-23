@@ -18,7 +18,7 @@ const GENERIC_DAY_EN = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 7 
 const GENERIC_BLOCK_TAGS = ["div", "p", "li", "tr", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6", "section", "article"];
 const GENERIC_SKIP_TAGS = ["script", "style", "noscript", "template", "button", "select", "option"];
 // Course type words that decorate titles; they are not part of the course name.
-const GENERIC_TYPE_WORDS = /必修|选修|限选|任选|公共课|专业课|基础课|通识|实验课|理论课|实践课/;
+const GENERIC_TYPE_WORDS = /必修|选修|限选|任选|公选|自选|公共课|专业课|基础课|通识|核心|实验课|理论课|实践课|考查|考试|考查课|考试课|重修|辅修|双学位|二专|双语|全英|全英文|研讨|网络课|网课|MOOC|线上|线下|翻转课堂|分项|课时|学分/;
 
 // Normalise full-width punctuation and spacing so one set of patterns covers both.
 function genericNorm(text) {
@@ -26,12 +26,12 @@ function genericNorm(text) {
     .replace(/[\u200b-\u200d\ufeff]/g, "")
     .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
     .replace(/[　 ]/g, " ")
-    .replace(/[（［【]/g, "(")
-    .replace(/[）］】]/g, ")")
+    .replace(/[（［【〔〖「『]/g, "(")
+    .replace(/[）］】〕〗」』]/g, ")")
     .replace(/：/g, ":")
-    .replace(/，/g, ",")
-    .replace(/、/g, ",")
-    .replace(/(\d)\s*[－—–～~至到]\s*(\d)/g, "$1-$2")
+    .replace(/[，、]/g, ",")
+    .replace(/[•·．]/g, "·")
+    .replace(/(\d)\s*[－—–～~至到_]\s*(\d)/g, "$1-$2")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -84,23 +84,46 @@ function genericPeriodLabel(text) {
   for (const raw of String(text || "").split("\n")) {
     const line = genericNorm(raw).replace(/\s/g, "").replace(/^(上午|下午|晚上|中午|早上)/, "");
     if (!line || line.length > 12) continue;
-    let m = line.match(/^第?0?(\d{1,2})[-,](\d{1,2})节?$/);
+    let m = line.match(/^第?0?(\d{1,2})[-~,、]0?(\d{1,2})节?$/);
     if (m) return genericRange(Number(m[1]), Number(m[2]));
     m = line.match(/^第?0?(\d{1,2})节?$/);
     if (m) return genericRange(Number(m[1]), Number(m[1]));
+    // Compact double period e.g. "0102节" -> 1-2, "0304节" -> 3-4
+    m = line.match(/^0(\d)0(\d)节?$/);
+    if (m) return genericRange(Number(m[1]), Number(m[2]));
     m = line.match(/^第?([一二三四五六七八九十]{1,3})节?$/);
     if (m && GENERIC_CN_NUMBERS[m[1]]) return genericRange(GENERIC_CN_NUMBERS[m[1]], GENERIC_CN_NUMBERS[m[1]]);
     m = line.match(/^第?([一二三四五六七八九十])([一二三四五六七八九十])节?$/);
+    if (m && GENERIC_CN_NUMBERS[m[1]] && GENERIC_CN_NUMBERS[m[2]]) return genericRange(GENERIC_CN_NUMBERS[m[1]], GENERIC_CN_NUMBERS[m[2]]);
+    m = line.match(/^第?([一二三四五六七八九十]{1,2})[-~,、至到]第?([一二三四五六七八九十]{1,2})节?$/);
     if (m && GENERIC_CN_NUMBERS[m[1]] && GENERIC_CN_NUMBERS[m[2]]) return genericRange(GENERIC_CN_NUMBERS[m[1]], GENERIC_CN_NUMBERS[m[2]]);
   }
   return null;
 }
 
-// Period range inside free text, e.g. "1-2节", "第5节", "第3-4节".
+// Period range inside free text, e.g. "1-2节", "第5节", "第3-4节", "[01-02节]", "节次:1-2".
 function genericPeriodsIn(text) {
-  const m = genericNorm(text).match(/第?\s*(\d{1,2})\s*(?:[-,]\s*(\d{1,2}))?\s*节/);
-  if (!m) return null;
-  return genericRange(Number(m[1]), Number(m[2] || m[1]));
+  const norm = genericNorm(text);
+  // Compact double period like "0506节", "0102节", "0304节", "0708节", "0910节"
+  let m = norm.match(/\b(?:0(\d)0(\d)|(\d{2})(\d{2}))节?\b/);
+  if (m) {
+    const s = Number(m[1] || m[3]);
+    const e = Number(m[2] || m[4]);
+    return genericRange(s, e);
+  }
+  m = norm.match(/第?\s*0?(\d{1,2})\s*(?:[-~,、]\s*0?(\d{1,2}))\s*节/);
+  if (m) return genericRange(Number(m[1]), Number(m[2]));
+  m = norm.match(/\[\s*0?(\d{1,2})\s*[-~,、]\s*0?(\d{1,2})\s*节?\s*\]/);
+  if (m) return genericRange(Number(m[1]), Number(m[2]));
+  m = norm.match(/(?:节次|大节|小节)\s*[:：]?\s*0?(\d{1,2})\s*(?:[-~,、]\s*0?(\d{1,2}))/);
+  if (m) return genericRange(Number(m[1]), Number(m[2]));
+  m = norm.match(/第?\s*0?(\d{1,2})\s*节/);
+  if (m) return genericRange(Number(m[1]), Number(m[1]));
+  m = norm.match(/(?:节次|大节|小节)\s*[:：]?\s*0?(\d{1,2})/);
+  if (m) return genericRange(Number(m[1]), Number(m[1]));
+  m = norm.match(/第?\s*([一二三四五六七八九十]{1,2})\s*(?:[-~,、至到]\s*第?\s*([一二三四五六七八九十]{1,2}))\s*节/);
+  if (m && GENERIC_CN_NUMBERS[m[1]] && GENERIC_CN_NUMBERS[m[2]]) return genericRange(GENERIC_CN_NUMBERS[m[1]], GENERIC_CN_NUMBERS[m[2]]);
+  return null;
 }
 
 function genericCnOrInt(text) {
@@ -111,19 +134,43 @@ function genericCnOrInt(text) {
 // Parity: 单 keeps odd weeks, 双 keeps even weeks; it may sit before 周 or in brackets after it.
 function genericWeeksIn(text) {
   const weeks = new Set();
-  const src = genericNorm(text).replace(/[{}]/g, " ")
-    // "[1-9]周" written with brackets around the numbers.
+  const raw = genericNorm(text);
+
+  // Binary bitmap representation e.g. "11111111111111110000" (16 consecutive 1s)
+  const bitm = raw.match(/\b([01]{12,30})\b/);
+  if (bitm && bitm[1].includes("1")) {
+    const bits = bitm[1];
+    for (let i = 0; i < bits.length && i < GENERIC_MAX_WEEK; i++) {
+      if (bits[i] === "1") weeks.add(i + 1);
+    }
+    if (weeks.size > 0) return [...weeks].sort((a, b) => a - b);
+  }
+
+  const src = raw.replace(/[{}]/g, " ")
+    // Strip repetitions like "(每周2次)" or "(3次/周)"
+    .replace(/\([^\(\)]*?(?:每周\s*\d+\s*次|\d+\s*次\s*\/\s*周)[^\(\)]*?\)/g, "")
+    // "[1-9]周" or "(1-16周)" or "{1-16周}" written with brackets around the numbers.
+    .replace(/[\[(（](\d[\d\s,\-]*)周[\])）]/g, "$1周")
     .replace(/\[(\d[\d\s,\-]*)\]\s*周/g, "$1周")
-    // "前八周" / "后八周" / "全周": the first or last eight weeks, or the whole term (16 weeks assumed).
+    // "周次: 1-16" or "[周次]1-16, 18-20"
+    .replace(/(?:\[周次\]|周次\s*[:：])\s*([0-9\s,\-]+)(?![0-9\s,\-]*周)/g, "$1周")
+    // Leading parity e.g. "单周 1-15", "双周: 2-16"
+    .replace(/(单|双)\s*周\s*[:：]?\s*(\d{1,2}(?:\s*-\s*\d{1,2})?)/g, "$2$1周")
+    // "前八周" / "后八周" / "全周" / "全学期": the first or last eight weeks, or the whole term.
     .replace(/前\s*([一二三四五六七八九十\d]+)\s*周/g, (m, n) => `1-${genericCnOrInt(n)}周`)
     .replace(/后\s*([一二三四五六七八九十\d]+)\s*周/g, (m, n) => `${16 - genericCnOrInt(n) + 1}-16周`)
-    .replace(/全\s*周/g, "1-16周")
+    .replace(/(?:全\s*周|全学期|整学期)/g, "1-16周")
     // Standalone "单周" / "双周" with no range: odd or even weeks of a 16-week term.
     .replace(/(^|[^\d-])(单|双)周/g, (m, pre, parity) => `${pre}1-16${parity}周`)
-    // "2-16(双周)": parity wording in brackets directly after the list.
-    .replace(/(\d{1,2}(?:\s*-\s*\d{1,2})?)\s*\(\s*(单|双)\s*周?\s*\)/g, "$1$2周")
+    // "2-16(双周)" / "1-16(周)": parity wording in brackets directly after the list.
+    .replace(/(\d{1,2}(?:\s*-\s*\d{1,2})?)\s*\(\s*(单|双)?\s*周?\s*\)/g, "$1$2周")
     // "第1周至第16周": a range written with 周 on both ends.
-    .replace(/第?\s*(\d{1,2})\s*周\s*(?:至|到|-)\s*第?\s*(\d{1,2})\s*周/g, "$1-$2周");
+    .replace(/第?\s*(\d{1,2})\s*周\s*(?:至|到|-)\s*第?\s*(\d{1,2})\s*周/g, "$1-$2周")
+    // "1-8周,10-17周" -> "1-8,10-17周"
+    .replace(/周\s*,\s*(\d)/g, ",$1")
+    // Slashes or pluses between week digits: "1/3/5/7周" or "1+3+5周"
+    .replace(/(\d{1,2})[+/](\d{1,2})/g, "$1,$2");
+
   const re = /(\d{1,2}(?:\s*-\s*\d{1,2})?(?:\s*,\s*\d{1,2}(?:\s*-\s*\d{1,2})?)*)\s*(单|双)?\s*(?:周|週)\s*(?:[(\[]?\s*(单|双)\s*[)\]]?)?/g;
   let m;
   while ((m = re.exec(src)) !== null) {
@@ -143,12 +190,13 @@ function genericWeeksIn(text) {
   return [...weeks].sort((a, b) => a - b);
 }
 
-// Labels need a colon or a space after them, so "教学楼A-101" is not read as a label.
+// Labels need a colon, bracket or a space after them, so "教学楼A-101" is not read as a label.
 const GENERIC_FIELD_LABELS = [
-  { key: "teacher", re: /^(?:任课教师|授课教师|教师|老师)(?:\s*:\s*|\s+)(.+)$/ },
-  { key: "location", re: /^(?:上课地点|地点|教室|上课教室)(?:\s*:\s*|\s+)(.+)$/ },
-  { key: "weeks", re: /^(?:周次|上课周次|周数)(?:\s*:\s*|\s+)(.+)$/ },
-  { key: "periods", re: /^(?:节次|上课节次)(?:\s*:\s*|\s+)(.+)$/ },
+  { key: "title", re: /^(?:\[\s*(?:课程名称|课程名|课程)\s*\]|(?:课程名称|课程名|课程)(?:\s*[:：]|\s+))(.+)$/ },
+  { key: "teacher", re: /^(?:\[\s*(?:任课教师|授课教师|教师|老师)\s*\]|(?:任课教师|授课教师|教师|老师)(?:\s*[:：]|\s+))(.+)$/ },
+  { key: "location", re: /^(?:\[\s*(?:上课地点|地点|教室|上课教室)\s*\]|(?:上课地点|地点|教室|上课教室)(?:\s*[:：]|\s+))(.+)$/ },
+  { key: "weeks", re: /^(?:\[\s*(?:周次|上课周次|周数)\s*\]|(?:周次|上课周次|周数)(?:\s*[:：]|\s+))(.+)$/ },
+  { key: "periods", re: /^(?:\[\s*(?:节次|上课节次)\s*\]|(?:节次|上课节次)(?:\s*[:：]|\s+))(.+)$/ },
 ];
 
 // Bare week list in brackets followed by the room, with no 周 suffix: "(1-15,东13-C-215c)".
@@ -178,7 +226,9 @@ function genericIsLocation(line) {
   if (genericWeeksIn(line).length) return false;
   // Bracketed text is usually a course code or type ("计算机(791288)"), so it does not make a line a room.
   const outside = line.replace(/[(（\[][^)）\]]*[)）\]]/g, " ").trim();
-  return /楼|室|馆|场|实验|机房|校区|教室|栋|\d{2,}|[A-Za-z]\d|\d[A-Za-z]/.test(outside);
+  if (!outside) return false;
+  // Words like "大学体育", "物理实验" are course names, not locations. Only match real facility terms.
+  return /楼|室|馆|场|校区|教室|栋|排|区|园|堂|剧场|大厅|场地|池|中心|主楼|二教|一教|三教|四教|五教|公教|逸夫|文理|机电|理科|工科|生化|多媒体|语音|画室|琴房|田径场|操场|体育馆|体育场|网球场|游泳池|游泳馆|机房|实验室|\d{2,}|[A-Za-z]\d|\d[A-Za-z]|[A-Za-z]-[0-9]|#\d/.test(outside);
 }
 
 // Remove week and period expressions, keeping any other wording on the same line.
@@ -186,14 +236,29 @@ function genericStripSpans(line) {
   return genericNorm(line)
     .replace(/\d{1,2}(?:\s*-\s*\d{1,2})?(?:\s*,\s*\d{1,2}(?:\s*-\s*\d{1,2})?)*\s*(?:单|双)?\s*(?:周|週)\s*(?:[(\[]?\s*(?:单|双)\s*[)\]]?)?/g, " ")
     .replace(/第?\s*\d{1,2}\s*(?:-\s*\d{1,2})?\s*节/g, " ")
+    .replace(/\b0\d0\d节\b/g, " ")
     .replace(/(单|双)周|全周|[前后]\s*[一二三四五六七八九十\d]+\s*周/g, " ")
     .replace(/[()\[\]]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
+function genericCleanTeacher(line) {
+  return genericNorm(line)
+    .replace(/[(（\[][^)）\]]*(?:教授|讲师|助教|实验师|工程师|研究员|教员|外教|博导|硕导|老师)[^)）\]]*[)）\]]/g, "")
+    .replace(/\s*[/／]\s*(?:教授|副教授|讲师|助教|高工|工程师|实验师|研究员|教员|外教|老师)/g, "")
+    .replace(/[()\[\]]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function genericIsName(line) {
-  return /^[\u4e00-\u9fa5\u00b7]{2,6}$/.test(line);
+  const clean = genericCleanTeacher(line);
+  if (/^[\u4e00-\u9fa5\u00b7·]{2,8}$/.test(clean)) return true;
+  if (/^[A-Za-z\s.·]{2,20}$/.test(clean)) return true;
+  // Multiple teachers separated by slash or comma e.g. "张三/李四"
+  if (/^[\u4e00-\u9fa5]{2,4}(?:[/,，\s]+[\u4e00-\u9fa5]{2,4})+$/.test(clean)) return true;
+  return false;
 }
 
 function genericIsMeta(line) {
@@ -243,8 +308,16 @@ function genericSplitRepeatedWeeks(lines) {
 
 function genericStripTypeWords(title) {
   return title
+    // Strip leading course code e.g. "[COMP1001]", "(B0101)", "TX001: "
+    .replace(/^\[\s*[A-Za-z0-9_-]{3,}\s*\]\s*/, "")
+    .replace(/^\(\s*[A-Za-z0-9_-]{3,}\s*\)\s*/, "")
+    .replace(/^[A-Za-z0-9_-]{4,}\s*[:：]\s*/, "")
     // A trailing course code such as "(791288)" is an identifier, not part of the course name.
     .replace(/[(（]\s*\d{4,}\s*[)）]\s*$/, "")
+    // Strip credit/hours like "[3.0学分]", "(3学分)", "[32学时]"
+    .replace(/[(（\[]\s*\d+(?:\.\d+)?\s*(?:学分|学时|分)\s*[)）\]]/g, "")
+    // Strip class/section like "(01班)", "(1班)"
+    .replace(/[(（\[]\s*\d+班\s*[)）\]]/g, "")
     .replace(/\((?:[^()]*?)\)/g, (m) => (GENERIC_TYPE_WORDS.test(m) ? "" : m))
     .replace(/\[(?:[^\[\]]*?)\]/g, (m) => (GENERIC_TYPE_WORDS.test(m) ? "" : m))
     .replace(/\s+/g, " ")
@@ -252,9 +325,10 @@ function genericStripTypeWords(title) {
 }
 
 // Turn one course block into a course, or null when title, weeks or periods are missing.
-function genericCourseFromBlock(lines, fallbackRange) {
+function genericCourseFromBlock(lines, fallbackRange, recordSkip = true) {
   const clean = lines.map((l) => genericNorm(l)).filter(Boolean);
   if (!clean.length) return null;
+  let labelledTitle = "";
   let teacher = "";
   let location = "";
   let periods = null;
@@ -267,7 +341,8 @@ function genericCourseFromBlock(lines, fallbackRange) {
       if (!m) continue;
       labelled = true;
       const value = m[1].trim();
-      if (label.key === "teacher" && !teacher) teacher = value;
+      if (label.key === "title" && !labelledTitle) labelledTitle = value;
+      else if (label.key === "teacher" && !teacher) teacher = genericCleanTeacher(value);
       else if (label.key === "location" && !location) location = value;
       else if (label.key === "weeks") weekLines.push(/周/.test(value) ? value : value + "周");
       else if (label.key === "periods") periods = genericPeriodsIn(/节/.test(value) ? value : value + "节") || periods;
@@ -297,9 +372,9 @@ function genericCourseFromBlock(lines, fallbackRange) {
     }
     free.push(line);
   }
-  const titleLine = free.find((l) => !genericIsLocation(l)) || free[0];
+  const titleLine = labelledTitle || free.find((l) => !genericIsLocation(l)) || free[0];
   if (!titleLine) {
-    genericSkipped++;
+    if (recordSkip) genericSkipped++;
     return null;
   }
   // Some grids put the teacher after the course code on the title line.
@@ -307,14 +382,14 @@ function genericCourseFromBlock(lines, fallbackRange) {
   if (inlineTeacher && !teacher) teacher = inlineTeacher[2].trim();
   const title = genericStripTypeWords((inlineTeacher ? inlineTeacher[1] : titleLine).replace(/\(\s*\)$/, "").trim());
   if (!title) {
-    genericSkipped++;
+    if (recordSkip) genericSkipped++;
     return null;
   }
   const rest = free.filter((l) => l !== titleLine);
   if (!teacher) {
     // Prefer a plain Chinese name; otherwise any short line that does not look like a room.
     const candidate = rest.find((l) => genericIsName(l)) || rest.find((l) => !genericIsLocation(l) && l.length <= 12);
-    if (candidate) teacher = candidate;
+    if (candidate) teacher = genericCleanTeacher(candidate);
   }
   if (!location) {
     // Rooms usually come after the teacher, so take the last room-like line.
@@ -323,12 +398,12 @@ function genericCourseFromBlock(lines, fallbackRange) {
   }
   const weeks = genericWeeksIn(weekLines.join(" "));
   if (!weeks.length) {
-    genericSkipped++;
+    if (recordSkip) genericSkipped++;
     return null;
   }
   const range = periods || fallbackRange;
   if (!range) {
-    genericSkipped++;
+    if (recordSkip) genericSkipped++;
     return null;
   }
   return { title, teacher, location, weeks, startNode: range.start, endNode: range.end };
@@ -425,7 +500,7 @@ function genericAnalyseSpec(specRows) {
   return { score: normal.score, matrix, found: normal.found };
 }
 
-// Long layout: each row carries its weekday and period, and the course sits in its own column.
+// Long layout: each row carries its weekday and period, and the course sits in its own column or across row columns.
 function genericAnalyseLong(matrix) {
   const width = Math.max(0, ...matrix.map((row) => row.length));
   const distinct = (c, test) => new Set(matrix.map((row) => row[c]).filter((cell) => cell && test(cell))).size;
@@ -435,42 +510,53 @@ function genericAnalyseLong(matrix) {
     const n = distinct(c, (cell) => genericDayOf(cell.lines.join("")) !== null);
     if (n > dayCount) { dayCount = n; dayCol = c; }
   }
-  if (dayCount < 3) return { score: 0, courses: [] };
+  if (dayCount < 1) return { score: 0, courses: [] };
   let periodCol = -1;
   let periodCount = 0;
-  let courseCol = -1;
-  let courseCount = 0;
+  let weekCol = -1;
+  let weekCount = 0;
   for (let c = 0; c < width; c++) {
     if (c === dayCol) continue;
     const labels = distinct(c, (cell) => genericPeriodLabel(cell.lines.join("\n")) !== null || /\d{1,2}:\d{2}/.test(cell.lines.join(" ")));
     if (labels > periodCount) { periodCount = labels; periodCol = c; }
-    const courses = distinct(c, (cell) => genericWeeksIn(cell.lines.join(" ")).length > 0);
-    if (courses > courseCount) { courseCount = courses; courseCol = c; }
+    const weeks = distinct(c, (cell) => genericWeeksIn(cell.lines.join(" ")).length > 0);
+    if (weeks > weekCount) { weekCount = weeks; weekCol = c; }
   }
-  if (periodCount < 2 || courseCount < 1 || courseCol === periodCol) return { score: 0, courses: [] };
+  if (periodCount < 1 || weekCount < 1 || weekCol === periodCol) return { score: 0, courses: [] };
   const courses = [];
   const processed = new Set();
   const allLabels = matrix.map((row) => (row[periodCol] ? row[periodCol].lines.join("\n") : ""));
   const ordinals = genericTimeOrdinals(allLabels);
   const labelRange = (r) => (matrix[r] && matrix[r][periodCol] ? genericLabelRange(matrix[r][periodCol].lines.join("\n"), ordinals) : null);
   for (let r = 0; r < matrix.length; r++) {
-    const cell = matrix[r] && matrix[r][courseCol];
-    if (!cell || processed.has(cell)) continue;
-    processed.add(cell);
-    const dayCell = matrix[r][dayCol];
+    const dayCell = matrix[r] && matrix[r][dayCol];
     const day = dayCell ? genericDayOf(dayCell.lines.join("")) : null;
     if (!day) continue;
-    const first = labelRange(cell.row);
-    const lastRow = Math.min(matrix.length - 1, cell.row + cell.rowspan - 1);
-    const last = labelRange(lastRow);
-    const fallback = first && last ? { start: first.start, end: last.end } :
-      (first && first.end > first.start ? first : null);
-    for (const block of genericBlocks(cell.lines)) {
-      const course = genericCourseFromBlock(block, fallback);
+    const first = labelRange(r);
+    const fallback = first || null;
+
+    // Combine lines from the course/week columns in this row (ignoring day and period columns)
+    const rowLines = [];
+    (matrix[r] || []).forEach((cell, c) => {
+      if (c === dayCol || c === periodCol || !cell) return;
+      // Skip pure index numbers like "1", "2"
+      const t = cell.lines.join("").trim();
+      if (/^\d{1,3}$/.test(t) && c < dayCol && c < weekCol) return;
+      // Skip credit numbers like "3.0"
+      if (/^\d(?:\.\d)?$/.test(t)) return;
+      rowLines.push(...cell.lines);
+    });
+
+    const blockKey = `${day}|${r}|${rowLines.join(";")}`;
+    if (processed.has(blockKey)) continue;
+    processed.add(blockKey);
+
+    for (const block of genericBlocks(rowLines)) {
+      const course = genericCourseFromBlock(block, fallback, false);
       if (course) courses.push({ ...course, dayOfWeek: day });
     }
   }
-  return { score: dayCount * 3 + courseCount * 2 + periodCount, courses };
+  return { score: dayCount * 3 + weekCount * 2 + periodCount, courses };
 }
 
 function genericExtractCourses(matrix, dayCols, headerRow) {
@@ -548,6 +634,14 @@ function genericCellLines(cell) {
     if (text) lines.push(text);
     else if (isBreak) lines.push("");
   };
+  const cellTitle = cell && cell.getAttribute && (cell.getAttribute("title") || cell.getAttribute("data-original-title"));
+  if (cellTitle && (cellTitle.includes("周") || cellTitle.includes("节")) && cellTitle.includes("\n")) {
+    const rawInner = (cell.textContent || "").trim();
+    const titleLines = cellTitle.split(/\r?\n/).map(genericNorm).filter(Boolean);
+    if (titleLines.length >= 2 && rawInner.length < cellTitle.length * 0.7) {
+      return titleLines;
+    }
+  }
   const walk = (node) => {
     if (node.nodeType === 3) {
       buffer += node.nodeValue;
@@ -746,6 +840,31 @@ function genericGeometryCourses(doc) {
   return out;
 }
 
+// Only labelled dates or dated teaching weeks can anchor a term.
+function genericTermStartIn(text) {
+  const value = genericNorm(text);
+  const isoDate = (year, month, day) => {
+    const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+    return date.getUTCFullYear() === Number(year) &&
+      date.getUTCMonth() + 1 === Number(month) && date.getUTCDate() === Number(day) ? date : null;
+  };
+  const candidates = new Set();
+  for (const match of value.matchAll(/(?:开学日期|学期开始日期|学期起始日期|开课日期)\s*[:：]?\s*(20\d{2})[-/年](\d{1,2})[-/月](\d{1,2})日?/g)) {
+    const date = isoDate(match[1], match[2], match[3]);
+    if (date) candidates.add(date.toISOString().slice(0, 10));
+  }
+  // Explicit school dates take priority over week annotations.
+  if (candidates.size) return candidates.size === 1 ? [...candidates][0] : null;
+  for (const match of value.matchAll(/第\s*(\d{1,2})\s*周[ \t:：]*(20\d{2})[-/年](\d{1,2})[-/月](\d{1,2})日?/g)) {
+    const week = Number(match[1]);
+    const date = isoDate(match[2], match[3], match[4]);
+    if (!date || week < 1 || week > 30) continue;
+    date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7) - (week - 1) * 7);
+    candidates.add(date.toISOString().slice(0, 10));
+  }
+  return candidates.size === 1 ? [...candidates][0] : null;
+}
+
 export async function run(ctx) {
   genericSkipped = 0;
   genericSlotRanges = new Map();
@@ -828,5 +947,10 @@ export async function run(ctx) {
       weeks: course.weeks,
     });
   }
-  return ctx.schedule.commit({ termId: ctx.term && ctx.term.id ? ctx.term.id : "" });
+  const dates = [...new Set(docs.map((doc) => genericTermStartIn(doc.body ? genericCellLines(doc.body).join("\n") : ""))
+    .filter(Boolean))];
+  return ctx.schedule.commit({
+    termId: ctx.term && ctx.term.id ? ctx.term.id : "",
+    termStartDate: dates.length === 1 ? dates[0] : null,
+  });
 }

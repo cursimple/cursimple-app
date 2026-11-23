@@ -59,6 +59,10 @@ import com.x500x.cursimple.feature.plugin.ui.AppMotion
 import java.time.LocalTime
 import java.util.Locale
 import kotlinx.serialization.json.Json
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.AccessTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -184,12 +188,13 @@ internal fun ExtensionScheduleSettingsScreen(
     if (showTime) {
         val initial = runCatching { LocalTime.parse(draft.defaultStartTime) }.getOrDefault(LocalTime.of(9, 0))
         val state = rememberTimePickerState(initial.hour, initial.minute, is24Hour = true)
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { showTime = false },
+            icon = { Icon(Icons.Rounded.AccessTime, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.extension_schedule_time)) },
             text = { TimeInput(state) },
-            confirmButton = { TextButton(onClick = { draft = draft.copy(defaultStartTime = String.format(Locale.ROOT, "%02d:%02d", state.hour, state.minute)); showTime = false }) { Text(stringResource(android.R.string.ok)) } },
-            dismissButton = { TextButton(onClick = { showTime = false }) { Text(stringResource(android.R.string.cancel)) } },
+            confirmButton = { AppDialogPrimaryButton(onClick = { draft = draft.copy(defaultStartTime = String.format(Locale.ROOT, "%02d:%02d", state.hour, state.minute)); showTime = false }) { Text(stringResource(android.R.string.ok)) } },
+            dismissButton = { AppDialogSecondaryButton(onClick = { showTime = false }) { Text(stringResource(android.R.string.cancel)) } },
         )
     }
 }

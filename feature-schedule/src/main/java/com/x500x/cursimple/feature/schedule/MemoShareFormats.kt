@@ -130,7 +130,7 @@ internal fun memoSharePlainText(doc: MemoShareDocument): String = buildString {
 
 private fun plainLine(block: MemoBlock): String = when (block) {
     is MemoBlock.Heading -> memoStripInline(block.text)
-    is MemoBlock.Check -> "  ".repeat(block.indent) + (if (block.checked) "☑ " else "☐ ") + memoStripInline(block.text)
+    is MemoBlock.Check -> "  ".repeat(block.indent) + (if (block.checked) "[x] " else "[ ] ") + memoStripInline(block.text)
     is MemoBlock.Bullet -> "  ".repeat(block.indent) + (if (block.indent > 0) "◦ " else "• ") + memoStripInline(block.text)
     is MemoBlock.Numbered -> "  ".repeat(block.indent) + "${block.number}. " + memoStripInline(block.text)
     is MemoBlock.Quote -> "│ " + memoStripInline(block.text)
@@ -191,7 +191,7 @@ internal fun memoDocxDocumentXml(doc: MemoShareDocument, accentArgb: Int): Strin
                 )
                 is MemoBlock.Check -> paragraph(
                     props = hanging(block.indent),
-                    runs = listOf(MemoInlineRun(if (block.checked) "☑ " else "☐ ")) + memoInlineRuns(block.text),
+                    runs = listOf(MemoInlineRun(if (block.checked) "[x] " else "[ ] ")) + memoInlineRuns(block.text),
                     color = MUTED_HEX.takeIf { block.checked },
                     strike = block.checked,
                     prefixRuns = 1,

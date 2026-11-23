@@ -6,6 +6,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.app.ActivityCompat
 import androidx.annotation.StringRes
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.activity.compose.rememberLauncherForActivityResult
 import android.content.pm.PackageManager
 import android.Manifest
@@ -14,15 +16,13 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
@@ -36,11 +36,14 @@ import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Route
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VerticalAlignTop
+import androidx.compose.material.icons.rounded.Vibration
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -54,12 +57,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalResources
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.DisposableEffect
@@ -128,20 +133,32 @@ internal fun ClassNoticeSettingsSection(
 
     // Blocked delivery is the most important status; keep it above all controls.
     if (preferences.enabled && blocked) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.errorContainer,
+        val shape = RoundedCornerShape(18.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.errorContainer)
+                .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f), shape)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Icon(
+                imageVector = Icons.Rounded.NotificationsActive,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 1.dp).size(20.dp),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
                     text = stringResource(R.string.settings_class_notice_blocked_title),
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp, lineHeight = 17.5.sp),
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
                 Text(
                     text = stringResource(R.string.settings_class_notice_blocked_body),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 18.sp),
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
@@ -178,19 +195,36 @@ internal fun ClassNoticeSettingsSection(
                 },
                 onClick = { context.openClassNoticeSettings(ClassNoticeNotifier.channelIdFor(preferences)) },
                 trailing = {
-                    Text(
-                        text = if (blocked) {
-                            stringResource(R.string.settings_class_notice_permission_badge_off)
-                        } else {
-                            stringResource(R.string.settings_class_notice_permission_badge_on)
-                        },
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (blocked) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        },
-                    )
+                    val badgeColor = if (blocked) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = badgeColor.copy(alpha = 0.14f),
+                        contentColor = badgeColor,
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .height(24.dp)
+                                .padding(horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = if (blocked) {
+                                    stringResource(R.string.settings_class_notice_permission_badge_off)
+                                } else {
+                                    stringResource(R.string.settings_class_notice_permission_badge_on)
+                                },
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 11.5.sp,
+                                    letterSpacing = 0.sp,
+                                ),
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
                 },
             )
             AlarmNumberSettingRow(
@@ -203,6 +237,7 @@ internal fun ClassNoticeSettingsSection(
                 onValueChange = onAdvanceMinutesChange,
                 // Allow direct minute entry alongside step controls.
                 editable = true,
+                icon = Icons.Rounded.Schedule,
             )
             // Open the device-specific setup checklist.
             SettingsActionRow(
@@ -234,7 +269,7 @@ internal fun ClassNoticeSettingsSection(
                 onCheckedChange = onLockScreenChange,
             )
             SettingsSwitchRow(
-                icon = Icons.Rounded.NotificationsActive,
+                icon = Icons.Rounded.Vibration,
                 title = stringResource(R.string.settings_class_notice_vibration_title),
                 subtitle = stringResource(R.string.settings_class_notice_vibration_subtitle),
                 checked = preferences.vibrationEnabled,
@@ -370,6 +405,7 @@ private fun AlarmPreNoticeSettings(noticePreferences: ClassNoticePreferences) {
                 step = 1,
                 onValueChange = { minutes -> scope.launch { repository.setAlarmPreNoticeAdvanceMinutes(minutes) } },
                 editable = true,
+                icon = Icons.Rounded.Schedule,
             )
             SettingsActionRow(
                 icon = Icons.Rounded.Visibility,
@@ -416,77 +452,86 @@ private fun ClassNoticeSkinSettings(
     ClassNoticeSkinOptions(preferences, onSkinChange)
 
     SettingsReveal(preferences.skin == ClassNoticeSkin.Overlay) {
-        OverlayPermissionRow()
+        SettingsCard {
+            OverlayPermissionRow()
+        }
 
-        AlarmNumberSettingRow(
-            title = stringResource(R.string.settings_class_notice_banner_duration),
-            value = preferences.bannerDurationSeconds,
-            unit = stringResource(R.string.settings_class_notice_seconds_unit),
-            min = ClassNoticePreferences.MIN_BANNER_DURATION_SECONDS,
-            max = ClassNoticePreferences.MAX_BANNER_DURATION_SECONDS,
-            step = 5,
-            onValueChange = onBannerDurationChange,
-            editable = true,
-        )
-        Text(
-            text = stringResource(R.string.settings_class_notice_banner_duration_desc),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp),
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            SettingsCard(dividerStart = 16.dp) {
+                AlarmNumberSettingRow(
+                    title = stringResource(R.string.settings_class_notice_banner_duration),
+                    value = preferences.bannerDurationSeconds,
+                    unit = stringResource(R.string.settings_class_notice_seconds_unit),
+                    min = ClassNoticePreferences.MIN_BANNER_DURATION_SECONDS,
+                    max = ClassNoticePreferences.MAX_BANNER_DURATION_SECONDS,
+                    step = 5,
+                    onValueChange = onBannerDurationChange,
+                    editable = true,
+                    icon = Icons.Rounded.Timer,
+                )
+            }
+            SettingsHintText(stringResource(R.string.settings_class_notice_banner_duration_desc))
+        }
+
         ClassNoticeAnimationPicker(
             selected = preferences.animation,
             onSelect = onAnimationChange,
         )
-        SettingsSwitchRow(
-            icon = Icons.Rounded.BlurOn,
-            title = stringResource(R.string.settings_class_notice_blur_title),
-            subtitle = stringResource(R.string.settings_class_notice_blur_subtitle),
-            checked = preferences.blurEnabled,
-            onCheckedChange = onBlurChange,
-        )
-        SettingsReveal(preferences.blurEnabled) {
-            AlarmNumberSettingRow(
-                title = stringResource(R.string.settings_class_notice_blur_strength),
-                value = preferences.blurStrength,
-                unit = stringResource(R.string.settings_class_notice_percent_unit),
-                min = ClassNoticePreferences.MIN_BLUR_STRENGTH,
-                max = ClassNoticePreferences.MAX_BLUR_STRENGTH,
-                step = 10,
-                onValueChange = onBlurStrengthChange,
+
+        SettingsCard {
+            SettingsSwitchRow(
+                icon = Icons.Rounded.BlurOn,
+                title = stringResource(R.string.settings_class_notice_blur_title),
+                subtitle = stringResource(R.string.settings_class_notice_blur_subtitle),
+                checked = preferences.blurEnabled,
+                onCheckedChange = onBlurChange,
             )
+            SettingsReveal(preferences.blurEnabled) {
+                AlarmNumberSettingRow(
+                    title = stringResource(R.string.settings_class_notice_blur_strength),
+                    value = preferences.blurStrength,
+                    unit = stringResource(R.string.settings_class_notice_percent_unit),
+                    min = ClassNoticePreferences.MIN_BLUR_STRENGTH,
+                    max = ClassNoticePreferences.MAX_BLUR_STRENGTH,
+                    step = 10,
+                    onValueChange = onBlurStrengthChange,
+                    icon = Icons.Rounded.BlurOn,
+                )
+            }
         }
     }
 
-    SettingsActionRow(
-        icon = Icons.Rounded.Visibility,
-        title = stringResource(R.string.settings_class_notice_preview),
-        subtitle = stringResource(R.string.settings_class_notice_preview_desc),
-        onClick = {
-            noticeGate {
-                val app = context.applicationContext
-                scope.launch {
-                    ClassNoticeNotifier.notifyPreview(
-                        context = app,
-                        content = ClassNoticeGateway.previewContent(app, preferences),
-                        preferences = preferences,
-                        theme = noticeTheme,
-                    )
-                    reportOverlayPreview(context, preferences)
-                    previewSent = preferences.skin != ClassNoticeSkin.Overlay && preferences.headsUpEnabled
+    SettingsCard {
+        SettingsActionRow(
+            icon = Icons.Rounded.Visibility,
+            title = stringResource(R.string.settings_class_notice_preview),
+            subtitle = stringResource(R.string.settings_class_notice_preview_desc),
+            onClick = {
+                noticeGate {
+                    val app = context.applicationContext
+                    scope.launch {
+                        ClassNoticeNotifier.notifyPreview(
+                            context = app,
+                            content = ClassNoticeGateway.previewContent(app, preferences),
+                            preferences = preferences,
+                            theme = noticeTheme,
+                        )
+                        reportOverlayPreview(context, preferences)
+                        previewSent = preferences.skin != ClassNoticeSkin.Overlay && preferences.headsUpEnabled
+                    }
                 }
-            }
-        },
-    )
+            },
+        )
+    }
     SettingsReveal(previewSent) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
                 text = stringResource(R.string.settings_class_notice_preview_missing),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 17.25.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
@@ -496,59 +541,7 @@ private fun ClassNoticeSkinSettings(
         }
     }
 
-    Text(
-        text = stringResource(R.string.settings_class_notice_island_note),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-    )
-}
-
-@Composable
-private fun ClassNoticeSkinOption(
-    title: String,
-    description: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant
-        },
-        border = BorderStroke(
-            width = if (selected) 2.dp else 1.dp,
-            color = if (selected) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.outlineVariant
-            },
-        ),
-        onClick = onClick,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            RadioButton(selected = selected, onClick = onClick)
-            Spacer(modifier = Modifier.width(8.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
+    SettingsHintText(stringResource(R.string.settings_class_notice_island_note))
 }
 
 @Composable
@@ -561,34 +554,27 @@ private fun ClassNoticeAnimationPicker(
         ClassNoticeAnimation.Slide to stringResource(R.string.settings_class_notice_animation_slide),
         ClassNoticeAnimation.Spring to stringResource(R.string.settings_class_notice_animation_spring),
     )
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+    SettingsCard(dividerStart = 16.dp) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             Text(
                 text = stringResource(R.string.settings_class_notice_animation),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
+                    letterSpacing = 0.sp,
+                ),
+                fontWeight = FontWeight.Bold,
             )
-            Spacer(modifier = Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 options.forEach { (value, label) ->
-                    val active = value == selected
-                    AppOutlinedButton(
+                    SettingsOptionChip(
+                        text = label,
+                        selected = value == selected,
                         onClick = { onSelect(value) },
-                        border = BorderStroke(
-                            width = if (active) 2.dp else 1.dp,
-                            color = if (active) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.outlineVariant
-                            },
-                        ),
-                    ) {
-                        Text(text = label)
-                    }
+                    )
                 }
             }
         }
@@ -735,24 +721,26 @@ private fun ClassNoticeSkinOptions(
     preferences: ClassNoticePreferences,
     onSkinChange: (ClassNoticeSkin) -> Unit,
 ) {
-    ClassNoticeSkinOption(
-        title = stringResource(R.string.settings_class_notice_skin_system),
-        description = stringResource(R.string.settings_class_notice_skin_system_desc),
-        selected = preferences.skin == ClassNoticeSkin.System,
-        onClick = { onSkinChange(ClassNoticeSkin.System) },
-    )
-    ClassNoticeSkinOption(
-        title = stringResource(R.string.settings_class_notice_skin_card),
-        description = stringResource(R.string.settings_class_notice_skin_card_desc),
-        selected = preferences.skin == ClassNoticeSkin.Card,
-        onClick = { onSkinChange(ClassNoticeSkin.Card) },
-    )
-    ClassNoticeSkinOption(
-        title = stringResource(R.string.settings_class_notice_skin_overlay),
-        description = stringResource(R.string.settings_class_notice_skin_overlay_desc),
-        selected = preferences.skin == ClassNoticeSkin.Overlay,
-        onClick = { onSkinChange(ClassNoticeSkin.Overlay) },
-    )
+    SettingsOptionCard {
+        SettingsRadioRow(
+            title = stringResource(R.string.settings_class_notice_skin_system),
+            subtitle = stringResource(R.string.settings_class_notice_skin_system_desc),
+            selected = preferences.skin == ClassNoticeSkin.System,
+            onSelect = { onSkinChange(ClassNoticeSkin.System) },
+        )
+        SettingsRadioRow(
+            title = stringResource(R.string.settings_class_notice_skin_card),
+            subtitle = stringResource(R.string.settings_class_notice_skin_card_desc),
+            selected = preferences.skin == ClassNoticeSkin.Card,
+            onSelect = { onSkinChange(ClassNoticeSkin.Card) },
+        )
+        SettingsRadioRow(
+            title = stringResource(R.string.settings_class_notice_skin_overlay),
+            subtitle = stringResource(R.string.settings_class_notice_skin_overlay_desc),
+            selected = preferences.skin == ClassNoticeSkin.Overlay,
+            onSelect = { onSkinChange(ClassNoticeSkin.Overlay) },
+        )
+    }
 }
 
 /** Refresh overlay permission when returning from system settings. */

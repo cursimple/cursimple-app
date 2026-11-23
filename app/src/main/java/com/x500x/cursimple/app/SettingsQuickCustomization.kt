@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -52,7 +51,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
@@ -66,11 +64,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.x500x.cursimple.R
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import com.x500x.cursimple.feature.plugin.ui.AppMotion
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import androidx.compose.material.icons.rounded.Tune
 
 /** Persist [id] for selection; [group] determines picker sections. */
 internal data class SettingsQuickItem(
@@ -238,18 +240,17 @@ internal fun SettingsQuickSection(
     val byId = remember(items) { items.associateBy { it.id } }
     val shown = state.ids.mapNotNull { byId[it] }
     var showPicker by remember { mutableStateOf(false) }
-    val darkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val container = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (darkTheme) 0.85f else 0.55f)
-    val onContainer = MaterialTheme.colorScheme.onPrimaryContainer
+    val container = MaterialTheme.colorScheme.primary
+    val onContainer = MaterialTheme.colorScheme.onPrimary
     val addingFromBelow = state.draggingId != null && !state.fromQuick
     val removing = state.draggingId != null && state.fromQuick && !state.insideQuick
     val border by animateColorAsState(
-        targetValue = if (addingFromBelow && state.insideQuick) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+        targetValue = if (addingFromBelow && state.insideQuick) onContainer else container,
         label = "quickBorder",
     )
 
     Surface(
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(30.dp),
         color = container,
         contentColor = onContainer,
         border = BorderStroke(if (addingFromBelow && state.insideQuick) 2.dp else 1.dp, border),
@@ -257,26 +258,32 @@ internal fun SettingsQuickSection(
             .fillMaxWidth()
             .onGloballyPositioned { state.quickBounds = it.boundsInRoot() },
     ) {
-        Column(modifier = Modifier.padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 34.dp)
+                    .padding(start = 6.dp, end = 2.dp),
+            ) {
                 Text(
                     text = stringResource(R.string.settings_group_quick),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.5.sp, letterSpacing = 0.5.sp),
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
                 )
                 Surface(
                     onClick = { showPicker = true },
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                    contentColor = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(36.dp),
+                    shape = RoundedCornerShape(17.dp),
+                    color = onContainer.copy(alpha = 0.22f),
+                    contentColor = onContainer,
+                    modifier = Modifier.size(34.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Rounded.Add,
                             contentDescription = stringResource(R.string.settings_quick_add),
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(18.dp),
                         )
                     }
                 }
@@ -326,6 +333,7 @@ internal fun SettingsQuickSection(
 @Composable
 private fun QuickTilesLayout(state: SettingsQuickDragState, tiles: List<SettingsQuickItem>) {
     val gap = with(LocalDensity.current) { 8.dp.roundToPx() }
+    val largeText = LocalDensity.current.fontScale > LARGE_TEXT_FONT_SCALE
     Layout(
         content = {
             tiles.forEach { item ->
@@ -336,6 +344,7 @@ private fun QuickTilesLayout(state: SettingsQuickDragState, tiles: List<Settings
                             if (!state.consumeClickAfterDrag()) item.spec.onClick()
                         }),
                         color = MaterialTheme.colorScheme.surface,
+                        border = null,
                         modifier = Modifier
                             .onGloballyPositioned { state.tileBounds[item.id] = it.boundsInRoot() }
                             .settingsQuickDragSource(item.id, fromQuick = true)
@@ -345,7 +354,7 @@ private fun QuickTilesLayout(state: SettingsQuickDragState, tiles: List<Settings
             }
         },
     ) { measurables, constraints ->
-        val columns = QUICK_COLUMNS
+        val columns = settingsTileColumns(constraints.maxWidth, gap, QUICK_COLUMNS, largeText)
         val cellWidth = ((constraints.maxWidth - gap * (columns - 1)) / columns).coerceAtLeast(0)
         state.cellWidthPx = cellWidth
         val rows = measurables.chunked(columns)
@@ -369,6 +378,9 @@ private fun QuickTilesLayout(state: SettingsQuickDragState, tiles: List<Settings
 }
 
 private const val QUICK_COLUMNS = 3
+
+/** Above this scale three tiles per row are too narrow for the two-line titles. */
+internal const val LARGE_TEXT_FONT_SCALE = 1.15f
 
 @Composable
 internal fun SettingsQuickDragGhost(state: SettingsQuickDragState, items: List<SettingsQuickItem>) {
@@ -400,7 +412,7 @@ internal fun SettingsQuickDragGhost(state: SettingsQuickDragState, items: List<S
                     scaleY = 1.06f
                     alpha = if (state.fromQuick && !state.insideQuick) 0.7f else 1f
                 }
-                .shadow(10.dp, RoundedCornerShape(18.dp)),
+                .shadow(10.dp, RoundedCornerShape(22.dp)),
         )
     }
 }
@@ -415,8 +427,9 @@ private fun SettingsQuickPickerDialog(
     onToggle: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.settings_quick_picker_title)) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
@@ -461,7 +474,7 @@ private fun SettingsQuickPickerDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_quick_done)) }
+            AppDialogPrimaryButton(onClick = onDismiss) { Text(stringResource(R.string.settings_quick_done)) }
         },
     )
 }

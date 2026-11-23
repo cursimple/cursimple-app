@@ -71,7 +71,7 @@ internal sealed interface WeekRangesLabel {
 }
 
 /** Compress consecutive weeks; summarize sparse ranges to limit message length. */
-internal fun compactWeekRanges(weeks: List<Int>): WeekRangesLabel {
+internal fun compactWeekRanges(weeks: List<Int>, segmentLimit: Int = WEEK_SEGMENT_LIMIT): WeekRangesLabel {
     val sorted = weeks.distinct().sorted()
     if (sorted.isEmpty()) return WeekRangesLabel.Empty
     val segments = mutableListOf<IntRange>()
@@ -87,7 +87,7 @@ internal fun compactWeekRanges(weeks: List<Int>): WeekRangesLabel {
         previous = week
     }
     segments += start..previous
-    if (segments.size > WEEK_SEGMENT_LIMIT) {
+    if (segments.size > segmentLimit) {
         return WeekRangesLabel.Summary(
             firstWeek = sorted.first(),
             lastWeek = sorted.last(),
@@ -120,6 +120,19 @@ internal fun Context.weekRangesText(label: WeekRangesLabel): String = when (labe
         label.lastWeek,
         label.weekCount,
     )
+}
+
+/** "3, 5-7" style list of every running week (no summarising), for places that must name the exact weeks. */
+internal fun Context.weekSegmentsPlain(weeks: List<Int>): String {
+    val label = compactWeekRanges(weeks, segmentLimit = Int.MAX_VALUE) as? WeekRangesLabel.Segments ?: return ""
+    val separator = getString(R.string.schedule_conflict_week_segment_separator)
+    return label.segments.joinToString(separator) { segment ->
+        if (segment.first == segment.last) {
+            getString(R.string.schedule_conflict_week_segment_single, segment.first)
+        } else {
+            getString(R.string.schedule_conflict_week_segment_range, segment.first, segment.last)
+        }
+    }
 }
 
 internal fun conflictKindNameRes(kind: CourseConflictKind): Int = when (kind) {

@@ -8,9 +8,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -22,9 +24,6 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -51,9 +50,12 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.x500x.cursimple.R
+import com.x500x.cursimple.app.SettingsCard
 import com.x500x.cursimple.app.SettingsCardGroup
+import com.x500x.cursimple.app.SettingsHintText
 import com.x500x.cursimple.app.SettingsSwitchRow
 import com.x500x.cursimple.core.data.navigation.BottomBarSize
 import com.x500x.cursimple.core.data.navigation.DrawerLayout
@@ -83,19 +85,15 @@ fun SidebarSettingsPage(
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         if (componentLayoutActive) {
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
+            SettingsCard {
                 Column(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(
                         text = stringResource(R.string.settings_sidebar_component_layout),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 16.5.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     AppOutlinedButton(
                         onClick = onRestoreDrawer,
@@ -110,14 +108,14 @@ fun SidebarSettingsPage(
         }
         bottomBarSize?.let { BottomBarSizeGroup(it, onBottomBarSizeChange) }
 
-        Text(
-            text = stringResource(R.string.settings_sidebar_hint),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp),
-        )
+        SettingsHintText(stringResource(R.string.settings_sidebar_hint))
 
-        SettingsCardGroup(stringResource(R.string.settings_sidebar_items), liftable = true) {
+        SettingsCardGroup(
+            stringResource(R.string.settings_sidebar_items),
+            liftable = true,
+            // Dividers start where the row titles do, past the drag handle and icon.
+            dividerStart = 90.dp,
+        ) {
             order.forEachIndexed { index, destination ->
                 key(destination) {
                     val isDragged = dragged == destination
@@ -176,7 +174,7 @@ fun SidebarSettingsPage(
         SettingsCardGroup(stringResource(R.string.settings_sidebar_shortcuts)) {
             SettingsSwitchRow(
                 icon = Icons.Rounded.TouchApp,
-                title = stringResource(R.string.settings_sidebar_shortcuts),
+                title = stringResource(R.string.settings_sidebar_shortcuts_show),
                 subtitle = stringResource(R.string.settings_sidebar_shortcuts_subtitle),
                 checked = layout.shortcutsVisible,
                 onCheckedChange = { onChange(layout.copy(shortcutsVisible = it)) },
@@ -189,23 +187,44 @@ fun SidebarSettingsPage(
 private fun BottomBarSizeGroup(size: BottomBarSize, onChange: (BottomBarSize) -> Unit) {
     SettingsCardGroup(stringResource(R.string.settings_bottom_bar_group)) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
                 text = stringResource(R.string.settings_bottom_bar_size),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleSmall.copy(lineHeight = 18.sp, letterSpacing = 0.sp),
+                fontWeight = FontWeight.Bold,
             )
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                BottomBarSize.entries.forEachIndexed { index, option ->
-                    SegmentedButton(
-                        selected = option == size,
-                        onClick = { onChange(option) },
-                        shape = SegmentedButtonDefaults.itemShape(index, BottomBarSize.entries.size),
-                        modifier = Modifier.testTag("bar-size-${option.id}"),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                BottomBarSize.entries.forEach { option ->
+                    val selected = option == size
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(36.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                                else Color.Transparent,
+                            )
+                            .selectable(selected = selected, role = Role.RadioButton) { onChange(option) }
+                            .testTag("bar-size-${option.id}"),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Text(stringResource(option.labelRes))
+                        Text(
+                            text = stringResource(option.labelRes),
+                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.5.sp, letterSpacing = 0.sp),
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            maxLines = 1,
+                        )
                     }
                 }
             }
@@ -239,8 +258,8 @@ private fun SidebarItemRow(
         if (canMoveUp) add(CustomAccessibilityAction(moveUp) { onMove(-1); true })
         if (canMoveDown) add(CustomAccessibilityAction(moveDown) { onMove(1); true })
     }
-    // The lifted row keeps the card's inner width and corner radius so its shadow reads as one card.
-    val liftShape = RoundedCornerShape(16.dp)
+    // The lifted row is opaque so its shadow reads above the rows it passes.
+    val liftShape = RoundedCornerShape(18.dp)
     Surface(
         color = if (lifted) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
         shape = if (lifted) liftShape else RectangleShape,
@@ -254,14 +273,14 @@ private fun SidebarItemRow(
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(width = 40.dp, height = 48.dp)
                     .then(dragHandle),
             ) {
                 Icon(
                     imageVector = Icons.Rounded.DragIndicator,
                     contentDescription = stringResource(R.string.settings_sidebar_drag),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                    modifier = Modifier.size(18.dp),
                 )
             }
             val toggle = if (destination.locked) {
@@ -281,8 +300,8 @@ private fun SidebarItemRow(
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)),
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -292,13 +311,18 @@ private fun SidebarItemRow(
                         modifier = Modifier.size(20.dp),
                     )
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.titleSmall.copy(lineHeight = 18.sp, letterSpacing = 0.sp),
+                        fontWeight = FontWeight.Bold,
+                    )
                     if (destination.locked) {
                         Text(
                             text = stringResource(R.string.settings_sidebar_locked),
-                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 2.dp),
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 16.5.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -307,10 +331,11 @@ private fun SidebarItemRow(
                     Icon(
                         imageVector = Icons.Rounded.Lock,
                         contentDescription = stringResource(R.string.settings_sidebar_locked),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                        modifier = Modifier.size(18.dp),
                     )
                 } else {
+                    Spacer(modifier = Modifier.width(8.dp))
                     Switch(checked = visible, onCheckedChange = null)
                 }
             }

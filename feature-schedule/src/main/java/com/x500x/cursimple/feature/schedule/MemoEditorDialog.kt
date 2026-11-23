@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -35,6 +36,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
@@ -47,7 +49,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -91,6 +92,11 @@ import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import com.x500x.cursimple.feature.schedule.time.LocalAppZone
 import java.time.LocalDateTime
 import java.time.LocalTime
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.Save
 
 private enum class MemoDuePick { Date, Time }
 
@@ -239,6 +245,7 @@ internal fun MemoEditorDialog(
 
     if (confirmSave) {
         AppConfirmationDialog(
+            icon = Icons.Rounded.Check,
             title = stringResource(R.string.memo_editor_save_confirm_title),
             message = stringResource(R.string.memo_editor_save_confirm_body),
             confirmLabel = stringResource(R.string.schedule_action_save),
@@ -407,7 +414,7 @@ private fun MemoEditContent(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = draft.title,
             onValueChange = { onDraftChange(draft.copy(title = it)) },
             modifier = Modifier
@@ -586,29 +593,22 @@ private fun MemoUnsavedDialog(
     onKeepEditing: () -> Unit,
 ) {
     val error = MaterialTheme.colorScheme.error
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onKeepEditing,
-        title = {
-            Text(
-                stringResource(R.string.memo_editor_unsaved_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-        },
+        tone = AppDialogTone.Warning,
+        icon = { Icon(Icons.Rounded.Save, contentDescription = null, modifier = Modifier.size(22.dp)) },
+        title = { Text(stringResource(R.string.memo_editor_unsaved_title)) },
         text = { Text(stringResource(R.string.memo_editor_unsaved_body), style = MaterialTheme.typography.bodyMedium) },
         confirmButton = {
             Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onSave, enabled = canSave, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.schedule_action_save))
-                }
-                AppOutlinedButton(
-                    onClick = onDiscard,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = error),
-                    border = BorderStroke(1.dp, error.copy(alpha = 0.6f)),
-                ) { Text(stringResource(R.string.memo_editor_discard)) }
-                AppOutlinedButton(onClick = onKeepEditing, modifier = Modifier.fillMaxWidth()) {
+                AppDialogSecondaryButton(onClick = onKeepEditing, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.memo_editor_keep_editing))
+                }
+                AppDialogSecondaryButton(onClick = onDiscard, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.memo_editor_discard))
+                }
+                AppDialogPrimaryButton(onClick = onSave, enabled = canSave, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.schedule_action_save))
                 }
             }
         },

@@ -51,6 +51,13 @@ import com.x500x.cursimple.app.util.decodeSampledImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Wallpaper
+import androidx.compose.material3.Icon
 
 /** Preview the timetable-shaped crop before saving the transformed image. */
 @Composable
@@ -86,8 +93,9 @@ internal fun ScheduleBackgroundCropDialog(
     // Read current pan limits inside the gesture closure; initial limits become stale after zooming.
     val currentPanBounds = rememberUpdatedState(panBounds)
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Wallpaper, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.settings_background_crop_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -153,7 +161,7 @@ internal fun ScheduleBackgroundCropDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(
+            AppDialogPrimaryButton(
                 enabled = preview != null && !working,
                 onClick = {
                     working = true
@@ -180,7 +188,7 @@ internal fun ScheduleBackgroundCropDialog(
             ) { Text(stringResource(R.string.settings_confirm)) }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }

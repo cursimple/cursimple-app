@@ -166,10 +166,14 @@ internal fun MemoBody(
                             .width(3.dp)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(2.dp))
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
                     )
-                    Spacer(Modifier.width(8.dp))
-                    Text(text = inline(block.text), style = textStyle, color = muted)
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = inline(block.text),
+                        style = if (document) textStyle else typography.bodySmall,
+                        color = muted,
+                    )
                 }
                 is MemoBlock.Paragraph -> Text(text = inline(block.text), style = textStyle, color = contentColor)
                 is MemoBlock.Blank -> Spacer(Modifier.height(if (document) 6.dp else 2.dp))
@@ -249,7 +253,7 @@ private fun MemoCheckRow(
         verticalAlignment = Alignment.Top,
     ) {
         MemoCheckBox(checked = checked, contentColor = contentColor, modifier = Modifier.padding(top = 1.dp))
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(12.dp))
         Text(
             text = text,
             style = decorated,
@@ -264,10 +268,10 @@ internal fun MemoCheckBox(checked: Boolean, contentColor: Color, modifier: Modif
     val primary = MaterialTheme.colorScheme.primary
     Box(
         modifier = modifier
-            .size(20.dp)
-            .clip(CircleShape)
+            .size(22.dp)
+            .clip(RoundedCornerShape(7.dp))
             .background(if (checked) primary else Color.Transparent)
-            .border(1.5.dp, if (checked) primary else MaterialTheme.colorScheme.outline, CircleShape),
+            .border(2.dp, if (checked) primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(7.dp)),
         contentAlignment = Alignment.Center,
     ) {
         if (checked) {

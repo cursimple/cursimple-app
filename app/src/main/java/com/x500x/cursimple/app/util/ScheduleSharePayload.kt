@@ -19,5 +19,8 @@ data class ScheduleSharePayload(
     companion object {
         const val CURRENT_VERSION: Int = 1
         const val MAGIC_PREFIX: String = "CSV1:"
+
+        /** Raw DEFLATE without Base64 padding: same content, shorter code. */
+        const val MAGIC_PREFIX_V2: String = "CSV2:"
     }
 }

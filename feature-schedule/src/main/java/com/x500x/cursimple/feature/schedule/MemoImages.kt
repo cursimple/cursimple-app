@@ -59,6 +59,7 @@ import com.x500x.cursimple.core.kernel.model.MemoImageRef
 import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import com.x500x.cursimple.feature.plugin.ui.AppConfirmationDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -219,7 +220,8 @@ internal fun MemoImageThumbnail(ref: MemoImageRef, modifier: Modifier = Modifier
     val state = memoImage(ref.id, 512, retry)
     val gallery = LocalMemoImageGallery.current
     if (preview) MemoImageViewer(ref, gallery, onDismiss = { preview = false })
-    if (remove) AppConfirmationDialog(title = stringResource(R.string.memo_image_remove_title),
+    if (remove) AppConfirmationDialog(
+        icon = Icons.Rounded.DeleteOutline, tone = AppDialogTone.Danger, title = stringResource(R.string.memo_image_remove_title),
         message = stringResource(R.string.memo_image_remove_body), confirmLabel = stringResource(R.string.schedule_action_delete),
         cancelLabel = stringResource(R.string.schedule_action_cancel), onConfirm = { remove = false; onRemove?.invoke() },
         onDismiss = { remove = false })

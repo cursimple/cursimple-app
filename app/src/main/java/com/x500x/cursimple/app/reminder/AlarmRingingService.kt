@@ -496,12 +496,6 @@ class AlarmRingingService : Service() {
             alarmActivityOptions(),
         )
 
-        val liveStatusText = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            "🔔 " + getString(R.string.alarm_ringing_notification)
-        } else {
-            null
-        }
-
         val notificationBuilder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(alarm.title.ifBlank { getString(R.string.alarm_default_title) })
@@ -524,7 +518,7 @@ class AlarmRingingService : Service() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             notificationBuilder.setRequestPromotedOngoing(true)
-            liveStatusText?.let { notificationBuilder.setShortCriticalText(it) }
+            notificationBuilder.setShortCriticalText(getString(R.string.alarm_ringing_notification))
         }
 
         val notification = notificationBuilder.build()

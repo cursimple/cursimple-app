@@ -14,7 +14,8 @@ const source = readFileSync(join(here, "../../main/assets/school-portal/generic-
 const api = new Function(`${source}
 return { genericNorm, genericDayOf, genericPeriodLabel, genericPeriodsIn, genericWeeksIn,
   genericBlocks, genericCourseFromBlock, genericBuildMatrix, genericAnalyseSpec,
-  genericExtractCourses, genericValidCourse, run };`)();
+  genericExtractCourses, genericValidCourse, run,
+  termStartIn: typeof genericTermStartIn === "function" ? genericTermStartIn : () => null };`)();
 
 let JSDOM = null;
 try {
@@ -205,7 +206,7 @@ function fakeCtx() {
       term: { id: "term-test" },
       schedule: {
         addCourse(c) { added.push(c); return c; },
-        commit(input) { return { committed: true, termId: input.termId, count: added.length }; },
+        commit(input) { return { committed: true, termId: input.termId, count: added.length, ...(input.termStartDate ? { termStartDate: input.termStartDate } : {}) }; },
       },
     },
   };
@@ -752,7 +753,7 @@ async function runGeometry(html) {
 
 const box = (x, y, w, h) => `data-x="${x}" data-y="${y}" data-w="${w}" data-h="${h}"`;
 
-test("absolute cards: columns and periods come from geometry", async () => {
+domTest("absolute cards: columns and periods come from geometry", async () => {
   const html = `
     <div ${box(100, 0, 80, 20)}>周一</div><div ${box(200, 0, 80, 20)}>周二</div><div ${box(300, 0, 80, 20)}>周三</div>
     <div ${box(10, 40, 40, 40)}>1<br>08:00</div><div ${box(10, 100, 40, 40)}>2<br>09:00</div><div ${box(10, 160, 40, 40)}>3<br>10:00</div>
@@ -767,7 +768,7 @@ test("absolute cards: columns and periods come from geometry", async () => {
   ]);
 });
 
-test("absolute cards without week text are not imported", async () => {
+domTest("absolute cards without week text are not imported", async () => {
   const html = `
     <div ${box(100, 0, 80, 20)}>周一</div><div ${box(200, 0, 80, 20)}>周二</div><div ${box(300, 0, 80, 20)}>周三</div>
     <div ${box(10, 40, 40, 40)}>1<br>08:00</div><div ${box(10, 100, 40, 40)}>2<br>09:00</div>
@@ -775,4 +776,197 @@ test("absolute cards without week text are not imported", async () => {
   const { result, courses } = await runGeometry(html);
   assert.equal(courses.length, 0);
   assert.equal(result.error, "incomplete");
+});
+
+// ---------- Real-world timetable image & system reproductions ----------
+
+domTest("real-world ZF style: kbcontent with font title, course codes, title words, brackets and compound weeks", async () => {
+  const html = `<table>${FAMILY_H}
+    <tr>
+      <td>第1-2节</td>
+      <td>
+        <div class="kbcontent">
+          [B0102030]离散数学(全英)<br>
+          <font title="老师">张三(副教授)</font><br>
+          <font title="周次(节次)">1-8,10-17(周)[01-02节]</font><br>
+          <font title="教室">公教一楼-A302</font>
+        </div>
+      </td>
+      ${"<td></td>".repeat(6)}
+    </tr>
+  </table>`;
+  const { courses } = await runOn(html);
+  assert.equal(courses.length, 1);
+  const c = courses[0];
+  assert.equal(c.title, "离散数学");
+  assert.equal(c.teacher, "张三");
+  assert.equal(c.location, "公教一楼-A302");
+  assert.equal(c.day, 1);
+  assert.equal(c.start, 1);
+  assert.equal(c.end, 2);
+  assert.equal(c.weeks, "1,2,3,4,5,6,7,8,10,11,12,13,14,15,16,17");
+});
+
+domTest("real-world QZ mobile style: dual odd-even courses staggered in the same slot", async () => {
+  const html = `<table>${FAMILY_H}
+    <tr>
+      <td>第3-4节</td>
+      ${"<td></td>".repeat(1)}
+      <td>
+        [课程] 大学物理(2)<br>
+        [教师] 李四 / 副教授<br>
+        [周次] 2-16(双周)<br>
+        [节次] 第3,4节<br>
+        [教室] 理科大楼B401<br>
+        --------------------<br>
+        [课程] 近代物理实验<br>
+        [教师] 王五<br>
+        [周次] 1-15(单周)<br>
+        [节次] 第3,4节<br>
+        [教室] 物理实验楼302
+      </td>
+      ${"<td></td>".repeat(5)}
+    </tr>
+  </table>`;
+  const { courses } = await runOn(html);
+  assert.equal(courses.length, 2);
+  const byTitle = Object.fromEntries(courses.map((c) => [c.title, c]));
+  assert.equal(byTitle["大学物理(2)"].teacher, "李四");
+  assert.equal(byTitle["大学物理(2)"].location, "理科大楼B401");
+  assert.equal(byTitle["大学物理(2)"].weeks, "2,4,6,8,10,12,14,16");
+  assert.equal(byTitle["近代物理实验"].teacher, "王五");
+  assert.equal(byTitle["近代物理实验"].location, "物理实验楼302");
+  assert.equal(byTitle["近代物理实验"].weeks, "1,3,5,7,9,11,13,15");
+});
+
+domTest("real-world Kingosoft style: compact multi-line with compact double period '0506节' and sports sub-type", async () => {
+  const html = `<table>${FAMILY_H}
+    <tr>
+      <td>第5-6节</td>
+      ${"<td></td>".repeat(2)}
+      <td>
+        大学体育(4)[篮球分项][2.0学分]<br>
+        0506节<br>
+        1-16周<br>
+        赵六<br>
+        第一田径场
+      </td>
+      ${"<td></td>".repeat(4)}
+    </tr>
+  </table>`;
+  const { courses } = await runOn(html);
+  assert.equal(courses.length, 1);
+  const c = courses[0];
+  assert.equal(c.title, "大学体育(4)");
+  assert.equal(c.teacher, "赵六");
+  assert.equal(c.location, "第一田径场");
+  assert.equal(c.day, 3);
+  assert.equal(c.start, 5);
+  assert.equal(c.end, 6);
+  assert.equal(c.weeks, FAMILY_ALL);
+});
+
+domTest("real-world URP style: horizontal schedule table with course list columns", async () => {
+  const html = `<table>
+    <tr><th>序号</th><th>课程名称</th><th>学分</th><th>授课教师</th><th>星期</th><th>节次</th><th>上课周次</th><th>上课地点</th></tr>
+    <tr><td>1</td><td>毛泽东思想和中国特色社会主义理论体系概论</td><td>3.0</td><td>陈七</td><td>星期四</td><td>第7,8节</td><td>1-16周</td><td>文科楼201</td></tr>
+    <tr><td>2</td><td>高等数学A(1)</td><td>5.0</td><td>孙八</td><td>星期一</td><td>第1,2节</td><td>1-16周</td><td>主楼301</td></tr>
+  </table>`;
+  const { courses } = await runOn(html);
+  assert.equal(courses.length, 2);
+  const byTitle = Object.fromEntries(courses.map((c) => [c.title, c]));
+  assert.equal(byTitle["毛泽东思想和中国特色社会主义理论体系概论"].day, 4);
+  assert.equal(byTitle["毛泽东思想和中国特色社会主义理论体系概论"].start, 7);
+  assert.equal(byTitle["毛泽东思想和中国特色社会主义理论体系概论"].end, 8);
+  assert.equal(byTitle["毛泽东思想和中国特色社会主义理论体系概论"].teacher, "陈七");
+  assert.equal(byTitle["毛泽东思想和中国特色社会主义理论体系概论"].location, "文科楼201");
+
+  assert.equal(byTitle["高等数学A(1)"].day, 1);
+  assert.equal(byTitle["高等数学A(1)"].start, 1);
+  assert.equal(byTitle["高等数学A(1)"].end, 2);
+  assert.equal(byTitle["高等数学A(1)"].teacher, "孙八");
+  assert.equal(byTitle["高等数学A(1)"].location, "主楼301");
+});
+
+domTest("real-world split teaching: multi-teacher with foreign and minority teacher names", async () => {
+  const html = `<table>${FAMILY_H}
+    <tr>
+      <td>第1-2节</td>
+      ${"<td></td>".repeat(4)}
+      <td>
+        医学寄生虫学<br>
+        阿力木·买买提<br>
+        1-8周<br>
+        医学院实验楼401<br>
+        --------------------<br>
+        医学寄生虫学<br>
+        John Doe<br>
+        9-16周<br>
+        医学院A101
+      </td>
+      ${"<td></td>".repeat(2)}
+    </tr>
+  </table>`;
+  const { courses } = await runOn(html);
+  assert.equal(courses.length, 2);
+  const c1 = courses.find((c) => c.teacher === "阿力木·买买提");
+  const c2 = courses.find((c) => c.teacher === "John Doe");
+  assert.ok(c1);
+  assert.ok(c2);
+  assert.equal(c1.weeks, "1,2,3,4,5,6,7,8");
+  assert.equal(c1.location, "医学院实验楼401");
+  assert.equal(c2.weeks, "9,10,11,12,13,14,15,16");
+  assert.equal(c2.location, "医学院A101");
+});
+
+domTest("real-world tooltip table: sparse cell text with detailed title attribute", async () => {
+  const tooltip = `课程: 高等数学(上)
+教师: 钱九
+周次: 1-16周
+节次: 第1-2节
+地点: 西二教101`;
+  const html = `<table>${FAMILY_H}
+    <tr>
+      <td>第1-2节</td>
+      <td title="${tooltip}">高数</td>
+      ${"<td></td>".repeat(6)}
+    </tr>
+  </table>`;
+  const { courses } = await runOn(html);
+  assert.equal(courses.length, 1);
+  const c = courses[0];
+  assert.equal(c.title, "高等数学(上)");
+  assert.equal(c.teacher, "钱九");
+  assert.equal(c.location, "西二教101");
+  assert.equal(c.day, 1);
+  assert.equal(c.start, 1);
+  assert.equal(c.end, 2);
+  assert.equal(c.weeks, FAMILY_ALL);
+});
+
+// Calendar anchors must be present in the source page.
+describe("term date evidence", () => {
+  test("explicit school term start is used", () => {
+    assert.equal(api.termStartIn("开学日期：2026年9月7日"), "2026-09-07");
+  });
+  test("dated teaching week is back-calculated to week one", () => {
+    assert.equal(api.termStartIn("第3周 2026-09-23"), "2026-09-07");
+  });
+  test("week-one first class anchors its Monday", () => {
+    assert.equal(api.termStartIn("第1周 2026-09-09"), "2026-09-07");
+  });
+  test("course weeks alone and unrelated dates cannot invent a start", () => {
+    assert.equal(api.termStartIn("高等数学 1-16周 更新于2026-11-20"), null);
+  });
+  test("invalid and conflicting evidence stays unset", () => {
+    assert.equal(api.termStartIn("开学日期：2026-02-30"), null);
+    assert.equal(api.termStartIn("第1周 2026-09-07\n第2周 2026-10-12"), null);
+  });
+});
+
+domTest("upload carries the page calendar date, not the import day", async () => {
+  const html = `<div style="display:none">开学日期：2025-02-24</div><p>第1周 2026-09-09</p><table>${FAMILY_H}<tr><th>1</th><td>高等数学<br>1-16周<br>A101</td>${"<td></td>".repeat(6)}</tr></table>`;
+  const { result } = await runOn(html);
+  assert.equal(result.committed, true);
+  assert.equal(result.termStartDate, "2026-09-07");
 });

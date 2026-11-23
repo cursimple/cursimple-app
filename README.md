@@ -14,7 +14,7 @@
 [![License](https://img.shields.io/github/license/cursimple/cursimple-app)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-7.0%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com)
 
-[官网](https://cursimple.github.io/cursimple-app/) · [下载](https://github.com/cursimple/cursimple-app/releases) · [插件收录](https://cursimple.github.io/cursimple-plugins/) · [组件收录](https://cursimple.github.io/cursimple-components/) · [English](README_en.md)
+[官网](https://cursimple.github.io/) · [下载](https://github.com/cursimple/cursimple-app/releases) · [插件收录](https://cursimple.github.io/cursimple-plugins/) · [组件收录](https://cursimple.github.io/cursimple-components/) · [English](README_en.md)
 
 </div>
 
@@ -32,7 +32,7 @@
 
 ## 下载安装与开始使用
 
-在 [Releases](https://github.com/cursimple/cursimple-app/releases) 选择对应版本，或从[官网的下载区](https://cursimple.github.io/cursimple-app/#download)下载安装包。测试版需要在应用更新设置中开启对应渠道，是否为测试版以发布渠道和 GitHub 的 Pre-release 标记为准。
+在 [Releases](https://github.com/cursimple/cursimple-app/releases) 选择对应版本，或从[官网的下载区](https://cursimple.github.io/#download)下载安装包。测试版需要在应用更新设置中开启对应渠道，是否为测试版以发布渠道和 GitHub 的 Pre-release 标记为准。
 
 | APK | 适用设备 |
 |---|---|

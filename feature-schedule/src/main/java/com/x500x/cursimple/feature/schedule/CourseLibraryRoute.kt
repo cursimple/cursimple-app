@@ -24,8 +24,11 @@ fun CourseLibraryRoute(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val entries = remember(state.schedule, state.manualCourses) {
+        val hiddenIds = state.manualCourses.filter { it.hidden }.mapTo(hashSetOf()) { it.id }
         buildCourseLibrary(
-            pluginCourses = state.schedule?.dailySchedules.orEmpty().flatMap { it.courses },
+            pluginCourses = state.schedule?.dailySchedules.orEmpty().flatMap { day ->
+                day.courses.filterNot { it.id in hiddenIds }
+            },
             manualCourses = state.manualCourses,
         )
     }
@@ -50,15 +53,16 @@ fun CourseLibraryRoute(
     ) {
         visibleColumnDayOfWeeks(scheduleDisplay)
     }
-    // Use active timing bounds, or the form default without a profile.
-    val maxNodeCount = state.timingProfile?.slotTimes?.maxOfOrNull { it.endNode } ?: 12
+    val maxNodeCount = state.timingProfile?.slotTimes?.maxOfOrNull { it.endNode }
+        ?: maxOf(8, entries.maxOfOrNull { it.course.time.endNode } ?: 0)
 
     CourseLibraryScreen(
         entries = entries,
         columnDayOfWeeks = columnDayOfWeeks,
-        onAddCourse = viewModel::addManualCourse,
+        onAddCourses = viewModel::addManualCourses,
         onUpdateCourse = viewModel::updateManualCourse,
         onRemoveCourse = viewModel::removeManualCourse,
+        onRemoveCourses = { viewModel.removeLibraryCourses(state.eventLibrary.termId, it) },
         maxNodeCount = maxNodeCount,
         maxWeekCount = maxWeekCount,
         termStartDate = termStartDate,
@@ -66,10 +70,18 @@ fun CourseLibraryRoute(
         hiddenCourses = hiddenCourses,
         onRestoreCourse = viewModel::restoreHiddenCourse,
         onPurgeCourse = viewModel::purgeHiddenCourse,
+        deletedCourses = state.deletedCourses,
+        onRestoreDeleted = viewModel::restoreDeletedCourse,
+        onClearRecycleBin = viewModel::clearDeletedCourses,
         onSetReminder = { reminderTarget = it },
         events = state.events,
         onSaveEvent = viewModel::saveEvent,
         onRemoveEvent = viewModel::removeEvent,
+        onRemoveEvents = { viewModel.removeLibraryEvents(state.eventLibrary.termId, it) },
+        onReorderEvents = { viewModel.reorderLibraryEvents(state.eventLibrary.termId, it) },
+        eventCustomOrder = state.eventLibrary.hasCustomOrder,
+        eventOrderSaving = state.eventLibraryReordering,
+        libraryTermId = state.eventLibrary.termId,
         modifier = modifier,
     )
 }

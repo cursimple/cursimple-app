@@ -25,6 +25,12 @@ import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.QrCode2
+import androidx.compose.material3.Icon
 
 @Composable
 internal fun ScheduleQrShareDialog(bitmap: Bitmap, onDismiss: () -> Unit) {
@@ -47,8 +53,9 @@ internal fun ScheduleQrShareDialog(bitmap: Bitmap, onDismiss: () -> Unit) {
     val saveDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")) { uri ->
         if (uri != null) perform { writeSharePng(context, bitmap, uri); saved() }
     }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
+        icon = { Icon(Icons.Rounded.QrCode2, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.ie_qr_dialog_title)) },
         text = {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
@@ -58,7 +65,7 @@ internal fun ScheduleQrShareDialog(bitmap: Bitmap, onDismiss: () -> Unit) {
                 Text(stringResource(R.string.ie_qr_dialog_hint), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                Button(onClick = {
+                AppDialogPrimaryButton(onClick = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) perform { saveQrToPictures(context, bitmap); saved() }
                     else saveDocument.launch("cursimple-qr.png")
                 }, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("schedule-qr-save")) {
@@ -72,7 +79,7 @@ internal fun ScheduleQrShareDialog(bitmap: Bitmap, onDismiss: () -> Unit) {
                 }
             }
         },
-        confirmButton = { AppOutlinedButton(onClick = onDismiss, enabled = !busy) {
+        confirmButton = { AppDialogPrimaryButton(onClick = onDismiss, enabled = !busy) {
             AppAtomicText(stringResource(R.string.ie_close))
         } },
     )

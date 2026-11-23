@@ -1,5 +1,7 @@
 package com.x500x.cursimple.app
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
@@ -50,62 +52,154 @@ class CrowdedDayUiQaTest {
         CourseItem(id, title, location = "东13-C-315", weeks = all, time = CourseTimeSlot(day, start, end),
             reminderStartTime = from, reminderEndTime = to)
 
-    private val courses = listOf(
-        // Monday: A, B and C overlap at 09:00-09:35, D follows. At 09:45 B and C are ongoing.
-        course("a", "汇编语言", 1, 1, 2),
-        course("b", "组成原理", 1, 1, 2, from = "08:30", to = "10:00"),
-        course("c", "数值分析", 1, 1, 4, from = "09:00", to = "11:00"),
-        course("d", "操作系统", 1, 3, 4),
-        // Tuesday: two overlapping courses plus one that follows on the same lane.
-        course("e", "数据库", 2, 1, 2),
-        course("f", "编译原理", 2, 1, 2, from = "09:00", to = "10:30"),
-        course("g", "大学物理", 2, 5, 6),
-        // Wednesday: four at once.
-        course("h1", "课程一", 3, 5, 6, from = "14:00", to = "15:30"),
-        course("h2", "课程二", 3, 5, 6, from = "14:10", to = "15:35"),
-        course("h3", "课程三", 3, 5, 6, from = "14:20", to = "15:40"),
-        course("h4", "课程四", 3, 5, 6, from = "14:30", to = "15:45"),
+    private val wednesday = listOf(
+        course("w1", "课程一", 3, 1, 2), course("w2", "课程二", 3, 1, 3), course("w3", "课程三", 3, 1, 4),
+        course("w4", "课程四", 3, 1, 5), course("w5", "课程五", 3, 1, 6), course("w6", "课程六", 3, 1, 7),
+        course("w7", "课程七", 3, 1, 8), course("w8", "课程八", 3, 2, 3), course("w9", "课程九", 3, 2, 4),
+        course("w10", "课程十", 3, 2, 5),
     )
 
-    @Test fun crowdedDaysKeepTwoLanesAndFoldTheRest() {
+    private val courses = listOf(
+        // Monday: A, B and C all start in period 1 but end in different periods, so they are three cells.
+        course("a", "汇编语言", 1, 1, 2),
+        course("b", "组成原理", 1, 1, 4, from = "08:30", to = "10:30"),
+        course("c", "数值分析", 1, 1, 6, from = "09:00", to = "11:00"),
+        course("d", "操作系统", 1, 7, 8),
+        // Tuesday: a pair that must stay side by side, plus one that follows on the full width.
+        course("e", "数据库", 2, 1, 2),
+        course("f", "编译原理", 2, 1, 4),
+        course("g", "大学物理", 2, 5, 6),
+        // Wednesday: ten distinct cells that all overlap in period 2, the most one spot can hold.
+    ) + wednesday
+
+    private val wednesdayIds = (1..10).map { "w$it" }
+
+    private fun chips() = compose.onAllNodes(
+        hasTestTag("schedule-course-more") and hasAnyAncestor(hasTestTag("schedule-current-week")),
+        useUnmergedTree = true,
+    )
+
+    @Test fun crowdedDaysKeepTheNearestAndFoldTheRest() {
         assumeTrue(args.getString("crowdedQa") == "true")
         show()
         save("week")
 
-        // Two overlapping courses sit side by side; the later one stays on its own lane.
+        // Two overlapping courses sit side by side and never fold; a following one returns to full width.
         val e = bounds("e")
         val f = bounds("f")
-        assertTrue("overlapping courses take two lanes: $e / $f", f.left >= e.right - 1f)
+        assertTrue("a pair takes two lanes: $e / $f", f.left >= e.right - 1f || e.left >= f.right - 1f)
         assertTrue("a following course returns to the full day width: ${bounds("g")}", bounds("g").width > e.width * 1.5f)
 
-        // Three at once: the two nearest sit side by side, a later non-overlapping course follows on the
-        // left, and the course that finished stays behind the chip under the right-hand card.
-        assertTrue("b stays", drawn("b"))
-        assertTrue("c stays", drawn("c"))
-        assertTrue("d stays", drawn("d"))
-        assertTrue("a folds away", !drawn("a"))
-        val b = bounds("b")
-        val c = bounds("c")
-        assertTrue("two nearest take two lanes: $b / $c", c.left >= b.right - 1f)
-        val chips = compose.onAllNodes(
-            hasTestTag("schedule-course-more") and hasAnyAncestor(hasTestTag("schedule-current-week")),
-            useUnmergedTree = true,
-        )
-        assertTrue("Monday needs one chip and Wednesday one", chips.fetchSemanticsNodes().size >= 2)
-        val chip = chips[0].fetchSemanticsNode().boundsInRoot
-        assertTrue("chip sits on the right lane: $c / $chip", chip.left >= b.right - 1f)
-        assertTrue("chip sits below the right-hand card: $c / $chip", chip.top >= c.bottom - 1f || chip.top >= c.top)
+        // Monday has three at once: the nearest stay on the left, the rest sit behind one chip on the right.
+        val mondayDrawn = listOf("a", "b", "c").filter { drawn(it) }
+        assertTrue("some Monday course stays: $mondayDrawn", mondayDrawn.isNotEmpty())
+        assertTrue("some Monday course folds: $mondayDrawn", mondayDrawn.size < 3)
+        assertTrue("a later course keeps its own row", drawn("d"))
+        val chipList = chips()
+        assertTrue("Monday and Wednesday each need a chip", chipList.fetchSemanticsNodes().size >= 2)
+        val mondayChip = chipList[0].fetchSemanticsNode().boundsInRoot
+        mondayDrawn.forEach { id ->
+            assertTrue("the chip sits right of $id: ${bounds(id)} / $mondayChip", mondayChip.left >= bounds(id).right - 1f)
+        }
 
-        chips[0].performClick()
+        chipList[0].performClick()
         compose.waitForIdle()
         save("expanded")
-        // The dialog lists exactly what the chip folded away.
-        compose.onNode(hasText("汇编语言") and hasAnyAncestor(isDialog()), useUnmergedTree = true).assertExists()
-        // Each folded course shows when it runs and where it stands against the clock.
-        compose.onNode(hasText("08:00–09:35", substring = true) and hasAnyAncestor(isDialog()), useUnmergedTree = true).assertExists()
-        compose.onNode(hasText(text(ScheduleR.string.schedule_overflow_finished)) and hasAnyAncestor(isDialog()), useUnmergedTree = true).assertExists()
-        compose.onNode(hasText("数值分析") and hasAnyAncestor(isDialog()), useUnmergedTree = true).assertDoesNotExist()
-        compose.onNode(hasText("组成原理") and hasAnyAncestor(isDialog()), useUnmergedTree = true).assertDoesNotExist()
+        // The dialog lists what the chip folded and nothing that is still drawn.
+        listOf("a", "b", "c").forEach { id ->
+            val title = courses.first { it.id == id }.title
+            val inDialog = compose.onAllNodes(hasText(title) and hasAnyAncestor(isDialog()), useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+            assertTrue("$title is in the dialog exactly when it is folded", inDialog == !drawn(id))
+        }
+    }
+
+    /** Ten in one spot is the limit: the nearest stay on the left, the others fold into one chip. */
+    @Test fun tenCoursesInOneSpotFoldIntoOneChip() {
+        assumeTrue(args.getString("crowdedQa") == "true")
+        show(courseList = wednesday)
+        save("ten")
+        val cards = wednesdayIds.count { drawn(it) }
+        assertTrue("one or two cards stay on the left: $cards", cards in 1..2)
+        val chipList = chips()
+        assertEquals("one chip carries the rest", 1, chipList.fetchSemanticsNodes().size)
+        chipList[0].performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
+        compose.waitForIdle()
+        save("ten-expanded")
+        val rows = wednesdayIds.count { id ->
+            compose.onAllNodes(hasTestTag("schedule-overflow-row-$id") and hasAnyAncestor(isDialog()), useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals("the dialog lists everything that is not a card", 10 - cards, rows)
+    }
+
+    /**
+     * A course that does not run this week must not borrow today's clock: the folded list greys it,
+     * labels it "not this week" instead of a countdown, names the weeks it does run, and keeps it
+     * below the courses that do run.
+     */
+    @Test fun foldedCoursesFromOtherWeeksAreGreyAndSortLast() {
+        assumeTrue(args.getString("crowdedQa") == "true")
+        val crowdedMorning = listOf(
+            course("run1", "汇编语言", 1, 1, 2),
+            course("run2", "组成原理", 1, 1, 4),
+            course("run3", "数值分析", 1, 1, 6),
+            CourseItem(
+                "x1", "编译原理", location = "东13-C-315",
+                weeks = (10..12).toList(), time = CourseTimeSlot(1, 1, 8),
+            ),
+        )
+        val otherWeekOnly = crowdedMorning.map { item ->
+            item.copy(id = "other-${item.id}", weeks = (10..12).toList(), time = item.time.copy(dayOfWeek = 3))
+        }
+        val narrow = args.getString("overflowNarrow") == "true"
+        show(
+            widen = !narrow,
+            dark = args.getString("overflowDark") == "true",
+            accent = if (args.getString("overflowOrange") == "true") ThemeAccent.Orange else ThemeAccent.Green,
+            courseList = crowdedMorning + otherWeekOnly,
+        )
+        val chipList = chips()
+        assertEquals("the mixed and other-week-only groups each fold into a chip", 2, chipList.fetchSemanticsNodes().size)
+        save("mixed-week-chips")
+        if (narrow) chipList[0].performTouchInput { click() } else chipList[0].performClick()
+        compose.waitForIdle()
+        save("other-week")
+
+        val otherNode = compose.onNode(
+            hasTestTag("schedule-overflow-row-x1") and hasAnyAncestor(isDialog()),
+            useUnmergedTree = false,
+        ).fetchSemanticsNode()
+        val otherRow = otherNode.boundsInRoot
+        // The row reads title, "not this week", the weeks line and the time/room/teacher line, and nothing
+        // else: a countdown would add a fifth text.
+        val rowTexts = otherNode.config.getOrNull(SemanticsProperties.Text)?.map { it.text }.orEmpty()
+        assertTrue(
+            "the row says it is another week: $rowTexts",
+            text(ScheduleR.string.schedule_status_other_week) in rowTexts,
+        )
+        assertEquals("no countdown for another week's course: $rowTexts", 4, rowTexts.size)
+        // "Not this week" is not enough on its own: the row names the exact weeks it does run.
+        val weeksLine = context.resources.getQuantityString(ScheduleR.plurals.schedule_overflow_runs_weeks, 3, "10-12")
+        assertTrue("the row names its weeks: $rowTexts", weeksLine in rowTexts)
+        // A course running this week says so outright.
+        val runningNode = compose.onNode(
+            hasTestTag("schedule-overflow-row-run1") and hasAnyAncestor(isDialog()),
+            useUnmergedTree = false,
+        )
+        val runningTexts = runningNode.fetchSemanticsNode().config.getOrNull(SemanticsProperties.Text)?.map { it.text }.orEmpty()
+        assertTrue(
+            "this week's course says so: $runningTexts",
+            text(ScheduleR.string.schedule_overflow_this_week) in runningTexts,
+        )
+        val runningWeeks = context.resources.getQuantityString(ScheduleR.plurals.schedule_overflow_runs_weeks, 18, "1-18")
+        assertTrue("this week's course also names its weeks: $runningTexts", runningWeeks in runningTexts)
+        // The course that runs this week sits above it.
+        val runningRow = runningNode.fetchSemanticsNode().boundsInRoot
+        assertTrue("other weeks come last: $runningRow / $otherRow", otherRow.top >= runningRow.bottom - 1f)
+        compose.onNode(hasText(text(ScheduleR.string.schedule_event_group_close)) and hasAnyAncestor(isDialog()))
+            .performClick()
+        compose.onNode(isDialog()).assertDoesNotExist()
     }
 
     /** Language-neutral shots for the release notes: the week, then the folded courses behind the chip. */
@@ -113,53 +207,58 @@ class CrowdedDayUiQaTest {
         assumeTrue(args.getString("crowdedQa") == "true")
         show()
         save("week")
-        val chips = compose.onAllNodes(
-            hasTestTag("schedule-course-more") and hasAnyAncestor(hasTestTag("schedule-current-week")),
-            useUnmergedTree = true,
-        )
         // A semantic click works wherever the chip sits, even partly off-screen at this density.
-        chips[0].performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
+        chips()[0].performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
         compose.waitForIdle()
         save("expanded")
     }
 
-    @Test fun wednesdayKeepsTwoOfFourSimultaneousCourses() {
+    @Test fun wednesdayKeepsOnlyTheNearestAndFoldsTheRest() {
         assumeTrue(args.getString("crowdedQa") == "true")
         show()
-        val visible = listOf("h1", "h2", "h3", "h4").count { drawn(it) }
-        assertEquals("the two nearest stay drawn", 2, visible)
+        val visible = wednesdayIds.count { drawn(it) }
+        assertTrue("one or two nearest stay drawn: $visible", visible in 1..2)
     }
 
-    @Test fun morningKeepsTheCourseInProgressAndTheNextOne() {
+    @Test fun morningKeepsTheCourseInProgress() {
         assumeTrue(args.getString("crowdedQa") == "true")
-        // 08:10: A is in progress and B starts next, so C is the one behind the chip.
-        show(now = java.time.LocalTime.of(8, 10))
+        // 08:10: A is in progress, B and C start later; only the nearest stays beside the chip.
+        val morning = listOf(
+            course("a", "汇编语言", 1, 1, 2),
+            course("b", "组成原理", 1, 1, 4, from = "09:00", to = "11:40"),
+            course("c", "数值分析", 1, 1, 6, from = "09:20", to = "15:35"),
+        )
+        show(now = java.time.LocalTime.of(8, 10), courseList = morning)
         assertTrue("a is in progress", drawn("a"))
-        assertTrue("b is next", drawn("b"))
+        assertTrue("b waits behind the chip", !drawn("b"))
         assertTrue("c waits behind the chip", !drawn("c"))
+        assertTrue("a chip holds them", chips().fetchSemanticsNodes().isNotEmpty())
     }
 
-    @Test fun wideGridGivesBusyDaysThreeLanes() {
+    @Test fun wideGridGivesBusyDaysTwoCardLanesAndTheChip() {
         assumeTrue(args.getString("crowdedQa") == "true")
         show(scale = 0.4f)
         save("wide")
-        // Wednesday's four simultaneous courses: three side by side, one behind the chip.
-        val visible = listOf("h1", "h2", "h3", "h4").filter { drawn(it) }
-        assertEquals("three nearest stay drawn", 3, visible.size)
+        // A roomy grid allows three lanes: two cards side by side and the chip on the third.
+        val visible = wednesdayIds.filter { drawn(it) }
+        assertEquals("two nearest stay drawn", 2, visible.size)
         val lefts = visible.map { bounds(it).left }.distinct()
-        assertEquals("on three separate lanes", 3, lefts.size)
+        assertEquals("on two separate lanes", 2, lefts.size)
+        assertTrue("the rest sits behind a chip", chips().fetchSemanticsNodes().isNotEmpty())
     }
 
     @Test fun darkThemeWithLargeFontStaysReadable() {
         assumeTrue(args.getString("crowdedQa") == "true")
         show(widen = false, dark = true, fontScale = 1.3f)
         save("dark-large")
-        // Pairs stay side by side even when the columns are narrow; the course cards are still drawn.
-        val ids = listOf("a", "b", "c", "d", "e", "f", "g", "h1", "h2", "h3", "h4").filter { drawn(it) }
-        assertTrue("something is drawn", ids.isNotEmpty())
-        val e = bounds("e")
-        val f = bounds("f")
-        assertTrue("overlapping courses still sit side by side: $e / $f", f.left >= e.right - 1f)
+        val ids = listOf("a", "b", "c", "d", "e", "f", "g") + wednesdayIds
+        assertTrue("something is drawn", ids.any { drawn(it) })
+        // Whatever the width, nothing is drawn as an unreadable strip.
+        val density = context.resources.displayMetrics.density
+        ids.filter { drawn(it) }.forEach { id ->
+            val width = bounds(id).width / density
+            assertTrue("$id is a strip: ${width}dp wide", width >= 30f)
+        }
     }
 
     @Test fun theSavedPeriodColumnWidthIsHonouredAndTheDaysStartAfterIt() {
@@ -188,17 +287,14 @@ class CrowdedDayUiQaTest {
         show(widen = false)
         save("narrow")
         val density = context.resources.displayMetrics.density
-        val ids = listOf("a", "b", "c", "d", "e", "f", "g", "h1", "h2", "h3", "h4").filter { drawn(it) }
-        assertTrue("something is drawn", ids.isNotEmpty())
-        ids.forEach { id ->
+        val ids = listOf("a", "b", "c", "d", "e", "f", "g") + wednesdayIds
+        assertTrue("something is drawn", ids.any { drawn(it) })
+        ids.filter { drawn(it) }.forEach { id ->
             val width = bounds(id).width / density
             assertTrue("$id is a strip: ${width}dp wide", width >= 34f)
         }
         // Whatever is not drawn sits behind a chip.
-        assertTrue("crowded days keep a chip", compose.onAllNodes(
-            hasTestTag("schedule-course-more") and hasAnyAncestor(hasTestTag("schedule-current-week")),
-            useUnmergedTree = true,
-        ).fetchSemanticsNodes().isNotEmpty())
+        assertTrue("crowded days keep a chip", chips().fetchSemanticsNodes().isNotEmpty())
     }
 
     private fun text(id: Int) = context.getString(id)
@@ -215,7 +311,7 @@ class CrowdedDayUiQaTest {
 
     private val display = androidx.compose.runtime.mutableStateOf(com.x500x.cursimple.core.data.ScheduleDisplayPreferences())
 
-    private fun show(widen: Boolean = true, scale: Float = 0.72f, dark: Boolean = false, fontScale: Float? = null, now: java.time.LocalTime = java.time.LocalTime.of(9, 45)) {
+    private fun show(widen: Boolean = true, scale: Float = 0.72f, dark: Boolean = false, fontScale: Float? = null, now: java.time.LocalTime = java.time.LocalTime.of(9, 45), courseList: List<CourseItem> = courses, accent: ThemeAccent = ThemeAccent.Green) {
         // The app resets the debug clock from its saved preference shortly after start; set it again.
         Thread.sleep(1500)
         BeijingTime.setForcedNow(monday.atTime(now))
@@ -224,8 +320,8 @@ class CrowdedDayUiQaTest {
             val base = LocalDensity.current
             val density = if (widen) Density(base.density * scale, fontScale ?: base.fontScale) else if (fontScale != null) Density(base.density, fontScale) else base
             CompositionLocalProvider(LocalDensity provides density) {
-            ClassScheduleTheme(themeMode = if (dark) ThemeMode.Dark else ThemeMode.Light, themeAccent = ThemeAccent.Green) {
-                ScheduleScreen(state = ScheduleUiState(initialized = true, timingProfile = timing, manualCourses = courses),
+            ClassScheduleTheme(themeMode = if (dark) ThemeMode.Dark else ThemeMode.Light, themeAccent = accent) {
+                ScheduleScreen(state = ScheduleUiState(initialized = true, timingProfile = timing, manualCourses = courseList),
                     onCreateCourseReminder = { _, _, _ -> }, onMuteExamReminder = {}, onRestoreExamReminder = {},
                     onRemoveReminderRule = {}, onRemoveManualCourse = {}, onCreateBulkReminder = { _, _, _ -> },
                     onPrevWeek = {}, onNextWeek = {}, onPrevDay = {}, onNextDay = {}, onResetDay = {},

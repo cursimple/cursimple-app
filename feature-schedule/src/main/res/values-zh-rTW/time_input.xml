@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="schedule_time_select">設定時間</string>
+    <string name="schedule_time_select_start">開始時間</string>
+    <string name="schedule_time_select_end">結束時間</string>
+    <string name="schedule_time_input_hour">小時</string>
+    <string name="schedule_time_input_minute">分鐘</string>
+    <string name="schedule_time_input_range">小時為 0–23，分鐘為 0–59</string>
+</resources>

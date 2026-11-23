@@ -2,16 +2,17 @@
 
 package com.x500x.cursimple.app
 
-import androidx.compose.animation.animateContentSize
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.ui.draw.rotate
 import com.x500x.cursimple.feature.plugin.ui.AppMotion
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import com.x500x.cursimple.core.data.MAX_TIME_COLUMN_WIDTH_DP
 import com.x500x.cursimple.core.data.MIN_TIME_COLUMN_WIDTH_DP
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.x500x.cursimple.feature.plugin.ui.rememberAppHaptics
 import android.Manifest
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -61,6 +62,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -79,8 +81,20 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CenterFocusStrong
 import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.GridOn
+import androidx.compose.material.icons.rounded.Quiz
+import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.TextFields
+import androidx.compose.material.icons.rounded.ViewWeek
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.EventAvailable
@@ -92,12 +106,16 @@ import androidx.compose.material.icons.rounded.FormatAlignCenter
 import androidx.compose.material.icons.rounded.FormatSize
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.Height
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.ImageSearch
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LineStyle
+import androidx.compose.material.icons.rounded.LineWeight
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
+import androidx.compose.material.icons.rounded.Opacity
 import androidx.compose.material.icons.rounded.OpenWith
 import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material.icons.rounded.Palette
@@ -108,28 +126,27 @@ import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material.icons.rounded.AlternateEmail
+import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Storage
-import androidx.compose.material.icons.rounded.ViewSidebar
 import androidx.compose.material.icons.rounded.Style
+import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VerticalAlignCenter
-import androidx.compose.material.icons.rounded.VolumeOff
+import androidx.compose.material.icons.rounded.ViewColumn
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material.icons.rounded.NewReleases
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import com.x500x.cursimple.feature.plugin.ui.AppSlider
 import kotlin.math.roundToInt
 import androidx.compose.material3.Surface
@@ -162,7 +179,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.graphics.RectangleShape
@@ -196,6 +215,7 @@ import com.x500x.cursimple.core.data.ScheduleCardStylePreferences
 import com.x500x.cursimple.core.data.ScheduleDisplayPreferences
 import com.x500x.cursimple.core.data.ScheduleTextStylePreferences
 import com.x500x.cursimple.core.data.AppLanguage
+import com.x500x.cursimple.core.data.AppBackupPayload
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.DEFAULT_AI_IMPORT_TIMEOUT_SECONDS
 import com.x500x.cursimple.core.data.MAX_AI_IMPORT_TIMEOUT_SECONDS
@@ -259,7 +279,13 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material3.Checkbox
-import com.x500x.cursimple.core.data.VendorPermissionKey
+import com.x500x.cursimple.feature.widget.WidgetCatalog
+import com.x500x.cursimple.core.reminder.permission.MiuiPermissions
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.AccessTime
+import androidx.compose.material.icons.rounded.Info
 
 private enum class SettingsDestination {
     Root,
@@ -267,15 +293,28 @@ private enum class SettingsDestination {
     TemporaryOverrides,
     Holidays,
     ScheduleAppearance,
+    StyleCards,
+    StyleCourseText,
+    StyleHeader,
+    StyleAlignment,
+    StyleExamText,
+    StyleGrid,
+    StyleColorAdapt,
     ScheduleBackground,
     WidgetBackground,
     ScheduleDisplay,
+    DisplayLayout,
+    DisplayCellInfo,
+    DisplayGridTime,
+    DisplayInteraction,
+    DisplayStats,
     TimingProfile,
     WidgetSettings,
     AutoSilence,
     ClassNotice,
     Plugins,
     Sidebar,
+    LocalBackup,
     WebDav,
     AiImport,
     Permissions,
@@ -290,6 +329,7 @@ private enum class SettingsDestination {
 }
 
 enum class SettingsDestinationKey {
+    LocalBackup,
     WebDav,
     AiImport,
     ScheduleBackground,
@@ -307,6 +347,7 @@ enum class SettingsReturnTargetKey {
 }
 
 private fun SettingsDestinationKey.toDestination(): SettingsDestination = when (this) {
+    SettingsDestinationKey.LocalBackup -> SettingsDestination.LocalBackup
     SettingsDestinationKey.WebDav -> SettingsDestination.WebDav
     SettingsDestinationKey.AiImport -> SettingsDestination.AiImport
     SettingsDestinationKey.ScheduleBackground -> SettingsDestination.ScheduleBackground
@@ -317,8 +358,25 @@ private fun SettingsDestinationKey.toDestination(): SettingsDestination = when (
 }
 
 private fun SettingsDestination.parentChain(): List<SettingsDestination> = when (this) {
-    SettingsDestination.ScheduleBackground -> listOf(SettingsDestination.ScheduleAppearance)
+    SettingsDestination.StyleCards,
+    SettingsDestination.StyleCourseText,
+    SettingsDestination.StyleHeader,
+    SettingsDestination.StyleAlignment,
+    SettingsDestination.StyleExamText,
+    SettingsDestination.StyleGrid,
+    SettingsDestination.StyleColorAdapt,
+    SettingsDestination.ScheduleBackground,
+    -> listOf(SettingsDestination.ScheduleAppearance)
+
     SettingsDestination.WidgetBackground -> listOf(SettingsDestination.WidgetSettings)
+
+    SettingsDestination.DisplayLayout,
+    SettingsDestination.DisplayCellInfo,
+    SettingsDestination.DisplayGridTime,
+    SettingsDestination.DisplayInteraction,
+    SettingsDestination.DisplayStats,
+    -> listOf(SettingsDestination.ScheduleDisplay)
+
     else -> emptyList()
 }
 
@@ -327,7 +385,7 @@ private fun SettingsDestination.isStandaloneEntry(): Boolean =
     this == SettingsDestination.ScheduleBackground || this == SettingsDestination.TemporaryOverrides
 
 /** Limit the pinned timetable preview to leave room for settings. */
-private const val STYLE_PREVIEW_SLOTS = 4
+private const val STYLE_PREVIEW_SLOTS = 6
 private val STYLE_PREVIEW_MAX_HEIGHT = 260.dp
 
 @Composable
@@ -336,6 +394,123 @@ private fun themeModeLabel(mode: ThemeMode): String = when (mode) {
     ThemeMode.Light -> stringResource(R.string.settings_theme_mode_light)
     ThemeMode.Dark -> stringResource(R.string.settings_theme_mode_dark)
 }
+
+/** Palette name shown in the style page summary. */
+@Composable
+private fun coursePaletteStyleLabel(style: CoursePaletteStyle): String = stringResource(
+    when (style) {
+        CoursePaletteStyle.Default -> R.string.settings_course_palette_default
+        CoursePaletteStyle.Morandi -> R.string.settings_course_palette_morandi
+        CoursePaletteStyle.Macaron -> R.string.settings_course_palette_macaron
+        CoursePaletteStyle.Vibrant -> R.string.settings_course_palette_vibrant
+        CoursePaletteStyle.Vintage -> R.string.settings_course_palette_vintage
+    },
+)
+
+/** One-line alignment summary for the style page. */
+@Composable
+private fun styleAlignmentSummary(horizontalCenter: Boolean, verticalCenter: Boolean): String =
+    stringResource(
+        when {
+            horizontalCenter && verticalCenter -> R.string.settings_style_alignment_both
+            horizontalCenter -> R.string.settings_style_alignment_horizontal
+            verticalCenter -> R.string.settings_style_alignment_vertical
+            else -> R.string.settings_style_alignment_none
+        },
+    )
+
+/**
+ * Joins enabled labels for a display index row, or says nothing is on. Rows that list independent
+ * switches read as a phrase (middle dot); the card-content row reads as a plain enumeration.
+ */
+@Composable
+private fun displaySummaryJoined(
+    labels: List<String>,
+    separatorRes: Int = R.string.settings_summary_separator,
+): String =
+    if (labels.isEmpty()) {
+        stringResource(R.string.settings_display_summary_empty)
+    } else {
+        labels.joinToString(stringResource(separatorRes))
+    }
+
+/** One-line layout summary for the display index page. */
+@Composable
+private fun displayLayoutSummary(display: ScheduleDisplayPreferences): String = displaySummaryJoined(
+    listOf(
+        stringResource(
+            if (display.rowFitMode == ScheduleRowFitMode.Fit) {
+                R.string.settings_display_row_fit_fit
+            } else {
+                R.string.settings_display_row_fit_scroll
+            },
+        ),
+        stringResource(
+            when {
+                display.weekendVisible -> R.string.settings_display_days_seven
+                display.saturdayVisible -> R.string.settings_display_days_six
+                else -> R.string.settings_display_days_five
+            },
+        ),
+        stringResource(
+            if (display.weekStartDay == WeekStartDay.Monday) {
+                R.string.settings_display_week_start_monday
+            } else {
+                R.string.settings_display_week_start_sunday
+            },
+        ),
+    ),
+)
+
+/** Which course details the cards currently show. */
+@Composable
+private fun displayCellInfoSummary(display: ScheduleDisplayPreferences): String = displaySummaryJoined(
+    buildList {
+        if (display.totalScheduleDisplayEnabled) add(stringResource(R.string.settings_display_summary_total))
+        if (display.locationVisible) add(stringResource(R.string.settings_display_summary_location))
+        if (display.teacherVisible) add(stringResource(R.string.settings_display_summary_teacher))
+        if (display.nodeColumnTimeEnabled) add(stringResource(R.string.settings_display_summary_node_time))
+    },
+    separatorRes = R.string.settings_list_separator,
+)
+
+/** Period column width plus the live time indicator state. */
+@Composable
+private fun displayGridTimeSummary(display: ScheduleDisplayPreferences): String {
+    val column = if (display.timeColumnWidthDp > 0) {
+        stringResource(R.string.settings_display_summary_time_column_fixed, display.timeColumnWidthDp)
+    } else {
+        stringResource(R.string.settings_display_summary_time_column_auto)
+    }
+    val timeline = stringResource(
+        if (display.timelineIndicatorEnabled) {
+            R.string.settings_display_summary_timeline
+        } else {
+            R.string.settings_display_summary_no_timeline
+        },
+    )
+    return column + stringResource(R.string.settings_summary_separator) + timeline
+}
+
+/** Enabled timetable gestures. */
+@Composable
+private fun displayInteractionSummary(display: ScheduleDisplayPreferences): String = displaySummaryJoined(
+    buildList {
+        if (display.courseDragEnabled) add(stringResource(R.string.settings_display_course_drag_title))
+        if (display.pinchZoomEnabled) add(stringResource(R.string.settings_display_pinch_zoom_title))
+    },
+)
+
+/** Enabled statistic surfaces. */
+@Composable
+private fun displayStatsSummary(display: ScheduleDisplayPreferences): String = displaySummaryJoined(
+    buildList {
+        if (display.todayOverviewEnabled) add(stringResource(R.string.settings_display_summary_today_overview))
+        if (display.courseSessionCountIncludeHolidays) {
+            add(stringResource(R.string.settings_course_session_holidays_title))
+        }
+    },
+)
 
 /** Compact background label for narrow quick-setting tiles. */
 @Composable
@@ -429,70 +604,180 @@ private fun settingsSearchEntries(
         listOf(stringResource(R.string.settings_timing_template_title)),
         words(stringResource(R.string.settings_search_kw_timing)),
     )
+    val display = stringResource(R.string.settings_display)
     page(
         SettingsDestination.ScheduleDisplay,
         Icons.AutoMirrored.Rounded.MenuBook,
-        stringResource(R.string.settings_display),
+        display,
         schedule,
         listOf(
-            stringResource(R.string.settings_today_overview_title),
-            stringResource(R.string.settings_display_week_start_title),
-            stringResource(R.string.settings_display_days_title),
-            stringResource(R.string.settings_display_row_fit_title),
-            stringResource(R.string.settings_display_total_title),
-            stringResource(R.string.settings_display_node_time_title),
-            stringResource(R.string.settings_display_location_title),
-            stringResource(R.string.settings_display_location_at_title),
-            stringResource(R.string.settings_display_teacher_title),
-            stringResource(R.string.settings_display_course_drag_title),
-            stringResource(R.string.settings_display_pinch_zoom_title),
-            stringResource(R.string.settings_display_auto_scroll_title),
-            stringResource(R.string.settings_grid_dashed_lines_title),
-            stringResource(R.string.settings_timeline_indicator_title),
-            stringResource(R.string.settings_time_column_width_title),
-            stringResource(R.string.settings_course_session_holidays_title),
+            stringResource(R.string.settings_subgroup_layout),
+            stringResource(R.string.settings_subgroup_cell_info),
+            stringResource(R.string.settings_subgroup_grid_time),
+            stringResource(R.string.settings_subgroup_interaction),
+            stringResource(R.string.settings_subgroup_stats),
         ),
         words(stringResource(R.string.settings_search_kw_display)),
+    )
+    page(
+        SettingsDestination.DisplayLayout,
+        Icons.Rounded.ViewWeek,
+        stringResource(R.string.settings_subgroup_layout),
+        under(schedule, display),
+        listOf(
+            stringResource(R.string.settings_display_row_fit_title),
+            stringResource(R.string.settings_display_auto_scroll_title),
+            stringResource(R.string.settings_display_days_title),
+            stringResource(R.string.settings_display_week_start_title),
+        ),
     )
     entries += SettingsSearchEntry(
         Icons.AutoMirrored.Rounded.MenuBook,
         stringResource(R.string.settings_display_days_title),
-        under(schedule, stringResource(R.string.settings_display)),
+        under(schedule, display),
         listOf(
             stringResource(R.string.settings_display_days_five),
             stringResource(R.string.settings_display_days_six),
             stringResource(R.string.settings_display_days_seven),
             stringResource(R.string.settings_display_days_subtitle),
         ),
-    ) { navigate(SettingsDestination.ScheduleDisplay) }
+    ) { navigate(SettingsDestination.DisplayLayout) }
+    page(
+        SettingsDestination.DisplayCellInfo,
+        Icons.AutoMirrored.Rounded.MenuBook,
+        stringResource(R.string.settings_subgroup_cell_info),
+        under(schedule, display),
+        listOf(
+            stringResource(R.string.settings_display_total_title),
+            stringResource(R.string.settings_display_location_title),
+            stringResource(R.string.settings_display_location_at_title),
+            stringResource(R.string.settings_display_teacher_title),
+            stringResource(R.string.settings_display_node_time_title),
+        ),
+    )
+    page(
+        SettingsDestination.DisplayGridTime,
+        Icons.Rounded.GridOn,
+        stringResource(R.string.settings_subgroup_grid_time),
+        under(schedule, display),
+        listOf(
+            stringResource(R.string.settings_time_column_width_title),
+            stringResource(R.string.settings_grid_dashed_lines_title),
+            stringResource(R.string.settings_timeline_indicator_title),
+            stringResource(R.string.settings_period_break_dividers_title),
+        ),
+    )
+    page(
+        SettingsDestination.DisplayInteraction,
+        Icons.Rounded.OpenWith,
+        stringResource(R.string.settings_subgroup_interaction),
+        under(schedule, display),
+        listOf(
+            stringResource(R.string.settings_display_course_drag_title),
+            stringResource(R.string.settings_display_pinch_zoom_title),
+        ),
+    )
+    page(
+        SettingsDestination.DisplayStats,
+        Icons.Rounded.EventAvailable,
+        stringResource(R.string.settings_subgroup_stats),
+        under(schedule, display),
+        listOf(
+            stringResource(R.string.settings_today_overview_title),
+            stringResource(R.string.settings_course_session_holidays_title),
+        ),
+    )
+    val scheduleStyle = stringResource(R.string.settings_dest_schedule_style)
     page(
         SettingsDestination.ScheduleAppearance,
         Icons.Rounded.Style,
-        stringResource(R.string.settings_dest_schedule_style),
+        scheduleStyle,
         schedule,
         listOf(
-            stringResource(R.string.settings_adapt_colors_title),
-            stringResource(R.string.settings_course_text_size),
-            stringResource(R.string.settings_course_text_color),
-            stringResource(R.string.settings_exam_text_size),
-            stringResource(R.string.settings_exam_text_color),
-            stringResource(R.string.settings_text_center_horizontal_title),
-            stringResource(R.string.settings_text_center_vertical_title),
-            stringResource(R.string.settings_auto_shrink_title),
-            stringResource(R.string.settings_truncation_ellipsis_title),
-            stringResource(R.string.settings_header_text_size),
-            stringResource(R.string.settings_header_text_color),
-            stringResource(R.string.settings_today_header_background_color),
+            stringResource(R.string.settings_subgroup_card),
+            stringResource(R.string.settings_subgroup_course_text),
+            stringResource(R.string.settings_header_style),
+            stringResource(R.string.settings_subgroup_alignment),
+            stringResource(R.string.settings_subgroup_exam_text),
+            stringResource(R.string.settings_subgroup_grid_border),
+            stringResource(R.string.settings_subgroup_color_adapt),
+            stringResource(R.string.settings_schedule_background),
+        ),
+        words(stringResource(R.string.settings_search_kw_style)),
+    )
+    page(
+        SettingsDestination.StyleCards,
+        Icons.Rounded.Dashboard,
+        stringResource(R.string.settings_subgroup_card),
+        under(schedule, scheduleStyle),
+        listOf(
             stringResource(R.string.settings_card_corner_radius),
             stringResource(R.string.settings_card_height),
             stringResource(R.string.settings_schedule_opacity),
             stringResource(R.string.settings_inactive_course_opacity),
+        ),
+    )
+    page(
+        SettingsDestination.StyleCourseText,
+        Icons.Rounded.TextFields,
+        stringResource(R.string.settings_subgroup_course_text),
+        under(schedule, scheduleStyle),
+        listOf(
+            stringResource(R.string.settings_course_text_size),
+            stringResource(R.string.settings_course_text_color),
+        ),
+    )
+    page(
+        SettingsDestination.StyleHeader,
+        Icons.Rounded.ViewWeek,
+        stringResource(R.string.settings_header_style),
+        under(schedule, scheduleStyle),
+        listOf(
+            stringResource(R.string.settings_header_text_size),
+            stringResource(R.string.settings_header_text_color),
+            stringResource(R.string.settings_today_header_background_color),
+        ),
+    )
+    page(
+        SettingsDestination.StyleAlignment,
+        Icons.Rounded.FormatAlignCenter,
+        stringResource(R.string.settings_subgroup_alignment),
+        under(schedule, scheduleStyle),
+        listOf(
+            stringResource(R.string.settings_text_center_horizontal_title),
+            stringResource(R.string.settings_text_center_vertical_title),
+            stringResource(R.string.settings_auto_shrink_title),
+            stringResource(R.string.settings_truncation_ellipsis_title),
+        ),
+    )
+    page(
+        SettingsDestination.StyleExamText,
+        Icons.Rounded.Quiz,
+        stringResource(R.string.settings_subgroup_exam_text),
+        under(schedule, scheduleStyle),
+        listOf(
+            stringResource(R.string.settings_exam_text_size),
+            stringResource(R.string.settings_exam_text_color),
+        ),
+    )
+    page(
+        SettingsDestination.StyleGrid,
+        Icons.Rounded.GridOn,
+        stringResource(R.string.settings_subgroup_grid_border),
+        under(schedule, scheduleStyle),
+        listOf(
             stringResource(R.string.settings_grid_border_color),
             stringResource(R.string.settings_grid_border_opacity),
             stringResource(R.string.settings_grid_border_width),
             stringResource(R.string.settings_grid_border_dashed_title),
         ),
-        words(stringResource(R.string.settings_search_kw_style)),
+    )
+    page(
+        SettingsDestination.StyleColorAdapt,
+        Icons.Rounded.Brightness4,
+        stringResource(R.string.settings_subgroup_color_adapt),
+        under(schedule, scheduleStyle),
+        listOf(stringResource(R.string.settings_adapt_colors_title)),
     )
     page(
         SettingsDestination.ScheduleBackground,
@@ -529,7 +814,7 @@ private fun settingsSearchEntries(
         SettingsDestination.WidgetSettings,
         Icons.Rounded.Widgets,
         stringResource(R.string.settings_dest_widget_settings),
-        quick,
+        schedule,
         listOf(
             stringResource(R.string.settings_widget_home_title),
             stringResource(R.string.settings_widget_open_app_title),
@@ -591,6 +876,14 @@ private fun settingsSearchEntries(
         listOf(stringResource(R.string.market_sources_plugin_title), stringResource(R.string.market_sources_component_title), stringResource(R.string.github_account_title)),
         words("GitHub repo token 仓库 私有 來源 来源 登入 登录 令牌 插件 组件"),
     )
+    page(
+        SettingsDestination.LocalBackup,
+        Icons.Rounded.Archive,
+        stringResource(R.string.ie_local_backup_title),
+        data,
+        listOf(stringResource(R.string.ie_local_backup_body)),
+        words("备份 恢复 ZIP 导出 导入 本地"),
+    )
     page(SettingsDestination.WebDav, Icons.Rounded.Storage, "WebDAV", data, emptyList())
     page(
         SettingsDestination.Sidebar,
@@ -621,15 +914,28 @@ private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.TemporaryOverrides -> stringResource(R.string.settings_dest_temporary_overrides)
     SettingsDestination.Holidays -> stringResource(R.string.settings_dest_holidays)
     SettingsDestination.ScheduleAppearance -> stringResource(R.string.settings_dest_schedule_style)
+    SettingsDestination.StyleCards -> stringResource(R.string.settings_subgroup_card)
+    SettingsDestination.StyleCourseText -> stringResource(R.string.settings_subgroup_course_text)
+    SettingsDestination.StyleHeader -> stringResource(R.string.settings_header_style)
+    SettingsDestination.StyleAlignment -> stringResource(R.string.settings_subgroup_alignment)
+    SettingsDestination.StyleExamText -> stringResource(R.string.settings_subgroup_exam_text)
+    SettingsDestination.StyleGrid -> stringResource(R.string.settings_subgroup_grid_border)
+    SettingsDestination.StyleColorAdapt -> stringResource(R.string.settings_subgroup_color_adapt)
     SettingsDestination.ScheduleBackground -> stringResource(R.string.settings_schedule_background)
     SettingsDestination.WidgetBackground -> stringResource(R.string.settings_dest_widget_background)
     SettingsDestination.ScheduleDisplay -> stringResource(R.string.settings_display)
+    SettingsDestination.DisplayLayout -> stringResource(R.string.settings_subgroup_layout)
+    SettingsDestination.DisplayCellInfo -> stringResource(R.string.settings_subgroup_cell_info)
+    SettingsDestination.DisplayGridTime -> stringResource(R.string.settings_subgroup_grid_time)
+    SettingsDestination.DisplayInteraction -> stringResource(R.string.settings_subgroup_interaction)
+    SettingsDestination.DisplayStats -> stringResource(R.string.settings_subgroup_stats)
     SettingsDestination.TimingProfile -> stringResource(R.string.settings_dest_timing_profile)
     SettingsDestination.WidgetSettings -> stringResource(R.string.settings_dest_widget_settings)
     SettingsDestination.AutoSilence -> stringResource(R.string.settings_dest_auto_silence)
     SettingsDestination.ClassNotice -> stringResource(R.string.settings_dest_class_notice)
     SettingsDestination.Plugins -> stringResource(R.string.settings_dest_plugins)
     SettingsDestination.Sidebar -> stringResource(R.string.settings_sidebar_title)
+    SettingsDestination.LocalBackup -> stringResource(R.string.ie_local_backup_title)
     SettingsDestination.WebDav -> "WebDAV"
     SettingsDestination.AiImport -> stringResource(R.string.settings_dest_ai_import)
     SettingsDestination.Permissions -> stringResource(R.string.settings_dest_permissions)
@@ -733,6 +1039,7 @@ fun AppSettingsRoute(
     onCourseDragEnabledChange: (Boolean) -> Unit,
     onSchedulePinchZoomEnabledChange: (Boolean) -> Unit = {},
     onTodayOverviewEnabledChange: (Boolean) -> Unit = {},
+    onCourseEndWarningEnabledChange: (Boolean) -> Unit = {},
     onCourseSessionCountIncludeHolidaysChange: (Boolean) -> Unit = {},
     onScheduleLocationVisibleChange: (Boolean) -> Unit,
     onScheduleTeacherVisibleChange: (Boolean) -> Unit,
@@ -741,6 +1048,9 @@ fun AppSettingsRoute(
     onScheduleTimelineIndicatorEnabledChange: (Boolean) -> Unit = {},
     onScheduleGridDashedLinesEnabledChange: (Boolean) -> Unit = {},
     onScheduleTimeColumnWidthDpChange: (Int) -> Unit = {},
+    onInactiveCourseDisplayModeChange: (com.x500x.cursimple.core.data.InactiveCourseDisplayMode) -> Unit = {},
+    onDayViewEventsEnabledChange: (Boolean) -> Unit = {},
+    onPeriodBreakDividersEnabledChange: (Boolean) -> Unit = {},
     onAlarmRingDurationSecondsChange: (Int) -> Unit,
     onAlarmRepeatIntervalSecondsChange: (Int) -> Unit,
     onAlarmRepeatCountChange: (Int) -> Unit,
@@ -763,8 +1073,6 @@ fun AppSettingsRoute(
     onWidgetBackgroundOpacityPercentChange: (Int) -> Unit = {},
     onWidgetFrostedGlassEnabledChange: (Boolean) -> Unit = {},
     onWidgetThemeModeChange: (com.x500x.cursimple.core.data.widget.WidgetThemeMode) -> Unit = {},
-    vendorPermissionAcks: Set<String> = emptySet(),
-    onVendorPermissionAckChange: (String, Boolean) -> Unit = { _, _ -> },
     onWidgetOpenAppOnDoubleClickChange: (Boolean) -> Unit,
     onWidgetShowEventsChange: (Boolean) -> Unit = {},
     onAppTimeZoneChange: (String?) -> Unit,
@@ -777,6 +1085,8 @@ fun AppSettingsRoute(
     bottomBarSize: com.x500x.cursimple.core.data.navigation.BottomBarSize? = null,
     onBottomBarSizeChange: (com.x500x.cursimple.core.data.navigation.BottomBarSize) -> Unit = {},
     onPrivateFilesProviderEnabledChange: (Boolean) -> Unit,
+    onCreateAppBackup: suspend () -> AppBackupPayload,
+    onRestoreAppBackup: suspend (AppBackupPayload) -> Unit,
     onWebDavSettingsChange: (String, String, String) -> Unit,
     onTestWebDavSettings: suspend (WebDavConfig) -> Result<Unit>,
     onAiImportSettingsChange: (String, String, String, Int) -> Unit,
@@ -876,45 +1186,6 @@ fun AppSettingsRoute(
     var showHolidayEditor by rememberSaveable { mutableStateOf(false) }
     var showResetScheduleAppearanceConfirm by rememberSaveable { mutableStateOf(false) }
     var showResetAllSettingsConfirm by rememberSaveable { mutableStateOf(false) }
-    // Permanent permission denial requires the app settings page.
-    fun handlePermissionResult(permission: String, granted: Boolean, grantedRes: Int, deniedRes: Int) {
-        val activity = context.findActivity()
-        val canAskAgain = activity?.let {
-            ActivityCompat.shouldShowRequestPermissionRationale(it, permission)
-        } ?: true
-        when (permissionRequestOutcome(granted, canAskAgain)) {
-            PermissionRequestOutcome.Granted ->
-                Toast.makeText(context, context.getString(grantedRes), Toast.LENGTH_SHORT).show()
-
-            PermissionRequestOutcome.Denied ->
-                Toast.makeText(context, context.getString(deniedRes), Toast.LENGTH_SHORT).show()
-
-            PermissionRequestOutcome.PermanentlyDenied -> {
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.settings_toast_permission_open_settings),
-                    Toast.LENGTH_LONG,
-                ).show()
-                launchSettingsIntent(context, AlarmSettingsIntents.appDetails(context))
-            }
-        }
-    }
-    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        handlePermissionResult(
-            permission = Manifest.permission.POST_NOTIFICATIONS,
-            granted = granted,
-            grantedRes = R.string.settings_toast_notification_granted,
-            deniedRes = R.string.settings_toast_notification_denied,
-        )
-    }
-    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        handlePermissionResult(
-            permission = Manifest.permission.CAMERA,
-            granted = granted,
-            grantedRes = R.string.settings_toast_camera_granted,
-            deniedRes = R.string.settings_toast_camera_denied,
-        )
-    }
     var pendingBackgroundSource by remember { mutableStateOf<android.net.Uri?>(null) }
     pendingBackgroundSource?.let { source ->
         ScheduleBackgroundCropDialog(
@@ -1101,6 +1372,12 @@ fun AppSettingsRoute(
                 value = stringResource(R.string.settings_row_plugins_subtitle),
                 onClick = { navigate(SettingsDestination.Plugins) },
             )),
+            SettingsQuickItem("local_backup", dataGroup, SettingsQuickTileSpec(
+                icon = Icons.Rounded.Archive,
+                title = stringResource(R.string.ie_local_backup_title),
+                value = stringResource(R.string.ie_local_backup_body),
+                onClick = { navigate(SettingsDestination.LocalBackup) },
+            )),
             SettingsQuickItem("webdav", dataGroup, SettingsQuickTileSpec(
                 icon = Icons.Rounded.Storage,
                 title = "WebDAV",
@@ -1134,6 +1411,23 @@ fun AppSettingsRoute(
         CompositionLocalProvider(
             LocalSettingsQuickDrag provides quickDrag.takeIf { destination == SettingsDestination.Root },
         ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+            // The style preview stays put while pages slide below it, so every change can be watched live.
+            if (destination.showsSchedulePreview()) {
+                ScheduleAppearancePreview(
+                    scheduleTextStyle = scheduleTextStyle,
+                    scheduleCardStyle = scheduleCardStyle,
+                    scheduleBackground = scheduleBackground,
+                    scheduleDisplay = scheduleDisplay,
+                    customColorsAdaptToTheme = scheduleCustomColorsAdaptToTheme,
+                    maxSlots = STYLE_PREVIEW_SLOTS,
+                    maxHeight = STYLE_PREVIEW_MAX_HEIGHT,
+                    modifier = Modifier
+                        .padding(start = 18.dp, end = 18.dp, bottom = 8.dp)
+                        .testTag("settings-style-preview"),
+                )
+            }
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             AnimatedContent(
                 targetState = destination,
                 transitionSpec = {
@@ -1149,20 +1443,6 @@ fun AppSettingsRoute(
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.background),
                 ) {
-                    // Pin the preview while the settings content scrolls; the app bar carries title and back.
-                    // The display page pins it too: width, lines and week range change the grid, so see them as you drag.
-                    if (currentDest == SettingsDestination.ScheduleAppearance || currentDest == SettingsDestination.ScheduleDisplay) {
-                        ScheduleAppearancePreview(
-                            scheduleTextStyle = scheduleTextStyle,
-                            scheduleCardStyle = scheduleCardStyle,
-                            scheduleBackground = scheduleBackground,
-                            scheduleDisplay = scheduleDisplay,
-                            customColorsAdaptToTheme = scheduleCustomColorsAdaptToTheme,
-                            maxSlots = STYLE_PREVIEW_SLOTS,
-                            maxHeight = STYLE_PREVIEW_MAX_HEIGHT,
-                            modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 8.dp),
-                        )
-                    }
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -1249,6 +1529,14 @@ fun AppSettingsRoute(
                                         onClick = { navigate(SettingsDestination.Holidays) },
                                         quickId = "holidays",
                                     )
+                                    // Kept in the list as well: removing the quick tile must not hide the widgets page.
+                                    SettingsActionRow(
+                                        icon = Icons.Rounded.Widgets,
+                                        title = stringResource(R.string.settings_dest_widget_settings),
+                                        subtitle = stringResource(R.string.settings_row_widget_subtitle),
+                                        onClick = { navigate(SettingsDestination.WidgetSettings) },
+                                        quickId = "widgets",
+                                    )
                                 }
 
                                 SettingsCardGroup(stringResource(R.string.settings_group_reminder), tiles = homeGrid) {
@@ -1287,6 +1575,13 @@ fun AppSettingsRoute(
                                         subtitle = stringResource(R.string.settings_row_plugins_subtitle),
                                         onClick = { navigate(SettingsDestination.Plugins) },
                                         quickId = "plugins",
+                                    )
+                                    SettingsActionRow(
+                                        icon = Icons.Rounded.Archive,
+                                        title = stringResource(R.string.ie_local_backup_title),
+                                        subtitle = stringResource(R.string.ie_local_backup_body),
+                                        onClick = { navigate(SettingsDestination.LocalBackup) },
+                                        quickId = "local_backup",
                                     )
                                     SettingsActionRow(
                                         icon = Icons.Rounded.Storage,
@@ -1337,44 +1632,46 @@ fun AppSettingsRoute(
                         }
 
                         SettingsDestination.ScheduleData -> {
-                            SettingsActionRow(
-                                icon = Icons.Rounded.CalendarMonth,
-                                title = stringResource(R.string.settings_term_start_title),
-                                subtitle = termStartDate?.let {
-                                    val fmt = DateTimeFormatter.ofPattern("yyyy/M/d")
-                                    val week = LocalContext.current.termWeekText(termWeekLabel(currentWeekIndex))
-                                    val source = if (isTermStartFromPlugin(termStartUserDecided, termStartDate)) {
-                                        " · " + stringResource(R.string.settings_term_start_from_plugin)
-                                    } else {
-                                        ""
-                                    }
-                                    "${fmt.format(it)} · $week$source"
-                                } ?: stringResource(R.string.settings_term_start_unset),
-                                onClick = onPickTermStartDate,
-                                trailing = if (termStartDate != null) {
-                                    {
-                                        AppOutlinedButton(
-                                            onClick = onClearTermStartDate,
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                        ) {
-                                            Text(stringResource(R.string.settings_clear), style = MaterialTheme.typography.labelSmall)
+                            SettingsCard {
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.CalendarMonth,
+                                    title = stringResource(R.string.settings_term_start_title),
+                                    subtitle = termStartDate?.let {
+                                        val fmt = DateTimeFormatter.ofPattern("yyyy/M/d")
+                                        val week = LocalContext.current.termWeekText(termWeekLabel(currentWeekIndex))
+                                        val source = if (isTermStartFromPlugin(termStartUserDecided, termStartDate)) {
+                                            " · " + stringResource(R.string.settings_term_start_from_plugin)
+                                        } else {
+                                            ""
                                         }
-                                    }
-                                } else null,
-                            )
-                            SettingsActionRow(
-                                icon = Icons.Rounded.CalendarMonth,
-                                title = stringResource(R.string.settings_current_week_title),
-                                subtitle = if (termStartDate != null) {
-                                    stringResource(
-                                        R.string.settings_current_week_subtitle_set,
-                                        LocalContext.current.termWeekText(termWeekLabel(currentWeekIndex)),
-                                    )
-                                } else {
-                                    stringResource(R.string.settings_current_week_subtitle_unset)
-                                },
-                                onClick = onPickCurrentWeek,
-                            )
+                                        "${fmt.format(it)} · $week$source"
+                                    } ?: stringResource(R.string.settings_term_start_unset),
+                                    onClick = onPickTermStartDate,
+                                    trailing = if (termStartDate != null) {
+                                        {
+                                            AppOutlinedButton(
+                                                onClick = onClearTermStartDate,
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                            ) {
+                                                Text(stringResource(R.string.settings_clear), style = MaterialTheme.typography.labelSmall)
+                                            }
+                                        }
+                                    } else null,
+                                )
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.CalendarMonth,
+                                    title = stringResource(R.string.settings_current_week_title),
+                                    subtitle = if (termStartDate != null) {
+                                        stringResource(
+                                            R.string.settings_current_week_subtitle_set,
+                                            LocalContext.current.termWeekText(termWeekLabel(currentWeekIndex)),
+                                        )
+                                    } else {
+                                        stringResource(R.string.settings_current_week_subtitle_unset)
+                                    },
+                                    onClick = onPickCurrentWeek,
+                                )
+                            }
                         }
 
                         SettingsDestination.TemporaryOverrides -> {
@@ -1394,46 +1691,39 @@ fun AppSettingsRoute(
                         }
 
                         SettingsDestination.Holidays -> {
-                            SettingsSwitchRow(
-                                icon = Icons.Rounded.EventBusy,
-                                title = stringResource(R.string.settings_holiday_builtin_title),
-                                subtitle = builtInHolidayCoverageSubtitle(),
-                                checked = holidayCalendar.builtInEnabled,
-                                onCheckedChange = onHolidayCalendarBuiltInEnabledChange,
-                            )
-                            SettingsSwitchRow(
-                                icon = Icons.Rounded.NotificationsOff,
-                                title = stringResource(R.string.settings_holiday_skip_reminders_title),
-                                subtitle = stringResource(
-                                    if (skipRemindersOnHoliday) {
-                                        R.string.settings_holiday_skip_reminders_on
-                                    } else {
-                                        R.string.settings_holiday_skip_reminders_off
-                                    },
-                                ),
-                                checked = skipRemindersOnHoliday,
-                                onCheckedChange = onSkipRemindersOnHolidayChange,
-                            )
-                            HolidayCalendarSyncRow(syncedYears = holidayCalendar.syncedYears)
-                            SettingsActionRow(
-                                icon = Icons.Rounded.EventAvailable,
-                                title = stringResource(R.string.settings_holiday_adjust_day_title),
-                                subtitle = stringResource(R.string.settings_holiday_adjust_day_subtitle),
-                                onClick = { showHolidayEditor = true },
-                            )
-                            Text(
-                                text = stringResource(R.string.settings_holiday_note),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            val userEntries = holidayCalendar.sortedUserEntries()
-                            if (userEntries.isEmpty()) {
-                                Text(
-                                    text = stringResource(R.string.settings_holiday_no_manual_entries),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            SettingsSectionHeader(stringResource(R.string.settings_holiday_group_builtin))
+                            SettingsCard {
+                                SettingsSwitchRow(
+                                    icon = Icons.Rounded.EventBusy,
+                                    title = stringResource(R.string.settings_holiday_builtin_title),
+                                    subtitle = builtInHolidayCoverageSubtitle(),
+                                    checked = holidayCalendar.builtInEnabled,
+                                    onCheckedChange = onHolidayCalendarBuiltInEnabledChange,
                                 )
-                            } else {
+                                SettingsSwitchRow(
+                                    icon = Icons.Rounded.NotificationsOff,
+                                    title = stringResource(R.string.settings_holiday_skip_reminders_title),
+                                    subtitle = stringResource(
+                                        if (skipRemindersOnHoliday) {
+                                            R.string.settings_holiday_skip_reminders_on
+                                        } else {
+                                            R.string.settings_holiday_skip_reminders_off
+                                        },
+                                    ),
+                                    checked = skipRemindersOnHoliday,
+                                    onCheckedChange = onSkipRemindersOnHolidayChange,
+                                )
+                                HolidayCalendarSyncRow(syncedYears = holidayCalendar.syncedYears)
+                            }
+                            SettingsSectionHeader(stringResource(R.string.settings_holiday_group_manual))
+                            val userEntries = holidayCalendar.sortedUserEntries()
+                            SettingsCard {
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.EventAvailable,
+                                    title = stringResource(R.string.settings_holiday_adjust_day_title),
+                                    subtitle = stringResource(R.string.settings_holiday_adjust_day_subtitle),
+                                    onClick = { showHolidayEditor = true },
+                                )
                                 userEntries.forEach { entry ->
                                     SettingsActionRow(
                                         icon = if (entry.kind == HolidayEntryKind.Holiday) {
@@ -1447,62 +1737,177 @@ fun AppSettingsRoute(
                                     )
                                 }
                             }
+                            if (userEntries.isEmpty()) {
+                                SettingsHintText(stringResource(R.string.settings_holiday_no_manual_entries))
+                            }
+                            SettingsHintText(stringResource(R.string.settings_holiday_note))
                         }
 
                         SettingsDestination.ScheduleAppearance -> {
-                            SettingsGroup(stringResource(R.string.settings_subgroup_card)) {
-                                CoursePaletteStyleSelector(
-                                    currentStyle = scheduleCardStyle.coursePaletteStyle,
-                                    onSelect = onCoursePaletteStyleChange,
-                                    isDark = darkTheme,
+                            // Each group is its own page; this page is the index with live summaries.
+                            SettingsCard {
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.Dashboard,
+                                    title = stringResource(R.string.settings_subgroup_card),
+                                    subtitle = stringResource(
+                                        R.string.settings_style_cards_summary,
+                                        coursePaletteStyleLabel(scheduleCardStyle.coursePaletteStyle),
+                                        scheduleCardStyle.courseCornerRadiusDp,
+                                        scheduleCardStyle.courseCardHeightDp,
+                                    ),
+                                    onClick = { navigate(SettingsDestination.StyleCards) },
                                 )
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.TextFields,
+                                    title = stringResource(R.string.settings_subgroup_course_text),
+                                    subtitle = "${scheduleTextStyle.courseTextSizeSp}sp · ${formatRgbHex(scheduleTextStyle.courseTextColorArgb.toInt())}",
+                                    onClick = { navigate(SettingsDestination.StyleCourseText) },
+                                )
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.ViewWeek,
+                                    title = stringResource(R.string.settings_header_style),
+                                    subtitle = "${scheduleTextStyle.headerTextSizeSp}sp · ${formatRgbHex(scheduleTextStyle.headerTextColorArgb.toInt())}",
+                                    onClick = { navigate(SettingsDestination.StyleHeader) },
+                                )
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.FormatAlignCenter,
+                                    title = stringResource(R.string.settings_subgroup_alignment),
+                                    subtitle = styleAlignmentSummary(
+                                        horizontalCenter = scheduleTextStyle.horizontalCenter,
+                                        verticalCenter = scheduleTextStyle.verticalCenter,
+                                    ),
+                                    onClick = { navigate(SettingsDestination.StyleAlignment) },
+                                )
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.Quiz,
+                                    title = stringResource(R.string.settings_subgroup_exam_text),
+                                    subtitle = "${scheduleTextStyle.examTextSizeSp}sp · ${formatRgbHex(scheduleTextStyle.examTextColorArgb.toInt())}",
+                                    onClick = { navigate(SettingsDestination.StyleExamText) },
+                                )
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.GridOn,
+                                    title = stringResource(R.string.settings_subgroup_grid_border),
+                                    subtitle = stringResource(
+                                        R.string.settings_style_grid_summary,
+                                        stringResource(
+                                            if (scheduleCardStyle.gridBorderDashed) {
+                                                R.string.settings_style_grid_dashed
+                                            } else {
+                                                R.string.settings_style_grid_solid
+                                            },
+                                        ),
+                                        scheduleCardStyle.gridBorderOpacityPercent,
+                                    ),
+                                    onClick = { navigate(SettingsDestination.StyleGrid) },
+                                )
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.Brightness4,
+                                    title = stringResource(R.string.settings_subgroup_color_adapt),
+                                    subtitle = stringResource(
+                                        if (scheduleCustomColorsAdaptToTheme) {
+                                            R.string.settings_adapt_colors_on
+                                        } else {
+                                            R.string.settings_adapt_colors_off
+                                        },
+                                    ),
+                                    onClick = { navigate(SettingsDestination.StyleColorAdapt) },
+                                )
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.Wallpaper,
+                                    title = stringResource(R.string.settings_schedule_background),
+                                    subtitle = backgroundSubtitle(scheduleBackground),
+                                    onClick = { navigate(SettingsDestination.ScheduleBackground) },
+                                )
+                            }
+
+                            SettingsActionRow(
+                                icon = Icons.Rounded.Restore,
+                                title = stringResource(R.string.settings_reset_schedule_title),
+                                subtitle = stringResource(R.string.settings_reset_schedule_subtitle),
+                                onClick = { showResetScheduleAppearanceConfirm = true },
+                            )
+                        }
+
+                        SettingsDestination.StyleCards -> {
+                            CoursePaletteStyleSelector(
+                                currentStyle = scheduleCardStyle.coursePaletteStyle,
+                                onSelect = onCoursePaletteStyleChange,
+                                isDark = darkTheme,
+                            )
+                            SettingsCard {
                                 NumberStepperRow(stringResource(R.string.settings_card_corner_radius), scheduleCardStyle.courseCornerRadiusDp, "dp", 0, 32, 1, onScheduleCourseCornerRadiusDpChange)
                                 NumberStepperRow(stringResource(R.string.settings_card_height), scheduleCardStyle.courseCardHeightDp, "dp", 56, 160, 4, onScheduleCourseCardHeightDpChange)
-                                if (scheduleDisplay.rowFitMode == ScheduleRowFitMode.Fit) {
-                                    SettingsHintText(stringResource(R.string.settings_card_height_fit_hint))
-                                }
                                 NumberStepperRow(stringResource(R.string.settings_schedule_opacity), scheduleCardStyle.scheduleOpacityPercent, "%", 0, 100, 5, onScheduleOpacityPercentChange)
                                 NumberStepperRow(stringResource(R.string.settings_inactive_course_opacity), scheduleCardStyle.inactiveCourseOpacityPercent, "%", 0, 100, 5, onScheduleInactiveCourseOpacityPercentChange)
                             }
+                            if (scheduleDisplay.rowFitMode == ScheduleRowFitMode.Fit) {
+                                SettingsHintText(stringResource(R.string.settings_card_height_fit_hint))
+                            }
+                        }
 
-                            SettingsGroup(stringResource(R.string.settings_subgroup_course_text)) {
-                                NumberStepperRow(stringResource(R.string.settings_course_text_size), scheduleTextStyle.courseTextSizeSp, "sp", 8, 32, 1, onScheduleCourseTextSizeSpChange)
+                        SettingsDestination.StyleCourseText -> {
+                            SettingsCard {
+                                NumberStepperRow(
+                                    title = stringResource(R.string.settings_course_text_size),
+                                    value = scheduleTextStyle.courseTextSizeSp,
+                                    unit = "sp",
+                                    min = 8,
+                                    max = 32,
+                                    step = 1,
+                                    onValueChange = onScheduleCourseTextSizeSpChange,
+                                    icon = Icons.Rounded.FormatSize,
+                                )
                                 ColorAlphaRow(stringResource(R.string.settings_course_text_color), scheduleTextStyle.courseTextColorArgb, onScheduleCourseTextColorArgbChange)
-                                if (scheduleCustomColorsAdaptToTheme) {
+                            }
+                            if (scheduleCustomColorsAdaptToTheme) {
+                                SettingsCard {
                                     ColorPreviewRow(
                                         stringResource(R.string.settings_current_theme_preview),
                                         scheduleTextStyle.courseTextColorArgb.adaptForegroundForPreview(darkTheme),
                                     )
                                 }
                             }
+                        }
 
-                            SettingsGroup(stringResource(R.string.settings_header_style), collapsible = true, initiallyExpanded = false) {
-                                NumberStepperRow(stringResource(R.string.settings_header_text_size), scheduleTextStyle.headerTextSizeSp, "sp", 8, 32, 1, onScheduleHeaderTextSizeSpChange)
+                        SettingsDestination.StyleHeader -> {
+                            SettingsCard {
+                                NumberStepperRow(
+                                    title = stringResource(R.string.settings_header_text_size),
+                                    value = scheduleTextStyle.headerTextSizeSp,
+                                    unit = "sp",
+                                    min = 8,
+                                    max = 32,
+                                    step = 1,
+                                    onValueChange = onScheduleHeaderTextSizeSpChange,
+                                    icon = Icons.Rounded.FormatSize,
+                                )
                                 ColorAlphaRow(
                                     stringResource(R.string.settings_header_text_color),
                                     scheduleTextStyle.resolvedHeaderTextColorArgb(darkTheme, false),
                                     onScheduleHeaderTextColorArgbChange,
                                 )
-                                if (scheduleCustomColorsAdaptToTheme) {
-                                    ColorPreviewRow(
-                                        stringResource(R.string.settings_current_theme_preview),
-                                        scheduleTextStyle.resolvedHeaderTextColorArgb(darkTheme, true),
-                                    )
-                                }
                                 ColorAlphaRow(
                                     stringResource(R.string.settings_today_header_background_color),
                                     scheduleTextStyle.resolvedTodayHeaderBackgroundColorArgb(darkTheme, false),
                                     onScheduleTodayHeaderBackgroundColorArgbChange,
                                 )
-                                if (scheduleCustomColorsAdaptToTheme) {
+                            }
+                            if (scheduleCustomColorsAdaptToTheme) {
+                                SettingsCard {
                                     ColorPreviewRow(
-                                        stringResource(R.string.settings_current_theme_preview),
+                                        stringResource(R.string.settings_current_theme_preview_header_text),
+                                        scheduleTextStyle.resolvedHeaderTextColorArgb(darkTheme, true),
+                                    )
+                                    ColorPreviewRow(
+                                        stringResource(R.string.settings_current_theme_preview_today_header),
                                         scheduleTextStyle.resolvedTodayHeaderBackgroundColorArgb(darkTheme, true),
                                     )
                                 }
                             }
+                        }
 
-                            SettingsGroup(stringResource(R.string.settings_subgroup_alignment), collapsible = true, initiallyExpanded = false) {
+                        SettingsDestination.StyleAlignment -> {
+                            SettingsCard {
                                 SettingsSwitchRow(
                                     icon = Icons.Rounded.FormatAlignCenter,
                                     title = stringResource(R.string.settings_text_center_horizontal_title),
@@ -1532,28 +1937,55 @@ fun AppSettingsRoute(
                                     onCheckedChange = onScheduleTruncationEllipsisChange,
                                 )
                             }
+                        }
 
-                            SettingsGroup(stringResource(R.string.settings_subgroup_exam_text), collapsible = true, initiallyExpanded = false) {
-                                NumberStepperRow(stringResource(R.string.settings_exam_text_size), scheduleTextStyle.examTextSizeSp, "sp", 8, 32, 1, onScheduleExamTextSizeSpChange)
+                        SettingsDestination.StyleExamText -> {
+                            SettingsCard {
+                                NumberStepperRow(
+                                    title = stringResource(R.string.settings_exam_text_size),
+                                    value = scheduleTextStyle.examTextSizeSp,
+                                    unit = "sp",
+                                    min = 8,
+                                    max = 32,
+                                    step = 1,
+                                    onValueChange = onScheduleExamTextSizeSpChange,
+                                    icon = Icons.Rounded.FormatSize,
+                                )
                                 ColorAlphaRow(stringResource(R.string.settings_exam_text_color), scheduleTextStyle.examTextColorArgb, onScheduleExamTextColorArgbChange)
-                                if (scheduleCustomColorsAdaptToTheme) {
+                            }
+                            if (scheduleCustomColorsAdaptToTheme) {
+                                SettingsCard {
                                     ColorPreviewRow(
                                         stringResource(R.string.settings_current_theme_preview),
                                         scheduleTextStyle.examTextColorArgb.adaptForegroundForPreview(darkTheme),
                                     )
                                 }
                             }
+                        }
 
-                            SettingsGroup(stringResource(R.string.settings_subgroup_grid_border), collapsible = true, initiallyExpanded = false) {
+                        SettingsDestination.StyleGrid -> {
+                            SettingsCard {
                                 ColorAlphaRow(stringResource(R.string.settings_grid_border_color), scheduleCardStyle.gridBorderColorArgb, onScheduleGridBorderColorArgbChange)
-                                if (scheduleCustomColorsAdaptToTheme) {
-                                    ColorPreviewRow(
-                                        stringResource(R.string.settings_current_theme_preview),
-                                        scheduleCardStyle.gridBorderColorArgb.adaptForegroundForPreview(darkTheme),
-                                    )
-                                }
-                                NumberStepperRow(stringResource(R.string.settings_grid_border_opacity), scheduleCardStyle.gridBorderOpacityPercent, "%", 0, 100, 5, onScheduleGridBorderOpacityPercentChange)
-                                FloatStepperRow(stringResource(R.string.settings_grid_border_width), scheduleCardStyle.gridBorderWidthDp, "dp", 0f, 4f, 0.5f, onScheduleGridBorderWidthDpChange)
+                                NumberStepperRow(
+                                    title = stringResource(R.string.settings_grid_border_opacity),
+                                    value = scheduleCardStyle.gridBorderOpacityPercent,
+                                    unit = "%",
+                                    min = 0,
+                                    max = 100,
+                                    step = 5,
+                                    onValueChange = onScheduleGridBorderOpacityPercentChange,
+                                    icon = Icons.Rounded.Opacity,
+                                )
+                                FloatStepperRow(
+                                    title = stringResource(R.string.settings_grid_border_width),
+                                    value = scheduleCardStyle.gridBorderWidthDp,
+                                    unit = "dp",
+                                    min = 0f,
+                                    max = 4f,
+                                    step = 0.5f,
+                                    onValueChange = onScheduleGridBorderWidthDpChange,
+                                    icon = Icons.Rounded.LineWeight,
+                                )
                                 SettingsSwitchRow(
                                     icon = Icons.Rounded.LineStyle,
                                     title = stringResource(R.string.settings_grid_border_dashed_title),
@@ -1562,8 +1994,18 @@ fun AppSettingsRoute(
                                     onCheckedChange = onScheduleGridBorderDashedChange,
                                 )
                             }
+                            if (scheduleCustomColorsAdaptToTheme) {
+                                SettingsCard {
+                                    ColorPreviewRow(
+                                        stringResource(R.string.settings_current_theme_preview),
+                                        scheduleCardStyle.gridBorderColorArgb.adaptForegroundForPreview(darkTheme),
+                                    )
+                                }
+                            }
+                        }
 
-                            SettingsGroup(stringResource(R.string.settings_subgroup_color_adapt), collapsible = true, initiallyExpanded = false) {
+                        SettingsDestination.StyleColorAdapt -> {
+                            SettingsCard {
                                 SettingsSwitchRow(
                                     Icons.Rounded.Brightness4,
                                     stringResource(R.string.settings_adapt_colors_title),
@@ -1576,22 +2018,6 @@ fun AppSettingsRoute(
                                     onScheduleCustomColorsAdaptToThemeChange,
                                 )
                             }
-
-                            SettingsGroup(stringResource(R.string.settings_dest_background_hub)) {
-                                SettingsActionRow(
-                                    icon = Icons.Rounded.Wallpaper,
-                                    title = stringResource(R.string.settings_schedule_background),
-                                    subtitle = backgroundSubtitle(scheduleBackground),
-                                    onClick = { navigate(SettingsDestination.ScheduleBackground) },
-                                )
-                            }
-
-                            SettingsActionRow(
-                                icon = Icons.Rounded.Restore,
-                                title = stringResource(R.string.settings_reset_schedule_title),
-                                subtitle = stringResource(R.string.settings_reset_schedule_subtitle),
-                                onClick = { showResetScheduleAppearanceConfirm = true },
-                            )
                         }
 
                         SettingsDestination.DevTime -> {
@@ -1638,103 +2064,144 @@ fun AppSettingsRoute(
 
                         SettingsDestination.WidgetBackground -> {
                             WidgetBackgroundPreview(widgetThemePreferences = widgetThemePreferences)
-                            SettingsActionRow(
-                                icon = Icons.Rounded.Wallpaper,
-                                title = stringResource(R.string.settings_background_image_title),
-                                subtitle = if (widgetThemePreferences.backgroundImageUri != null) {
-                                    stringResource(R.string.settings_background_image_selected)
-                                } else {
-                                    stringResource(R.string.settings_background_image_none)
-                                },
-                                onClick = { widgetBackgroundLauncher.launch(arrayOf("image/*")) },
-                            )
-                            if (widgetThemePreferences.backgroundMode == WidgetBackgroundMode.Image ||
-                                widgetThemePreferences.backgroundImageUri != null
-                            ) {
+                            SettingsCard {
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.Wallpaper,
+                                    title = stringResource(R.string.settings_background_image_title),
+                                    subtitle = if (widgetThemePreferences.backgroundImageUri != null) {
+                                        stringResource(R.string.settings_background_image_selected)
+                                    } else {
+                                        stringResource(R.string.settings_background_image_none)
+                                    },
+                                    onClick = { widgetBackgroundLauncher.launch(arrayOf("image/*")) },
+                                )
+                                if (widgetThemePreferences.backgroundMode == WidgetBackgroundMode.Image ||
+                                    widgetThemePreferences.backgroundImageUri != null
+                                ) {
+                                    SliderPercentRow(
+                                        title = stringResource(R.string.settings_background_image_transparency),
+                                        value = widgetThemePreferences.backgroundImageTransparencyPercent,
+                                        onValueChange = onWidgetBackgroundImageTransparencyPercentChange,
+                                        icon = Icons.Rounded.Opacity,
+                                    )
+                                    SettingsActionRow(
+                                        icon = Icons.Rounded.Delete,
+                                        title = stringResource(R.string.settings_widget_background_clear_title),
+                                        subtitle = stringResource(R.string.settings_widget_background_clear_subtitle),
+                                        onClick = onClearWidgetBackgroundImage,
+                                    )
+                                }
+                            }
+                            SettingsCard {
                                 SliderPercentRow(
-                                    title = stringResource(R.string.settings_background_image_transparency),
-                                    value = widgetThemePreferences.backgroundImageTransparencyPercent,
-                                    onValueChange = onWidgetBackgroundImageTransparencyPercentChange,
+                                    title = stringResource(R.string.widget_background_opacity_title),
+                                    value = widgetThemePreferences.backgroundOpacityPercent,
+                                    onValueChange = onWidgetBackgroundOpacityPercentChange,
+                                    icon = Icons.Rounded.Opacity,
+                                )
+                                SettingsSwitchRow(
+                                    icon = Icons.Rounded.Layers,
+                                    title = stringResource(R.string.widget_frosted_glass_title),
+                                    subtitle = stringResource(R.string.widget_frosted_glass_subtitle),
+                                    checked = widgetThemePreferences.frostedGlassEnabled,
+                                    onCheckedChange = onWidgetFrostedGlassEnabledChange,
                                 )
                                 SettingsActionRow(
-                                    icon = Icons.Rounded.Delete,
-                                    title = stringResource(R.string.settings_widget_background_clear_title),
-                                    subtitle = stringResource(R.string.settings_widget_background_clear_subtitle),
-                                    onClick = onClearWidgetBackgroundImage,
+                                    icon = Icons.Rounded.Palette,
+                                    title = stringResource(R.string.settings_theme),
+                                    subtitle = widgetThemeLabel(widgetThemePreferences),
+                                    onClick = onPickWidgetThemeAccent,
                                 )
                             }
-                            SliderPercentRow(
-                                title = stringResource(R.string.widget_background_opacity_title),
-                                value = widgetThemePreferences.backgroundOpacityPercent,
-                                onValueChange = onWidgetBackgroundOpacityPercentChange,
-                            )
-                            SettingsSwitchRow(
-                                icon = Icons.Rounded.Layers,
-                                title = stringResource(R.string.widget_frosted_glass_title),
-                                subtitle = stringResource(R.string.widget_frosted_glass_subtitle),
-                                checked = widgetThemePreferences.frostedGlassEnabled,
-                                onCheckedChange = onWidgetFrostedGlassEnabledChange,
-                            )
-                            SettingsActionRow(
-                                icon = Icons.Rounded.Palette,
-                                title = stringResource(R.string.settings_theme),
-                                subtitle = widgetThemeLabel(widgetThemePreferences),
-                                onClick = onPickWidgetThemeAccent,
-                            )
                         }
 
                         SettingsDestination.ScheduleBackground -> {
-                            ScheduleBackgroundPreview(
-                                scheduleBackground = scheduleBackground,
-                                scheduleCardStyle = scheduleCardStyle,
-                                scheduleTextStyle = scheduleTextStyle,
-                                scheduleDisplay = scheduleDisplay,
-                                customColorsAdaptToTheme = scheduleCustomColorsAdaptToTheme,
-                            )
-                            SettingsActionRow(
-                                icon = Icons.Rounded.Wallpaper,
-                                title = stringResource(R.string.settings_background_image_title),
-                                subtitle = if (scheduleBackground.imageUri != null) {
-                                    stringResource(R.string.settings_background_image_selected)
-                                } else {
-                                    stringResource(R.string.settings_background_image_none)
-                                },
-                                onClick = { scheduleBackgroundLauncher.launch(arrayOf("image/*")) },
-                            )
-                            if (scheduleBackground.type == ScheduleBackgroundType.Image || scheduleBackground.imageUri != null) {
-                                SliderPercentRow(
-                                    title = stringResource(R.string.settings_background_image_transparency),
-                                    value = scheduleBackground.imageTransparencyPercent,
-                                    onValueChange = onScheduleBackgroundImageTransparencyPercentChange,
-                                )
+                            SettingsCard {
                                 SettingsActionRow(
-                                    icon = Icons.Rounded.Delete,
-                                    title = stringResource(R.string.settings_background_image_clear_title),
-                                    subtitle = stringResource(R.string.settings_background_image_clear_subtitle),
-                                    onClick = onClearScheduleBackgroundImage,
+                                    icon = Icons.Rounded.Wallpaper,
+                                    title = stringResource(R.string.settings_background_image_title),
+                                    subtitle = if (scheduleBackground.imageUri != null) {
+                                        stringResource(R.string.settings_background_image_selected)
+                                    } else {
+                                        stringResource(R.string.settings_background_image_none)
+                                    },
+                                    onClick = { scheduleBackgroundLauncher.launch(arrayOf("image/*")) },
                                 )
-                            }
-                            ColorAlphaRow(stringResource(R.string.settings_background_color), scheduleBackground.colorArgb, onScheduleBackgroundColorArgbChange)
-                            if (scheduleCustomColorsAdaptToTheme) {
-                                ColorPreviewRow(
-                                    stringResource(R.string.settings_current_theme_preview),
-                                    scheduleBackground.colorArgb.adaptBackgroundForPreview(darkTheme),
+                                ColorAlphaRow(stringResource(R.string.settings_background_color), scheduleBackground.colorArgb, onScheduleBackgroundColorArgbChange)
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.Restore,
+                                    title = stringResource(R.string.settings_background_reset_title),
+                                    subtitle = stringResource(R.string.settings_background_reset_subtitle),
+                                    onClick = onScheduleBackgroundUseHeaderColor,
                                 )
+                                if (scheduleCustomColorsAdaptToTheme) {
+                                    ColorPreviewRow(
+                                        stringResource(R.string.settings_current_theme_preview),
+                                        scheduleBackground.colorArgb.adaptBackgroundForPreview(darkTheme),
+                                    )
+                                }
                             }
-                            SettingsActionRow(
-                                icon = Icons.Rounded.Restore,
-                                title = stringResource(R.string.settings_background_reset_title),
-                                subtitle = stringResource(R.string.settings_background_reset_subtitle),
-                                onClick = onScheduleBackgroundUseHeaderColor,
-                            )
+                            if (scheduleBackground.type == ScheduleBackgroundType.Image || scheduleBackground.imageUri != null) {
+                                SettingsHintText(stringResource(R.string.settings_background_image_note))
+                                SettingsCard {
+                                    SliderPercentRow(
+                                        title = stringResource(R.string.settings_background_image_transparency),
+                                        value = scheduleBackground.imageTransparencyPercent,
+                                        onValueChange = onScheduleBackgroundImageTransparencyPercentChange,
+                                        icon = Icons.Rounded.Opacity,
+                                    )
+                                    SettingsActionRow(
+                                        icon = Icons.Rounded.Delete,
+                                        title = stringResource(R.string.settings_background_image_clear_title),
+                                        subtitle = stringResource(R.string.settings_background_image_clear_subtitle),
+                                        onClick = onClearScheduleBackgroundImage,
+                                    )
+                                }
+                            }
                         }
 
                         SettingsDestination.ScheduleDisplay -> {
-                            // Most used first: how the page is laid out (one screen or scrolling), then what the cards show.
-                            SettingsGroup(stringResource(R.string.settings_subgroup_layout)) {
+                            // Each group is its own page; this page is the index with live summaries.
+                            SettingsCard {
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.ViewWeek,
+                                    title = stringResource(R.string.settings_subgroup_layout),
+                                    subtitle = displayLayoutSummary(scheduleDisplay),
+                                    onClick = { navigate(SettingsDestination.DisplayLayout) },
+                                )
+                                SettingsActionRow(
+                                    icon = Icons.AutoMirrored.Rounded.MenuBook,
+                                    title = stringResource(R.string.settings_subgroup_cell_info),
+                                    subtitle = displayCellInfoSummary(scheduleDisplay),
+                                    onClick = { navigate(SettingsDestination.DisplayCellInfo) },
+                                )
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.GridOn,
+                                    title = stringResource(R.string.settings_subgroup_grid_time),
+                                    subtitle = displayGridTimeSummary(scheduleDisplay),
+                                    onClick = { navigate(SettingsDestination.DisplayGridTime) },
+                                )
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.OpenWith,
+                                    title = stringResource(R.string.settings_subgroup_interaction),
+                                    subtitle = displayInteractionSummary(scheduleDisplay),
+                                    onClick = { navigate(SettingsDestination.DisplayInteraction) },
+                                )
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.EventAvailable,
+                                    title = stringResource(R.string.settings_subgroup_stats),
+                                    subtitle = displayStatsSummary(scheduleDisplay),
+                                    onClick = { navigate(SettingsDestination.DisplayStats) },
+                                )
+                            }
+                        }
+
+                        SettingsDestination.DisplayLayout -> {
+                            SettingsCard {
                                 RowFitModeRow(
                                     selected = scheduleDisplay.rowFitMode,
                                     onSelect = onScheduleRowFitModeChange,
+                                    icon = Icons.Rounded.Height,
                                 )
                                 if (scheduleDisplay.rowFitMode == ScheduleRowFitMode.Fit) {
                                     SettingsSwitchRow(
@@ -1752,14 +2219,18 @@ fun AppSettingsRoute(
                                         onScheduleSaturdayVisibleChange(days >= 6)
                                         onScheduleWeekendVisibleChange(days == 7)
                                     },
+                                    icon = Icons.Rounded.ViewWeek,
                                 )
                                 WeekStartDayRow(
                                     selected = scheduleDisplay.weekStartDay,
                                     onSelect = onScheduleWeekStartDayChange,
+                                    icon = Icons.Rounded.Today,
                                 )
                             }
+                        }
 
-                            SettingsGroup(stringResource(R.string.settings_subgroup_cell_info), collapsible = true) {
+                        SettingsDestination.DisplayCellInfo -> {
+                            SettingsCard {
                                 SettingsSwitchRow(
                                     icon = Icons.AutoMirrored.Rounded.MenuBook,
                                     title = stringResource(R.string.settings_display_total_title),
@@ -1771,6 +2242,13 @@ fun AppSettingsRoute(
                                     checked = scheduleDisplay.totalScheduleDisplayEnabled,
                                     onCheckedChange = onTotalScheduleDisplayChange,
                                 )
+                                if (scheduleDisplay.totalScheduleDisplayEnabled) {
+                                    InactiveCourseModeSelectorRow(
+                                        mode = scheduleDisplay.inactiveCourseDisplayMode,
+                                        onSelect = onInactiveCourseDisplayModeChange,
+                                        icon = Icons.Rounded.VisibilityOff,
+                                    )
+                                }
                                 SettingsSwitchRow(
                                     icon = Icons.Rounded.Place,
                                     title = stringResource(R.string.settings_display_location_title),
@@ -1788,6 +2266,13 @@ fun AppSettingsRoute(
                                     )
                                 }
                                 SettingsSwitchRow(
+                                    icon = Icons.Rounded.Event,
+                                    title = stringResource(R.string.settings_display_day_events_title),
+                                    subtitle = stringResource(R.string.settings_display_day_events_subtitle),
+                                    checked = scheduleDisplay.dayViewEventsEnabled,
+                                    onCheckedChange = onDayViewEventsEnabledChange,
+                                )
+SettingsSwitchRow(
                                     icon = Icons.Rounded.Person,
                                     title = stringResource(R.string.settings_display_teacher_title),
                                     subtitle = stringResource(R.string.settings_display_teacher_subtitle),
@@ -1802,11 +2287,14 @@ fun AppSettingsRoute(
                                     onCheckedChange = onScheduleNodeColumnTimeEnabledChange,
                                 )
                             }
+                        }
 
-                            SettingsGroup(stringResource(R.string.settings_subgroup_grid_time), collapsible = true) {
+                        SettingsDestination.DisplayGridTime -> {
+                            SettingsCard {
                                 TimeColumnWidthRow(
                                     widthDp = scheduleDisplay.timeColumnWidthDp,
                                     onChange = onScheduleTimeColumnWidthDpChange,
+                                    icon = Icons.Rounded.ViewColumn,
                                 )
                                 SettingsSwitchRow(
                                     icon = Icons.Rounded.LineStyle,
@@ -1815,6 +2303,15 @@ fun AppSettingsRoute(
                                     checked = scheduleDisplay.gridDashedLinesEnabled,
                                     onCheckedChange = onScheduleGridDashedLinesEnabledChange,
                                 )
+                                if (scheduleDisplay.gridDashedLinesEnabled) {
+                                    SettingsSwitchRow(
+                                        icon = Icons.Rounded.LineStyle,
+                                        title = stringResource(R.string.settings_grid_border_dashed_title),
+                                        subtitle = stringResource(R.string.settings_grid_border_dashed_subtitle),
+                                        checked = scheduleCardStyle.gridBorderDashed,
+                                        onCheckedChange = onScheduleGridBorderDashedChange,
+                                    )
+                                }
                                 SettingsSwitchRow(
                                     icon = Icons.Rounded.Schedule,
                                     title = stringResource(R.string.settings_timeline_indicator_title),
@@ -1822,9 +2319,18 @@ fun AppSettingsRoute(
                                     checked = scheduleDisplay.timelineIndicatorEnabled,
                                     onCheckedChange = onScheduleTimelineIndicatorEnabledChange,
                                 )
+                                SettingsSwitchRow(
+                                    icon = Icons.Rounded.Schedule,
+                                    title = stringResource(R.string.settings_period_break_dividers_title),
+                                    subtitle = stringResource(R.string.settings_period_break_dividers_subtitle),
+                                    checked = scheduleDisplay.periodBreakDividersEnabled,
+                                    onCheckedChange = onPeriodBreakDividersEnabledChange,
+                                )
                             }
+                        }
 
-                            SettingsGroup(stringResource(R.string.settings_subgroup_interaction), collapsible = true, initiallyExpanded = false) {
+                        SettingsDestination.DisplayInteraction -> {
+                            SettingsCard {
                                 SettingsSwitchRow(
                                     icon = Icons.Rounded.OpenWith,
                                     title = stringResource(R.string.settings_display_course_drag_title),
@@ -1840,8 +2346,10 @@ fun AppSettingsRoute(
                                     onCheckedChange = onSchedulePinchZoomEnabledChange,
                                 )
                             }
+                        }
 
-                            SettingsGroup(stringResource(R.string.settings_subgroup_stats), collapsible = true, initiallyExpanded = false) {
+                        SettingsDestination.DisplayStats -> {
+                            SettingsCard {
                                 SettingsSwitchRow(
                                     icon = Icons.Rounded.Schedule,
                                     title = stringResource(R.string.settings_today_overview_title),
@@ -1856,11 +2364,19 @@ fun AppSettingsRoute(
                                     checked = scheduleDisplay.courseSessionCountIncludeHolidays,
                                     onCheckedChange = onCourseSessionCountIncludeHolidaysChange,
                                 )
+                                SettingsSwitchRow(
+                                    icon = Icons.Rounded.EventAvailable,
+                                    title = stringResource(R.string.settings_course_end_warning_title),
+                                    subtitle = stringResource(R.string.settings_course_end_warning_subtitle),
+                                    checked = scheduleDisplay.courseEndWarningEnabled,
+                                    onCheckedChange = onCourseEndWarningEnabledChange,
+                                )
                             }
                         }
 
                         SettingsDestination.WidgetSettings -> {
-                            SettingsGroup(stringResource(R.string.settings_subgroup_widget_look)) {
+                            SettingsSectionHeader(stringResource(R.string.settings_subgroup_widget_look))
+                            SettingsCard {
                                 SettingsActionRow(
                                     icon = Icons.Rounded.Palette,
                                     title = stringResource(R.string.settings_theme),
@@ -1881,10 +2397,12 @@ fun AppSettingsRoute(
                                 WidgetThemeModeRow(
                                     selected = widgetThemePreferences.widgetThemeMode,
                                     onSelect = onWidgetThemeModeChange,
+                                    icon = Icons.Rounded.DarkMode,
                                 )
                             }
 
-                            SettingsGroup(stringResource(R.string.settings_subgroup_widget_behavior)) {
+                            SettingsSectionHeader(stringResource(R.string.settings_subgroup_widget_behavior))
+                            SettingsCard {
                                 SettingsActionRow(
                                     icon = Icons.Rounded.Widgets,
                                     title = stringResource(R.string.settings_widget_home_title),
@@ -1957,6 +2475,13 @@ fun AppSettingsRoute(
                             )
                         }
 
+                        SettingsDestination.LocalBackup -> {
+                            LocalBackupSettingsSection(
+                                onCreateAppBackup = onCreateAppBackup,
+                                onRestoreAppBackup = onRestoreAppBackup,
+                            )
+                        }
+
                         SettingsDestination.WebDav -> {
                             WebDavSettingsSection(
                                 webDavUrl = webDavUrl,
@@ -1982,23 +2507,21 @@ fun AppSettingsRoute(
 
                         SettingsDestination.Permissions -> {
                             PermissionsSection(
-                                notificationLauncher = notificationLauncher::launch,
-                                cameraLauncher = cameraLauncher::launch,
+                                classNotice = classNotice,
                                 alarmKeepAliveEnabled = alarmKeepAliveEnabled,
                                 onAlarmKeepAliveEnabledChange = onAlarmKeepAliveEnabledChange,
-                                vendorPermissionAcks = vendorPermissionAcks,
-                                onVendorPermissionAckChange = onVendorPermissionAckChange,
                             )
                         }
                     }
 
                     if (showResetScheduleAppearanceConfirm) {
-                        AlertDialog(
+                        AppAlertDialog(
                             onDismissRequest = { showResetScheduleAppearanceConfirm = false },
+                            icon = { Icon(Icons.Rounded.Restore, contentDescription = null, modifier = Modifier.size(22.dp)) },
                             title = { Text(stringResource(R.string.settings_reset_schedule_dialog_title)) },
                             text = { Text(stringResource(R.string.settings_reset_schedule_dialog_message)) },
                             confirmButton = {
-                                AppOutlinedButton(onClick = {
+                                AppDialogPrimaryButton(onClick = {
                                     onResetScheduleAppearanceAndDisplay()
                                     showResetScheduleAppearanceConfirm = false
                                     Toast.makeText(
@@ -2009,18 +2532,19 @@ fun AppSettingsRoute(
                                 }) { Text(stringResource(R.string.settings_reset_confirm)) }
                             },
                             dismissButton = {
-                                AppOutlinedButton(onClick = { showResetScheduleAppearanceConfirm = false }) { Text(stringResource(R.string.settings_cancel)) }
+                                AppDialogSecondaryButton(onClick = { showResetScheduleAppearanceConfirm = false }) { Text(stringResource(R.string.settings_cancel)) }
                             },
                         )
                     }
 
                     if (showResetAllSettingsConfirm) {
-                        AlertDialog(
+                        AppAlertDialog(
                             onDismissRequest = { showResetAllSettingsConfirm = false },
+                            icon = { Icon(Icons.Rounded.Restore, contentDescription = null, modifier = Modifier.size(22.dp)) },
                             title = { Text(stringResource(R.string.settings_reset_all_title)) },
                             text = { Text(stringResource(R.string.settings_reset_all_dialog_message)) },
                             confirmButton = {
-                                AppOutlinedButton(onClick = {
+                                AppDialogPrimaryButton(onClick = {
                                     onResetAllSettings()
                                     showResetAllSettingsConfirm = false
                                     Toast.makeText(
@@ -2031,7 +2555,7 @@ fun AppSettingsRoute(
                                 }) { Text(stringResource(R.string.settings_reset_confirm)) }
                             },
                             dismissButton = {
-                                AppOutlinedButton(onClick = { showResetAllSettingsConfirm = false }) { Text(stringResource(R.string.settings_cancel)) }
+                                AppDialogSecondaryButton(onClick = { showResetAllSettingsConfirm = false }) { Text(stringResource(R.string.settings_cancel)) }
                             },
                         )
                     }
@@ -2045,6 +2569,8 @@ fun AppSettingsRoute(
                         )
                     }
                 }
+            }
+            }
             }
         }
         }
@@ -2071,72 +2597,54 @@ private fun SliderPercentRow(
     title: String,
     value: Int,
     onValueChange: (Int) -> Unit,
+    icon: ImageVector? = null,
 ) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp)),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(12.dp),
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-            Text(text = title, style = MaterialTheme.typography.bodyMedium)
-            AppSlider(
-                value = value.toFloat(),
-                // Avoid duplicate writes for unchanged integer steps.
-                onValueChange = { next ->
-                    val rounded = next.toInt().coerceIn(0, 100)
-                    if (rounded != value) onValueChange(rounded)
-                },
-                valueRange = 0f..100f,
-                steps = 19,
-            )
-        }
+    SettingsControlSurface(verticalArrangement = Arrangement.spacedBy(2.dp), icon = icon) {
+        SettingsControlHeading(title = title)
+        AppSlider(
+            value = value.toFloat(),
+            // Avoid duplicate writes for unchanged integer steps.
+            onValueChange = { next ->
+                val rounded = next.toInt().coerceIn(0, 100)
+                if (rounded != value) onValueChange(rounded)
+            },
+            valueRange = 0f..100f,
+            steps = 19,
+        )
     }
 }
 
 /** Period column width: automatic by default; the slider shows the column's share of the screen width. */
 @Composable
-private fun TimeColumnWidthRow(widthDp: Int, onChange: (Int) -> Unit) {
+private fun TimeColumnWidthRow(widthDp: Int, onChange: (Int) -> Unit, icon: ImageVector? = null) {
     val screenWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.coerceAtLeast(1)
     val autoLabel = stringResource(R.string.settings_time_column_width_auto)
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .testTag("settings-time-column-width"),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(12.dp),
+    SettingsControlSurface(
+        modifier = Modifier.testTag("settings-time-column-width"),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        icon = icon,
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-            Text(
-                text = stringResource(R.string.settings_time_column_width_title),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-            )
-            Text(
-                text = stringResource(R.string.settings_time_column_width_subtitle),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            AppSlider(
-                value = (if (widthDp <= 0) TIME_COLUMN_SLIDER_START_DP else widthDp).toFloat(),
-                onValueChange = { next ->
-                    val rounded = next.toInt().coerceIn(MIN_TIME_COLUMN_WIDTH_DP, MAX_TIME_COLUMN_WIDTH_DP)
-                    if (rounded != widthDp) onChange(rounded)
-                },
-                valueRange = MIN_TIME_COLUMN_WIDTH_DP.toFloat()..MAX_TIME_COLUMN_WIDTH_DP.toFloat(),
-                valueLabel = { dp ->
-                    if (widthDp <= 0) autoLabel else "${(dp * 100f / screenWidthDp).roundToInt()}%"
-                },
-                modifier = Modifier.testTag("settings-time-column-slider"),
-            )
-            if (widthDp > 0) {
-                AppOutlinedButton(
-                    onClick = { onChange(0) },
-                    modifier = Modifier.testTag("settings-time-column-reset"),
-                ) { Text(stringResource(R.string.settings_time_column_width_reset)) }
-            }
+        SettingsControlHeading(
+            title = stringResource(R.string.settings_time_column_width_title),
+            subtitle = stringResource(R.string.settings_time_column_width_subtitle),
+        )
+        AppSlider(
+            value = (if (widthDp <= 0) TIME_COLUMN_SLIDER_START_DP else widthDp).toFloat(),
+            onValueChange = { next ->
+                val rounded = next.toInt().coerceIn(MIN_TIME_COLUMN_WIDTH_DP, MAX_TIME_COLUMN_WIDTH_DP)
+                if (rounded != widthDp) onChange(rounded)
+            },
+            valueRange = MIN_TIME_COLUMN_WIDTH_DP.toFloat()..MAX_TIME_COLUMN_WIDTH_DP.toFloat(),
+            valueLabel = { dp ->
+                if (widthDp <= 0) autoLabel else "${(dp * 100f / screenWidthDp).roundToInt()}%"
+            },
+            modifier = Modifier.testTag("settings-time-column-slider"),
+        )
+        if (widthDp > 0) {
+            AppOutlinedButton(
+                onClick = { onChange(0) },
+                modifier = Modifier.testTag("settings-time-column-reset"),
+            ) { Text(stringResource(R.string.settings_time_column_width_reset)) }
         }
     }
 }
@@ -2153,6 +2661,8 @@ private fun NumberStepperRow(
     max: Int,
     step: Int,
     onValueChange: (Int) -> Unit,
+    /** Keeps the icon column aligned with switch/action rows sharing the card. */
+    icon: ImageVector? = null,
 ) {
     AlarmNumberSettingRow(
         title = title,
@@ -2162,6 +2672,7 @@ private fun NumberStepperRow(
         max = max,
         step = step,
         onValueChange = onValueChange,
+        icon = icon,
     )
 }
 
@@ -2174,75 +2685,253 @@ private fun FloatStepperRow(
     max: Float,
     step: Float,
     onValueChange: (Float) -> Unit,
+    /** Keeps the icon column aligned with switch/action rows sharing the card. */
+    icon: ImageVector? = null,
 ) {
+    val inCard = LocalSettingsRowInCard.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(12.dp),
+        color = if (inCard) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(if (inCard) 0.dp else 12.dp),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         ) {
+            if (icon != null) {
+                SettingsRowIcon(icon)
+                Spacer(modifier = Modifier.width(14.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = title,
+                    style = if (inCard) {
+                        MaterialTheme.typography.titleSmall.copy(lineHeight = 18.sp, letterSpacing = 0.sp)
+                    } else {
+                        MaterialTheme.typography.bodyLarge
+                    },
+                    fontWeight = if (inCard) FontWeight.Bold else FontWeight.SemiBold,
+                )
                 Text(
                     text = "${formatFloat(value)} $unit",
-                    style = MaterialTheme.typography.bodySmall,
+                    modifier = if (inCard) Modifier.padding(top = 2.dp) else Modifier,
+                    style = if (inCard) {
+                        MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 16.5.sp)
+                    } else {
+                        MaterialTheme.typography.bodySmall
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            AppOutlinedButton(
-                onClick = { onValueChange((value - step).coerceIn(min, max)) },
+            StepChip(
+                icon = Icons.Rounded.Remove,
+                contentDescription = stringResource(R.string.settings_value_decrease),
                 enabled = value > min,
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-            ) { Text("-") }
-            Spacer(Modifier.width(8.dp))
-            AppOutlinedButton(
-                onClick = { onValueChange((value + step).coerceIn(min, max)) },
+                onClick = { onValueChange((value - step).coerceIn(min, max)) },
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            StepChip(
+                icon = Icons.Rounded.Add,
+                contentDescription = stringResource(R.string.settings_value_increase),
                 enabled = value < max,
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-            ) { Text("+") }
+                onClick = { onValueChange((value + step).coerceIn(min, max)) },
+            )
         }
     }
 }
 
+/**
+ * Surface for a row that holds several controls. Inside a card it stays plain so the card keeps a
+ * single surface and draws its own dividers; on its own it remains a soft rounded box.
+ */
 @Composable
-internal fun SettingsGroup(
-    title: String,
-    /** A tappable header folds the group away; groups start open so nothing is hidden by default. */
-    collapsible: Boolean = false,
-    /** Rarely used groups start folded so the common ones sit close to the top. */
-    initiallyExpanded: Boolean = true,
-    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+private fun SettingsControlSurface(
+    modifier: Modifier = Modifier,
+    verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(8.dp),
+    /** Keeps the icon column aligned with switch/action rows sharing the card. */
+    icon: ImageVector? = null,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
-    var expanded by rememberSaveable(title) { mutableStateOf(initiallyExpanded) }
-    Column(
-        modifier = Modifier.animateContentSize(),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+    val inCard = LocalSettingsRowInCard.current
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(if (inCard) 0.dp else 16.dp),
+        color = if (inCard) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant,
     ) {
-        if (collapsible) {
-            val rotation by androidx.compose.animation.core.animateFloatAsState(if (expanded) 0f else -90f, label = "settings-group-arrow")
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable { expanded = !expanded }
-                    .testTag("settings-group-toggle-$title"),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                Box(modifier = Modifier.weight(1f)) { SettingsSectionHeader(title) }
-                Icon(
-                    imageVector = Icons.Rounded.ExpandMore,
-                    contentDescription = null,
-                    modifier = Modifier.padding(end = 8.dp).rotate(rotation),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            if (icon != null) {
+                SettingsRowIcon(icon)
+                Spacer(modifier = Modifier.width(14.dp))
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = verticalArrangement,
+                content = content,
+            )
+        }
+    }
+}
+
+/** Title plus optional explanation for a multi-control row, spaced like the other card rows. */
+@Composable
+private fun SettingsControlHeading(
+    title: String,
+    subtitle: String? = null,
+    /** Keeps a status line under the explanation, e.g. the live auto-scroll notice. */
+    trailing: @Composable (() -> Unit)? = null,
+) {
+    val inCard = LocalSettingsRowInCard.current
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = title,
+            style = if (inCard) {
+                MaterialTheme.typography.titleSmall.copy(lineHeight = 18.sp, letterSpacing = 0.sp)
+            } else {
+                MaterialTheme.typography.bodyLarge
+            },
+            fontWeight = if (inCard) FontWeight.Bold else FontWeight.SemiBold,
+        )
+        if (subtitle != null) {
+            Text(
+                text = subtitle,
+                style = if (inCard) {
+                    MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 16.5.sp)
+                } else {
+                    MaterialTheme.typography.bodySmall
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        trailing?.invoke()
+    }
+}
+
+/** One single-choice option: a tinted pill with a radio, title and explanation, all tappable. */
+@Composable
+internal fun SettingsRadioRow(
+    title: String,
+    subtitle: String?,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    /** Optional visual at the row's end, e.g. a colour palette preview. */
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(
+                if (selected) {
+                    accent.copy(alpha = 0.10f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                },
+            )
+            .border(
+                width = if (selected) 1.5.dp else 1.dp,
+                color = if (selected) accent else MaterialTheme.colorScheme.outlineVariant,
+                shape = shape,
+            )
+            .toggleable(value = selected, role = Role.RadioButton, onValueChange = { if (it) onSelect() })
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        // A 20dp ring keeps the option compact; the Material button would add its 48dp touch box.
+        Box(
+            modifier = Modifier
+                .size(20.dp)
+                .border(
+                    width = 2.dp,
+                    color = if (selected) accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    shape = CircleShape,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) {
+                Box(modifier = Modifier.size(10.dp).background(accent, CircleShape))
+            }
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 13.5.sp,
+                    lineHeight = 19.sp,
+                    letterSpacing = 0.sp,
+                ),
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 16.5.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        } else {
-            SettingsSectionHeader(title)
         }
-        if (!collapsible || expanded) content()
+        if (trailing != null) {
+            Spacer(Modifier.width(10.dp))
+            trailing()
+        }
+    }
+}
+
+/** Card of self-contained option rows (no dividers), e.g. radio groups and palette pickers. */
+@Composable
+internal fun SettingsOptionCard(
+    title: String? = null,
+    content: @Composable () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (title != null) SettingsSectionHeader(title)
+        Surface(
+            shape = RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                content()
+            }
+        }
+    }
+}
+
+/** Compact 30dp pill for a small inline choice group; filled with the accent when chosen. */
+@Composable
+internal fun SettingsOptionChip(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    val shape = RoundedCornerShape(15.dp)
+    Box(
+        modifier = Modifier
+            .height(30.dp)
+            .clip(shape)
+            .background(if (selected) accent else Color.Transparent)
+            .border(1.5.dp, if (selected) accent else accent.copy(alpha = 0.55f), shape)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp, lineHeight = 16.sp),
+            fontWeight = FontWeight.Bold,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else accent,
+            maxLines = 1,
+        )
     }
 }
 
@@ -2255,6 +2944,7 @@ internal fun SettingsCardGroup(
     tiles: Boolean = false,
     /** Lets a dragged row and its shadow leave the card; rows must stay transparent at rest. */
     liftable: Boolean = false,
+    dividerStart: Dp = 64.dp,
     content: @Composable () -> Unit,
 ) {
     if (tiles) {
@@ -2266,21 +2956,25 @@ internal fun SettingsCardGroup(
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         SettingsSectionHeader(title)
-        SettingsCard(liftable = liftable, content = content)
+        SettingsCard(liftable = liftable, dividerStart = dividerStart, content = content)
     }
 }
 
-/** Container card with standard 20dp corners, border, and divided rows. */
+/** Container card with standard 22dp corners, border, and divided rows. */
 @Composable
 internal fun SettingsCard(
     liftable: Boolean = false,
+    /** Where dividers start: past the row icon normally, at the row padding for icon-less rows. */
+    dividerStart: Dp = 64.dp,
     content: @Composable () -> Unit,
 ) {
-    val cardShape = RoundedCornerShape(20.dp)
-    val cardColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-    val cardBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+    val cardShape = RoundedCornerShape(22.dp)
+    val cardColor = MaterialTheme.colorScheme.surface
+    val cardBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     val rows: @Composable () -> Unit = {
-        CompositionLocalProvider(LocalSettingsRowInCard provides true) { SettingsDividedRows(liftable, content) }
+        CompositionLocalProvider(LocalSettingsRowInCard provides true) {
+            SettingsDividedRows(liftable, dividerStart, content)
+        }
     }
     if (liftable) {
         // No clip: Surface would cut the dragged row's shadow at the card edge.
@@ -2292,10 +2986,14 @@ internal fun SettingsCard(
 
 /** Stacks card rows and draws an inset divider between every pair that has height. */
 @Composable
-private fun SettingsDividedRows(liftable: Boolean, content: @Composable () -> Unit) {
+private fun SettingsDividedRows(
+    liftable: Boolean,
+    dividerStartDp: Dp = 64.dp,
+    content: @Composable () -> Unit,
+) {
     val dividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
     val density = LocalDensity.current
-    val dividerStart = with(density) { 64.dp.toPx() }
+    val dividerStart = with(density) { dividerStartDp.toPx() }
     val dividerEnd = with(density) { 14.dp.toPx() }
     val dividerWidth = with(density) { 1.dp.toPx() }
     val dividerTops = remember { mutableListOf<Int>() }
@@ -2342,7 +3040,7 @@ internal fun SettingsReveal(visible: Boolean, content: @Composable () -> Unit) {
     val inCard = LocalSettingsRowInCard.current
     AnimatedVisibility(visible = visible, enter = AppMotion.revealEnter, exit = AppMotion.revealExit) {
         if (inCard) {
-            SettingsDividedRows(liftable = false, content)
+            SettingsDividedRows(liftable = false, content = content)
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) { content() }
         }
@@ -2353,10 +3051,10 @@ internal fun SettingsReveal(visible: Boolean, content: @Composable () -> Unit) {
 internal fun SettingsSectionHeader(text: String) {
     Text(
         text = text,
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.5.sp, letterSpacing = 0.5.sp),
         color = MaterialTheme.colorScheme.primary,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 2.dp),
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(start = 6.dp, top = 8.dp, bottom = 2.dp),
     )
 }
 
@@ -2369,7 +3067,6 @@ private fun AutoSilenceSettingsSection() {
     val autoSilence = preferences?.autoSilence ?: AutoSilencePreferences()
     val sessionActive = preferences?.autoSilenceSession?.active == true
     val readiness = AutoSilenceController.readiness(context, autoSilence.mode)
-    var showModePicker by remember { mutableStateOf(false) }
 
     fun refreshAutoSilence(reason: String) {
         scope.launch {
@@ -2381,181 +3078,196 @@ private fun AutoSilenceSettingsSection() {
 
     val blockingReason = readiness.blockingReasonRes?.let { stringResource(it) }
     if (blockingReason != null) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Rounded.Warning,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(24.dp),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(R.string.settings_auto_silence_blocked_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = blockingReason,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            }
-        }
+        AutoSilenceWarningBanner(
+            title = stringResource(R.string.settings_auto_silence_blocked_title),
+            message = blockingReason,
+        )
     }
     readiness.warningRes?.let { warningRes ->
-        val warning = stringResource(warningRes)
-        Text(
-            text = warning,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
-        )
+        AutoSilenceWarningBanner(message = stringResource(warningRes))
     }
 
-    SettingsSwitchRow(
-        icon = Icons.Rounded.Notifications,
-        title = stringResource(R.string.settings_dest_auto_silence),
-        subtitle = if (autoSilence.enabled) {
-            stringResource(R.string.settings_auto_silence_on)
-        } else {
-            stringResource(R.string.settings_auto_silence_off)
-        },
-        checked = autoSilence.enabled,
-        onCheckedChange = { enabled ->
-            val reasonRes = AutoSilenceController.readiness(context, autoSilence.mode).blockingReasonRes
-            if (enabled && reasonRes != null) {
-                Toast.makeText(context, context.getString(reasonRes), Toast.LENGTH_LONG).show()
+    SettingsCard {
+        SettingsSwitchRow(
+            icon = Icons.Rounded.Notifications,
+            title = stringResource(R.string.settings_dest_auto_silence),
+            subtitle = if (autoSilence.enabled) {
+                stringResource(R.string.settings_auto_silence_on)
             } else {
-                scope.launch {
-                    withContext(Dispatchers.IO) {
-                        repository.setAutoSilenceEnabled(enabled)
-                        AutoSilenceController.evaluate(context.applicationContext, reason = "settings_toggle")
+                stringResource(R.string.settings_auto_silence_off)
+            },
+            checked = autoSilence.enabled,
+            onCheckedChange = { enabled ->
+                val reasonRes = AutoSilenceController.readiness(context, autoSilence.mode).blockingReasonRes
+                if (enabled && reasonRes != null) {
+                    Toast.makeText(context, context.getString(reasonRes), Toast.LENGTH_LONG).show()
+                } else {
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            repository.setAutoSilenceEnabled(enabled)
+                            AutoSilenceController.evaluate(context.applicationContext, reason = "settings_toggle")
+                        }
                     }
                 }
-            }
-        },
-    )
-    SettingsActionRow(
-        icon = Icons.Rounded.Tune,
-        title = stringResource(R.string.settings_auto_silence_mode_title),
-        subtitle = autoSilenceModeLabel(autoSilence.mode),
-        onClick = { showModePicker = true },
-    )
-    SettingsActionRow(
-        icon = Icons.Rounded.Notifications,
-        title = stringResource(R.string.settings_dnd_permission_title),
-        subtitle = when {
-            readiness.notificationPolicyGranted -> stringResource(R.string.settings_dnd_permission_granted)
-            autoSilence.mode == AutoSilenceMode.Vibrate -> stringResource(R.string.settings_dnd_permission_not_needed)
-            else -> stringResource(R.string.settings_dnd_permission_missing)
-        },
-        onClick = {
-            if (readiness.notificationPolicyGranted) {
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.settings_toast_dnd_granted),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            } else {
-                launchSettingsIntent(context, AutoSilenceController.notificationPolicySettingsIntent())
-            }
-        },
-    )
-    if (autoSilence.mode == AutoSilenceMode.DoNotDisturb && !readiness.doNotDisturbAllowsAlarms) {
-        SettingsActionRow(
-            icon = Icons.Rounded.Warning,
-            title = stringResource(R.string.settings_dnd_alarms_blocked_title),
-            subtitle = stringResource(R.string.settings_dnd_alarms_blocked_subtitle),
-            onClick = { launchSettingsIntent(context, Intent(Settings.ACTION_SOUND_SETTINGS)) },
+            },
         )
     }
-    SettingsActionRow(
-        icon = Icons.Rounded.Restore,
-        title = stringResource(R.string.settings_auto_silence_status_title),
-        subtitle = if (sessionActive) {
-            stringResource(R.string.settings_auto_silence_status_active)
-        } else {
-            stringResource(R.string.settings_auto_silence_status_idle)
-        },
-        onClick = {
-            if (sessionActive) {
-                scope.launch {
-                    withContext(Dispatchers.IO) {
-                        AutoSilenceController.restoreNow(
-                            context = context.applicationContext,
-                            reason = "settings_restore",
-                            suppressUntilBlockEnd = true,
-                        )
+    // The three modes are a radio list: the chosen one tints its own pill instead of opening a picker.
+    SettingsOptionCard(stringResource(R.string.settings_auto_silence_mode_title)) {
+        AutoSilenceMode.values().forEach { mode ->
+            SettingsRadioRow(
+                title = autoSilenceModeLabel(mode),
+                subtitle = autoSilenceModeDescription(mode),
+                selected = autoSilence.mode == mode,
+                onSelect = {
+                    if (autoSilence.mode != mode) {
+                        val reasonRes = AutoSilenceController.readiness(context, mode).blockingReasonRes
+                        if (reasonRes != null && autoSilence.enabled) {
+                            Toast.makeText(context, context.getString(reasonRes), Toast.LENGTH_LONG).show()
+                        }
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                repository.setAutoSilenceMode(mode)
+                                if (reasonRes != null) {
+                                    repository.setAutoSilenceEnabled(false)
+                                }
+                                AutoSilenceController.evaluate(
+                                    context.applicationContext,
+                                    reason = "settings_mode",
+                                )
+                            }
+                        }
                     }
+                },
+            )
+        }
+    }
+    SettingsSectionHeader(stringResource(R.string.settings_auto_silence_status_section))
+    SettingsCard {
+        SettingsActionRow(
+            icon = Icons.Rounded.Security,
+            title = stringResource(R.string.settings_dnd_permission_title),
+            subtitle = when {
+                readiness.notificationPolicyGranted -> stringResource(R.string.settings_dnd_permission_granted_hint)
+                autoSilence.mode == AutoSilenceMode.Vibrate -> stringResource(R.string.settings_dnd_permission_not_needed)
+                else -> stringResource(R.string.settings_dnd_permission_missing_hint)
+            },
+            onClick = {
+                if (readiness.notificationPolicyGranted) {
                     Toast.makeText(
                         context,
-                        context.getString(R.string.settings_toast_ringer_restored),
+                        context.getString(R.string.settings_toast_dnd_granted),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                } else {
+                    launchSettingsIntent(context, AutoSilenceController.notificationPolicySettingsIntent())
+                }
+            },
+            trailing = {
+                SettingsRowValue(
+                    text = when {
+                        readiness.notificationPolicyGranted -> stringResource(R.string.settings_dnd_permission_value_granted)
+                        autoSilence.mode == AutoSilenceMode.Vibrate -> stringResource(R.string.settings_dnd_permission_value_not_needed)
+                        else -> stringResource(R.string.settings_dnd_permission_value_missing)
+                    },
+                    highlighted = sessionActive,
+                )
+            },
+        )
+        SettingsActionRow(
+            icon = Icons.Rounded.Schedule,
+            title = stringResource(R.string.settings_auto_silence_status_title),
+            subtitle = if (sessionActive) {
+                stringResource(R.string.settings_auto_silence_status_active)
+            } else {
+                stringResource(R.string.settings_auto_silence_status_idle)
+            },
+            onClick = {
+                if (sessionActive) {
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            AutoSilenceController.restoreNow(
+                                context = context.applicationContext,
+                                reason = "settings_restore",
+                                suppressUntilBlockEnd = true,
+                            )
+                        }
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.settings_toast_ringer_restored),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                } else {
+                    refreshAutoSilence("settings_recheck")
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.settings_toast_rechecked),
                         Toast.LENGTH_SHORT,
                     ).show()
                 }
-            } else {
-                refreshAutoSilence("settings_recheck")
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.settings_toast_rechecked),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            }
-        },
-    )
-    Text(
-        text = stringResource(R.string.settings_auto_silence_note),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-
-    if (showModePicker) {
-        AlertDialog(
-            onDismissRequest = { showModePicker = false },
-            title = { Text(stringResource(R.string.settings_auto_silence_mode_title)) },
-            text = {
-                Column {
-                    AutoSilenceMode.values().forEach { mode ->
-                        SettingsActionRow(
-                            icon = Icons.Rounded.Tune,
-                            title = autoSilenceModeLabel(mode),
-                            subtitle = autoSilenceModeDescription(mode),
-                            onClick = {
-                                showModePicker = false
-                                val reasonRes = AutoSilenceController.readiness(context, mode).blockingReasonRes
-                                if (reasonRes != null && autoSilence.enabled) {
-                                    Toast.makeText(context, context.getString(reasonRes), Toast.LENGTH_LONG).show()
-                                }
-                                scope.launch {
-                                    withContext(Dispatchers.IO) {
-                                        repository.setAutoSilenceMode(mode)
-                                        if (reasonRes != null) {
-                                            repository.setAutoSilenceEnabled(false)
-                                        }
-                                        AutoSilenceController.evaluate(
-                                            context.applicationContext,
-                                            reason = "settings_mode",
-                                        )
-                                    }
-                                }
-                            },
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                }
             },
-            confirmButton = {
-                AppOutlinedButton(onClick = { showModePicker = false }) { Text(stringResource(R.string.settings_close)) }
+            trailing = {
+                SettingsRowValue(
+                    text = if (sessionActive) {
+                        stringResource(R.string.settings_auto_silence_status_value_active)
+                    } else {
+                        stringResource(R.string.settings_auto_silence_status_value_idle)
+                    },
+                    highlighted = sessionActive,
+                )
             },
         )
+    }
+    if (autoSilence.mode == AutoSilenceMode.DoNotDisturb && !readiness.doNotDisturbAllowsAlarms) {
+        AutoSilenceWarningBanner(
+            title = stringResource(R.string.settings_dnd_alarms_blocked_title),
+            message = stringResource(R.string.settings_dnd_alarms_blocked_subtitle),
+            onClick = { launchSettingsIntent(context, Intent(Settings.ACTION_SOUND_SETTINGS)) },
+        )
+    }
+    SettingsHintText(stringResource(R.string.settings_auto_silence_note))
+}
+
+/** Amber notice under a settings card, e.g. Do Not Disturb swallowing the class alarms. */
+@Composable
+private fun AutoSilenceWarningBanner(
+    message: String,
+    title: String? = null,
+    onClick: (() -> Unit)? = null,
+) {
+    val shape = RoundedCornerShape(18.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.tertiaryContainer)
+            .border(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f), shape)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Warning,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.tertiary,
+            modifier = Modifier.padding(top = 1.dp).size(20.dp),
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            if (title != null) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp, lineHeight = 17.5.sp),
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                )
+            }
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 18.sp),
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+        }
     }
 }
 
@@ -2573,192 +3285,265 @@ private fun autoSilenceModeDescription(mode: AutoSilenceMode): String = when (mo
     AutoSilenceMode.DoNotDisturb -> stringResource(R.string.settings_silence_mode_dnd_desc)
 }
 
+private val calendarPermissions = listOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR)
+
 @Composable
-private fun PermissionsSection(
-    notificationLauncher: (String) -> Unit,
-    cameraLauncher: (String) -> Unit,
-    alarmKeepAliveEnabled: Boolean = false,
-    onAlarmKeepAliveEnabledChange: (Boolean) -> Unit = {},
-    vendorPermissionAcks: Set<String> = emptySet(),
-    onVendorPermissionAckChange: (String, Boolean) -> Unit = { _, _ -> },
+internal fun PermissionsSection(
+    classNotice: ClassNoticePreferences,
+    alarmKeepAliveEnabled: Boolean,
+    onAlarmKeepAliveEnabledChange: (Boolean) -> Unit,
+    showDiagnostics: Boolean = true,
 ) {
     val context = LocalContext.current
-    // Refresh permission state after returning from system settings.
-    val state = rememberPermissionState(context)
+    var permissionResultVersion by remember { mutableIntStateOf(0) }
+    var blockedRuntimePermissions by rememberSaveable { mutableStateOf(arrayListOf<String>()) }
+    fun handlePermissionResult(permission: String, granted: Boolean, grantedRes: Int, deniedRes: Int) {
+        permissionResultVersion++
+        val canAskAgain = context.findActivity()?.let {
+            ActivityCompat.shouldShowRequestPermissionRationale(it, permission)
+        } ?: true
+        val outcome = permissionRequestOutcome(granted, canAskAgain)
+        blockedRuntimePermissions = ArrayList(blockedRuntimePermissions - permission)
+        if (outcome == PermissionRequestOutcome.PermanentlyDenied) {
+            blockedRuntimePermissions = ArrayList(blockedRuntimePermissions + permission)
+        }
+        val message = when (outcome) {
+            PermissionRequestOutcome.Granted -> grantedRes
+            PermissionRequestOutcome.Denied -> deniedRes
+            PermissionRequestOutcome.PermanentlyDenied -> R.string.permissions_request_use_settings
+        }
+        Toast.makeText(context, context.getString(message), Toast.LENGTH_SHORT).show()
+    }
+    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        handlePermissionResult(
+            Manifest.permission.POST_NOTIFICATIONS, granted,
+            R.string.settings_toast_notification_granted, R.string.settings_toast_notification_denied,
+        )
+    }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        handlePermissionResult(
+            Manifest.permission.CAMERA, granted,
+            R.string.settings_toast_camera_granted, R.string.settings_toast_camera_denied,
+        )
+    }
+    val calendarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        val missing = calendarPermissions.firstOrNull { permission ->
+            ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED
+        }
+        handlePermissionResult(
+            missing ?: Manifest.permission.WRITE_CALENDAR, missing == null,
+            R.string.permissions_calendar_granted, R.string.calendar_toast_permission_denied,
+        )
+        if (missing == null) {
+            blockedRuntimePermissions = ArrayList(blockedRuntimePermissions - calendarPermissions.toSet())
+        }
+    }
+    val state = rememberPermissionState(context, permissionResultVersion)
+    val vendorSettingsAvailable = AlarmSettingsIntents.hasVendorAutoStartPage(context)
+    var showAlarmDiagnostics by remember { mutableStateOf(false) }
 
-    val missingAlarmPermissions = buildList {
-        if (!state.notification) add(stringResource(R.string.settings_permission_notification))
-        if (!state.exactAlarm) add(stringResource(R.string.settings_permission_exact_alarm))
-        if (!state.fullScreenIntent) add(stringResource(R.string.settings_permission_full_screen))
-        if (!state.batteryOptimizationIgnored) add(stringResource(R.string.settings_permission_background))
-        // Disabled guard scheduling can leave alarms vulnerable to vendor cleanup.
-        if (!alarmKeepAliveEnabled) add(stringResource(R.string.settings_alarm_keep_alive_title))
-        if (state.miuiAutoStart == false) add(stringResource(R.string.settings_permission_autostart_title))
+    Surface(
+        modifier = Modifier.fillMaxWidth().testTag("permission-overview"),
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(Icons.Rounded.Security, contentDescription = null, modifier = Modifier.size(24.dp))
+            Text(stringResource(R.string.permissions_overview_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.permissions_overview_body), style = MaterialTheme.typography.bodyMedium)
+        }
     }
 
-    PermissionSummaryCard(missing = missingAlarmPermissions)
-
-    // Silent guard status affects background alarm delivery alongside permissions.
-    SettingsSwitchRow(
-        icon = Icons.Rounded.Restore,
-        title = stringResource(R.string.settings_alarm_keep_alive_title),
-        subtitle = stringResource(
-            if (alarmKeepAliveEnabled) {
-                R.string.settings_alarm_keep_alive_on
-            } else {
-                R.string.settings_alarm_keep_alive_off
+    SettingsSectionHeader(stringResource(R.string.permissions_group_notifications))
+    SettingsCard {
+        val requestNotification = !state.notification &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            Manifest.permission.POST_NOTIFICATIONS !in blockedRuntimePermissions
+        PermissionRow(
+            icon = Icons.Rounded.Notifications,
+            title = stringResource(R.string.settings_permission_notification),
+            granted = state.notification,
+            purpose = stringResource(R.string.permissions_notification_purpose),
+            runtimeRequest = requestNotification,
+            onClick = {
+                if (requestNotification) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                else launchSettingsIntents(context, AlarmSettingsIntents.notifications(context))
             },
-        ),
-        checked = alarmKeepAliveEnabled,
-        onCheckedChange = onAlarmKeepAliveEnabledChange,
-    )
+        )
+        PermissionRow(
+            icon = Icons.Rounded.Fullscreen,
+            title = stringResource(R.string.notice_guide_step_overlay_title),
+            granted = state.overlay,
+            purpose = stringResource(R.string.permissions_overlay_purpose),
+            onClick = { context.openOverlayPermissionSettings() },
+        )
+        if (state.islandSupported) {
+            PermissionRow(
+                icon = Icons.Rounded.NotificationsActive,
+                title = stringResource(R.string.notice_guide_step_island_title),
+                granted = state.islandAllowed,
+                purpose = stringResource(R.string.permissions_live_notification_purpose),
+                onClick = { context.openIslandSettings(ClassNoticeNotifier.channelIdFor(classNotice)) },
+            )
+        }
+    }
 
-    // Diagnostics include channels, power policy and registrations, beyond permission checks.
-    var showAlarmDiagnostics by remember { mutableStateOf(false) }
-    SettingsActionRow(
-        icon = Icons.Rounded.BugReport,
-        title = stringResource(R.string.settings_alarm_diagnostics_title),
-        subtitle = stringResource(R.string.settings_alarm_diagnostics_subtitle),
-        onClick = { showAlarmDiagnostics = true },
-    )
+    SettingsSectionHeader(stringResource(R.string.permissions_group_alarms))
+    SettingsCard {
+        PermissionRow(
+            icon = Icons.Rounded.Schedule,
+            title = stringResource(R.string.settings_permission_exact_alarm),
+            granted = state.exactAlarm,
+            purpose = stringResource(R.string.permissions_exact_alarm_purpose),
+            onClick = { launchSettingsIntents(context, AlarmSettingsIntents.exactAlarm(context)) },
+        )
+        PermissionRow(
+            icon = Icons.Rounded.Fullscreen,
+            title = stringResource(R.string.settings_permission_full_screen),
+            granted = state.fullScreenIntent,
+            purpose = stringResource(R.string.permissions_full_screen_purpose),
+            onClick = { launchSettingsIntents(context, AlarmSettingsIntents.fullScreenIntent(context)) },
+        )
+        PermissionRow(
+            icon = Icons.Rounded.BatterySaver,
+            title = stringResource(R.string.settings_permission_battery_title),
+            granted = state.batteryOptimizationIgnored,
+            purpose = stringResource(R.string.permissions_battery_purpose),
+            onClick = { launchSettingsIntents(context, AlarmSettingsIntents.batteryOptimization(context)) },
+        )
+        PermissionRow(
+            icon = Icons.Rounded.Security,
+            title = stringResource(R.string.settings_dnd_permission_title),
+            granted = state.notificationPolicy,
+            purpose = stringResource(R.string.permissions_dnd_purpose),
+            onClick = { launchSettingsIntent(context, AutoSilenceController.notificationPolicySettingsIntent()) },
+        )
+        state.backgroundRestricted?.let { restricted ->
+            PermissionRow(
+                icon = Icons.Rounded.Restore,
+                title = stringResource(R.string.permissions_background_restriction_title),
+                granted = !restricted,
+                purpose = stringResource(R.string.permissions_background_restriction_purpose),
+                statusOverride = if (restricted) R.string.permissions_background_restricted
+                    else R.string.permissions_background_unrestricted,
+                onClick = { launchSettingsIntent(context, AlarmSettingsIntents.appDetails(context)) },
+            )
+        }
+        if (vendorSettingsAvailable) {
+            PermissionRow(
+                icon = Icons.Rounded.Restore,
+                title = stringResource(R.string.settings_permission_autostart_title),
+                granted = state.miuiAutoStart,
+                purpose = stringResource(R.string.settings_permission_autostart_off),
+                onClick = { launchSettingsIntents(context, AlarmSettingsIntents.vendorAutoStart(context)) },
+            )
+            PermissionRow(
+                icon = Icons.Rounded.Notifications,
+                title = stringResource(R.string.settings_permission_background_popup_title),
+                granted = state.miuiBackgroundPopup,
+                purpose = stringResource(R.string.settings_permission_background_popup_off),
+                onClick = { launchSettingsIntents(context, AlarmSettingsIntents.backgroundPopup(context)) },
+            )
+        }
+        if (AlarmSettingsIntents.hasVendorBatterySaver()) {
+            PermissionRow(
+                icon = Icons.Rounded.BatterySaver,
+                title = stringResource(R.string.settings_permission_vendor_battery_title),
+                granted = null,
+                purpose = stringResource(R.string.settings_permission_vendor_battery_off),
+                onClick = { launchSettingsIntents(context, AlarmSettingsIntents.vendorBatterySaver(context)) },
+            )
+        }
+    }
+    if (vendorSettingsAvailable) VendorKeepAliveGuide()
+
+    SettingsSectionHeader(stringResource(R.string.permissions_group_tools))
+    SettingsCard {
+        val requestCamera = !state.camera && Manifest.permission.CAMERA !in blockedRuntimePermissions
+        PermissionRow(
+            icon = Icons.Rounded.QrCodeScanner,
+            title = stringResource(R.string.settings_permission_camera),
+            granted = state.camera,
+            purpose = stringResource(R.string.settings_permission_camera_off),
+            runtimeRequest = requestCamera,
+            onClick = {
+                if (requestCamera) cameraLauncher.launch(Manifest.permission.CAMERA)
+                else launchSettingsIntent(context, AlarmSettingsIntents.appDetails(context))
+            },
+        )
+        val requestCalendar = !state.calendar && calendarPermissions.none { it in blockedRuntimePermissions }
+        PermissionRow(
+            icon = Icons.Rounded.CalendarMonth,
+            title = stringResource(R.string.permissions_calendar_title),
+            granted = state.calendar,
+            purpose = stringResource(R.string.permissions_calendar_purpose),
+            runtimeRequest = requestCalendar,
+            onClick = {
+                if (requestCalendar) calendarLauncher.launch(calendarPermissions.toTypedArray())
+                else launchSettingsIntent(context, AlarmSettingsIntents.appDetails(context))
+            },
+        )
+        if (WidgetCatalog.detectLauncherVendor(context) != WidgetCatalog.LauncherVendor.Other) {
+            PermissionRow(
+                icon = Icons.Rounded.Dashboard,
+                title = stringResource(R.string.permissions_shortcut_title),
+                granted = state.miuiShortcut,
+                purpose = stringResource(R.string.permissions_shortcut_purpose),
+                onClick = { WidgetCatalog.openShortcutPermission(context) },
+            )
+        }
+        PermissionRow(
+            icon = Icons.Rounded.Download,
+            title = stringResource(R.string.settings_permission_install),
+            granted = state.installPackages,
+            purpose = stringResource(R.string.settings_permission_install_off),
+            onClick = { launchSettingsIntent(context, unknownAppInstallSettingsIntent(context)) },
+        )
+    }
+
+    SettingsSectionHeader(stringResource(R.string.settings_section_guard))
+    SettingsCard {
+        // Silent guard status affects background alarm delivery alongside permissions.
+        SettingsSwitchRow(
+            icon = Icons.Rounded.Restore,
+            title = stringResource(R.string.settings_alarm_keep_alive_title),
+            subtitle = stringResource(
+                if (alarmKeepAliveEnabled) {
+                    R.string.settings_alarm_keep_alive_on
+                } else {
+                    R.string.settings_alarm_keep_alive_off
+                },
+            ),
+            checked = alarmKeepAliveEnabled,
+            onCheckedChange = onAlarmKeepAliveEnabledChange,
+        )
+        if (showDiagnostics) {
+            SettingsActionRow(
+                icon = Icons.Rounded.BugReport,
+                title = stringResource(R.string.settings_alarm_diagnostics_title),
+                subtitle = stringResource(R.string.settings_alarm_diagnostics_subtitle),
+                onClick = { showAlarmDiagnostics = true },
+            )
+        }
+    }
     if (showAlarmDiagnostics) {
         AlarmDiagnosticsDialog(onDismiss = { showAlarmDiagnostics = false })
     }
 
-    SettingsSectionHeader(stringResource(R.string.settings_section_grant))
-    PermissionRow(
-        icon = Icons.Rounded.Notifications,
-        title = stringResource(R.string.settings_permission_notification),
-        granted = state.notification,
-        offText = stringResource(R.string.settings_permission_notification_off),
-        onText = stringResource(R.string.settings_permission_runtime_hint),
-        onClick = {
-            // Granted permissions still link to system settings for revocation.
-            if (!state.notification && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                notificationLauncher(Manifest.permission.POST_NOTIFICATIONS)
-            } else {
-                launchSettingsIntents(context, AlarmSettingsIntents.notifications(context))
-            }
-        },
-    )
-    PermissionRow(
-        icon = Icons.Rounded.Schedule,
-        title = stringResource(R.string.settings_permission_exact_alarm),
-        granted = state.exactAlarm,
-        offText = stringResource(R.string.settings_permission_exact_alarm_off),
-        onText = stringResource(R.string.settings_permission_manage_hint),
-        onClick = { launchSettingsIntents(context, AlarmSettingsIntents.exactAlarm(context)) },
-    )
-    PermissionRow(
-        icon = Icons.Rounded.Notifications,
-        title = stringResource(R.string.settings_permission_full_screen),
-        granted = state.fullScreenIntent,
-        offText = stringResource(R.string.settings_permission_full_screen_off),
-        onText = stringResource(R.string.settings_permission_manage_hint),
-        onClick = { launchSettingsIntents(context, AlarmSettingsIntents.fullScreenIntent(context)) },
-    )
-    PermissionRow(
-        icon = Icons.Rounded.Restore,
-        title = stringResource(R.string.settings_permission_battery_title),
-        granted = state.batteryOptimizationIgnored,
-        offText = stringResource(R.string.settings_permission_battery_off),
-        // Already-exempt apps open the exemption list rather than an ignored request Intent.
-        onText = stringResource(R.string.settings_permission_battery_on),
-        onClick = {
-            launchSettingsIntents(context, AlarmSettingsIntents.batteryOptimization(context))
-        },
-    )
-    if (AlarmSettingsIntents.hasVendorAutoStartPage(context)) {
-        // Use queried vendor status where available; otherwise rely on explicit user confirmation.
-        val miuiAutoStart = state.miuiAutoStart
-        if (miuiAutoStart != null) {
-            PermissionRow(
-                icon = Icons.Rounded.Restore,
-                title = stringResource(R.string.settings_permission_autostart_title),
-                granted = miuiAutoStart,
-                offText = stringResource(R.string.settings_permission_autostart_off_xiaomi),
-                onText = stringResource(R.string.settings_permission_manage_hint),
-                onClick = { launchSettingsIntents(context, AlarmSettingsIntents.vendorAutoStart(context)) },
-            )
-        } else {
-            VendorPermissionRow(
-                icon = Icons.Rounded.Restore,
-                title = stringResource(R.string.settings_permission_autostart_title),
-                subtitle = stringResource(R.string.settings_permission_autostart_off),
-                acked = VendorPermissionKey.AUTO_START in vendorPermissionAcks,
-                onOpen = { launchSettingsIntents(context, AlarmSettingsIntents.vendorAutoStart(context)) },
-                onAckChange = { onVendorPermissionAckChange(VendorPermissionKey.AUTO_START, it) },
-            )
-        }
-        val miuiPopup = state.miuiBackgroundPopup
-        if (miuiPopup != null) {
-            PermissionRow(
-                icon = Icons.Rounded.Notifications,
-                title = stringResource(R.string.settings_permission_background_popup_title),
-                granted = miuiPopup,
-                offText = stringResource(R.string.settings_permission_background_popup_off),
-                onText = stringResource(R.string.settings_permission_manage_hint),
-                onClick = { launchSettingsIntents(context, AlarmSettingsIntents.backgroundPopup(context)) },
-            )
-        } else {
-            VendorPermissionRow(
-                icon = Icons.Rounded.Notifications,
-                title = stringResource(R.string.settings_permission_background_popup_title),
-                subtitle = stringResource(R.string.settings_permission_background_popup_off),
-                acked = VendorPermissionKey.BACKGROUND_POPUP in vendorPermissionAcks,
-                onOpen = { launchSettingsIntents(context, AlarmSettingsIntents.backgroundPopup(context)) },
-                onAckChange = { onVendorPermissionAckChange(VendorPermissionKey.BACKGROUND_POPUP, it) },
-            )
-        }
-        if (AlarmSettingsIntents.hasVendorBatterySaver()) {
-            VendorPermissionRow(
-                icon = Icons.Rounded.Restore,
-                title = stringResource(R.string.settings_permission_vendor_battery_title),
-                subtitle = stringResource(R.string.settings_permission_vendor_battery_off),
-                acked = VendorPermissionKey.BATTERY_SAVER in vendorPermissionAcks,
-                onOpen = { launchSettingsIntents(context, AlarmSettingsIntents.vendorBatterySaver(context)) },
-                onAckChange = { onVendorPermissionAckChange(VendorPermissionKey.BATTERY_SAVER, it) },
-            )
-        }
-        // Explain Recents locking; the system exposes no API for it.
-        VendorKeepAliveGuide()
-    }
-    PermissionRow(
-        icon = Icons.Rounded.Code,
-        title = stringResource(R.string.settings_permission_camera),
-        granted = state.camera,
-        offText = stringResource(R.string.settings_permission_camera_off),
-        onText = stringResource(R.string.settings_permission_runtime_hint),
-        onClick = {
-            if (state.camera) {
-                launchSettingsIntent(context, AlarmSettingsIntents.appDetails(context))
-            } else {
-                cameraLauncher(Manifest.permission.CAMERA)
-            }
-        },
-    )
-    PermissionRow(
-        icon = Icons.Rounded.Download,
-        title = stringResource(R.string.settings_permission_install),
-        granted = state.installPackages,
-        offText = stringResource(R.string.settings_permission_install_off),
-        onText = stringResource(R.string.settings_permission_manage_hint),
-        onClick = { launchSettingsIntent(context, unknownAppInstallSettingsIntent(context)) },
-    )
-
     SettingsSectionHeader(stringResource(R.string.settings_section_declared))
-    SettingsActionRow(
-        icon = Icons.Rounded.Tune,
-        title = stringResource(R.string.settings_declared_permissions_title),
-        subtitle = stringResource(R.string.settings_declared_permissions_subtitle),
-        onClick = {
-            Toast.makeText(
-                context,
-                context.getString(R.string.settings_toast_no_grant_needed),
-                Toast.LENGTH_SHORT,
-            ).show()
-        },
-    )
+    SettingsCard {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            SettingsRowTitle(stringResource(R.string.permissions_declared_title))
+            Text(
+                stringResource(R.string.permissions_declared_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 /** Load DataStore diagnostics asynchronously and show a loading state. */
@@ -2768,8 +3553,9 @@ private fun AlarmDiagnosticsDialog(onDismiss: () -> Unit) {
     val report by produceState<AlarmDiagnosticsReport?>(initialValue = null, context) {
         value = withContext(Dispatchers.IO) { AlarmDiagnostics.collect(context) }
     }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.NotificationsActive, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.settings_alarm_diagnostics_title)) },
         text = {
             Column(
@@ -2800,11 +3586,11 @@ private fun AlarmDiagnosticsDialog(onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
+            AppDialogPrimaryButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
         },
         dismissButton = {
             val current = report
-            AppOutlinedButton(
+            AppDialogSecondaryButton(
                 enabled = current != null,
                 onClick = {
                     val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
@@ -2831,10 +3617,17 @@ private data class AppPermissionState(
     val exactAlarm: Boolean,
     val fullScreenIntent: Boolean,
     val batteryOptimizationIgnored: Boolean,
+    val backgroundRestricted: Boolean?,
     val camera: Boolean,
     val installPackages: Boolean,
-    val miuiAutoStart: Boolean? = null,
-    val miuiBackgroundPopup: Boolean? = null,
+    val calendar: Boolean,
+    val overlay: Boolean,
+    val notificationPolicy: Boolean,
+    val islandSupported: Boolean,
+    val islandAllowed: Boolean?,
+    val miuiAutoStart: Boolean?,
+    val miuiBackgroundPopup: Boolean?,
+    val miuiShortcut: Boolean?,
 )
 
 private fun readPermissionState(context: Context): AppPermissionState {
@@ -2843,12 +3636,22 @@ private fun readPermissionState(context: Context): AppPermissionState {
         exactAlarm = canScheduleExactAlarms(context),
         fullScreenIntent = canUseFullScreenIntent(context),
         batteryOptimizationIgnored = isIgnoringBatteryOptimizations(context),
+        backgroundRestricted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            runCatching { context.getSystemService(ActivityManager::class.java)?.isBackgroundRestricted }.getOrNull()
+        } else null,
         camera = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED,
         installPackages = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
             context.packageManager.canRequestPackageInstalls(),
-        miuiAutoStart = com.x500x.cursimple.core.reminder.permission.MiuiPermissions.autoStart(context),
-        miuiBackgroundPopup = com.x500x.cursimple.core.reminder.permission.MiuiPermissions.backgroundStartActivity(context),
+        calendar = com.x500x.cursimple.app.util.SystemCalendarExporter.hasWritePermission(context),
+        overlay = Settings.canDrawOverlays(context),
+        notificationPolicy = context.getSystemService(android.app.NotificationManager::class.java)
+            ?.isNotificationPolicyAccessGranted == true,
+        islandSupported = ClassNoticeNotifier.islandAvailable(context),
+        islandAllowed = ClassNoticeNotifier.islandPermissionGranted(context),
+        miuiAutoStart = MiuiPermissions.autoStart(context),
+        miuiBackgroundPopup = MiuiPermissions.backgroundStartActivity(context),
+        miuiShortcut = MiuiPermissions.installShortcut(context),
     )
 }
 
@@ -2866,40 +3669,41 @@ private fun VendorKeepAliveGuide() {
         else -> R.string.settings_keepalive_guide_generic
     }
     val lastForceStop = remember { com.x500x.cursimple.app.reminder.ForceStopMonitor.lastForceStopAtMillis(context) }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    // Guidance sits outside the cards, like the other explanatory notes on settings pages.
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = stringResource(R.string.settings_keepalive_guide_title),
+            style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.5.sp),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = stringResource(guideRes),
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 17.sp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (lastForceStop != null) {
+            val whenText = java.time.Instant.ofEpochMilli(lastForceStop)
+                .atZone(java.time.ZoneId.systemDefault())
+                .format(java.time.format.DateTimeFormatter.ofPattern("M/d HH:mm"))
             Text(
-                text = stringResource(R.string.settings_keepalive_guide_title),
-                style = MaterialTheme.typography.titleSmall,
+                text = stringResource(R.string.settings_keepalive_force_stopped, whenText),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 17.sp),
+                color = MaterialTheme.colorScheme.error,
             )
-            Text(
-                text = stringResource(guideRes),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (lastForceStop != null) {
-                val whenText = java.time.Instant.ofEpochMilli(lastForceStop)
-                    .atZone(java.time.ZoneId.systemDefault())
-                    .format(java.time.format.DateTimeFormatter.ofPattern("M/d HH:mm"))
-                Text(
-                    text = stringResource(R.string.settings_keepalive_force_stopped, whenText),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
         }
     }
 }
 
 /** Recheck permissions on every foreground entry. */
 @Composable
-private fun rememberPermissionState(context: Context): AppPermissionState {
-    var state by remember { mutableStateOf(readPermissionState(context)) }
+private fun rememberPermissionState(context: Context, resultVersion: Int): AppPermissionState {
+    var state by remember(context, resultVersion) { mutableStateOf(readPermissionState(context)) }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner, resultVersion) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 state = readPermissionState(context)
@@ -2912,132 +3716,54 @@ private fun rememberPermissionState(context: Context): AppPermissionState {
 }
 
 @Composable
-private fun PermissionSummaryCard(missing: List<String>) {
-    val ok = missing.isEmpty()
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (ok) {
-                MaterialTheme.colorScheme.secondaryContainer
-            } else {
-                MaterialTheme.colorScheme.errorContainer
-            },
-        ),
-    ) {
-        val onColor = if (ok) {
-            MaterialTheme.colorScheme.onSecondaryContainer
-        } else {
-            MaterialTheme.colorScheme.onErrorContainer
-        }
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = if (ok) Icons.Rounded.CheckCircle else Icons.Rounded.Warning,
-                    contentDescription = null,
-                    tint = onColor,
-                    modifier = Modifier.size(22.dp),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = stringResource(
-                        if (ok) R.string.settings_permissions_all_ok_title else R.string.settings_alarm_warning_title,
-                    ),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = onColor,
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = stringResource(
-                    if (ok) R.string.settings_permissions_all_ok_body else R.string.settings_alarm_warning_body,
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = onColor,
-            )
-            missing.forEach { permission ->
-                Text(
-                    text = "\u2022 $permission",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = onColor,
-                )
-            }
-        }
-    }
-}
-
-/** A null [granted] means status is unavailable; require manual confirmation. */
-
-/** Unqueryable vendor permissions need user confirmation after visiting settings. */
-@Composable
-private fun VendorPermissionRow(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    acked: Boolean,
-    onOpen: () -> Unit,
-    onAckChange: (Boolean) -> Unit,
-) {
-    SettingsActionRow(
-        icon = icon,
-        title = title,
-        subtitle = if (acked) stringResource(R.string.settings_permission_vendor_acked) else subtitle,
-        onClick = onOpen,
-        trailing = {
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.settings_permission_vendor_ack_label),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Checkbox(checked = acked, onCheckedChange = onAckChange)
-            }
-        },
-    )
-}
-
-@Composable
 private fun PermissionRow(
     icon: ImageVector,
     title: String,
     granted: Boolean?,
-    offText: String,
-    onText: String,
+    purpose: String,
+    runtimeRequest: Boolean = false,
+    @androidx.annotation.StringRes statusOverride: Int? = null,
     onClick: () -> Unit,
 ) {
-    val container = when (granted) {
-        true -> MaterialTheme.colorScheme.secondaryContainer
-        false -> MaterialTheme.colorScheme.errorContainer
-        null -> MaterialTheme.colorScheme.surfaceVariant
-    }
-    val content = when (granted) {
-        true -> MaterialTheme.colorScheme.onSecondaryContainer
-        false -> MaterialTheme.colorScheme.onErrorContainer
-        null -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    val statusRes = when (granted) {
+    val statusRes = statusOverride ?: when (granted) {
         true -> R.string.settings_permission_status_on
         false -> R.string.settings_permission_status_off
         null -> R.string.settings_permission_status_unknown
     }
-    SettingsActionRow(
-        icon = icon,
-        title = title,
-        subtitle = if (granted == true) onText else offText,
-        onClick = onClick,
-        trailing = {
-            Surface(shape = RoundedCornerShape(50), color = container) {
-                Text(
-                    text = stringResource(statusRes),
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = content,
-                )
+    val actionRes = when {
+        granted == true -> R.string.permissions_action_manage
+        runtimeRequest -> R.string.permissions_action_grant
+        else -> R.string.permissions_action_settings
+    }
+    val action = stringResource(actionRes)
+    val actionDescription = stringResource(R.string.permissions_action_description, title, action)
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SettingsRowIcon(icon)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                SettingsRowTitle(title)
+                Text(purpose, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        },
-    )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SettingsRowValue(stringResource(statusRes), highlighted = granted == true)
+            Spacer(Modifier.weight(1f))
+            AppOutlinedButton(
+                onClick = onClick,
+                modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = actionDescription },
+            ) { Text(action) }
+        }
+    }
 }
 
 private fun ScheduleTextStylePreferences.resolvedHeaderTextColorArgb(
@@ -3072,7 +3798,7 @@ private fun ScheduleTextStylePreferences.resolvedTodayHeaderBackgroundColorArgb(
 private fun backgroundSubtitle(background: ScheduleBackgroundPreferences): String = when (background.type) {
     ScheduleBackgroundType.Color -> stringResource(
         R.string.settings_background_summary_color,
-        formatArgb(background.colorArgb),
+        formatRgbHex(background.colorArgb.toInt()),
     )
     ScheduleBackgroundType.Image -> if (background.imageUri != null) {
         stringResource(R.string.settings_background_summary_image)
@@ -3121,12 +3847,15 @@ internal fun AlarmNumberSettingRow(
     step: Int,
     onValueChange: (Int) -> Unit,
     editable: Boolean = false,
+    /** Keeps the icon column aligned with switch/action rows sharing the card. */
+    icon: ImageVector? = null,
 ) {
     var editing by remember { mutableStateOf(false) }
     if (editing) {
         NumberInputDialog(
             title = title,
             unit = unit,
+            icon = icon,
             initial = value,
             min = min,
             max = max,
@@ -3137,15 +3866,21 @@ internal fun AlarmNumberSettingRow(
             onDismiss = { editing = false },
         )
     }
+    // Inside a card the row is transparent so the card draws the surface and dividers.
+    val inCard = LocalSettingsRowInCard.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(12.dp),
+        color = if (inCard) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(if (inCard) 0.dp else 12.dp),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         ) {
+            if (icon != null) {
+                SettingsRowIcon(icon)
+                Spacer(modifier = Modifier.width(14.dp))
+            }
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -3159,8 +3894,12 @@ internal fun AlarmNumberSettingRow(
             ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
+                    style = if (inCard) {
+                        MaterialTheme.typography.titleSmall.copy(lineHeight = 18.sp, letterSpacing = 0.sp)
+                    } else {
+                        MaterialTheme.typography.bodyLarge
+                    },
+                    fontWeight = if (inCard) FontWeight.Bold else FontWeight.SemiBold,
                 )
                 Text(
                     text = if (editable) {
@@ -3168,25 +3907,58 @@ internal fun AlarmNumberSettingRow(
                     } else {
                         "$value $unit"
                     },
-                    style = MaterialTheme.typography.bodySmall,
+                    modifier = if (inCard) Modifier.padding(top = 2.dp) else Modifier,
+                    style = if (inCard) {
+                        MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 16.5.sp)
+                    } else {
+                        MaterialTheme.typography.bodySmall
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            AppOutlinedButton(
+            StepChip(
+                icon = Icons.Rounded.Remove,
+                contentDescription = stringResource(R.string.settings_value_decrease),
                 enabled = value > min,
                 onClick = { onValueChange((value - step).coerceAtLeast(min)) },
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-            ) {
-                Text("-")
-            }
+            )
             Spacer(modifier = Modifier.width(8.dp))
-            AppOutlinedButton(
+            StepChip(
+                icon = Icons.Rounded.Add,
+                contentDescription = stringResource(R.string.settings_value_increase),
                 enabled = value < max,
                 onClick = { onValueChange((value + step).coerceAtMost(max)) },
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-            ) {
-                Text("+")
-            }
+            )
+        }
+    }
+}
+
+/** 44x36 stepper chip matching the reminder design's pill controls. */
+@Composable
+private fun StepChip(
+    icon: ImageVector,
+    contentDescription: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(18.dp),
+        color = if (enabled) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        },
+        contentColor = if (enabled) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        },
+        modifier = Modifier.size(width = 44.dp, height = 36.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(imageVector = icon, contentDescription = contentDescription, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -3198,6 +3970,7 @@ internal fun AlarmNumberSettingRow(
 private fun NumberInputDialog(
     title: String,
     unit: String,
+    icon: ImageVector?,
     initial: Int,
     min: Int,
     max: Int,
@@ -3208,12 +3981,13 @@ private fun NumberInputDialog(
     val parsed = text.trim().toIntOrNull()
     val valid = parsed != null && parsed in min..max
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(icon ?: Icons.Rounded.Info, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(title) },
         text = {
             Column {
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = text,
                     onValueChange = { input ->
                         text = input.map { ch ->
@@ -3238,12 +4012,12 @@ private fun NumberInputDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(enabled = valid, onClick = { onConfirm(parsed!!) }) {
+            AppDialogPrimaryButton(enabled = valid, onClick = { onConfirm(parsed!!) }) {
                 Text(stringResource(R.string.settings_number_confirm))
             }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) {
+            AppDialogSecondaryButton(onClick = onDismiss) {
                 Text(stringResource(R.string.settings_cancel))
             }
         },
@@ -3298,27 +4072,33 @@ private fun WebDavAutoBackupPanel(configComplete: Boolean) {
     var running by rememberSaveable { mutableStateOf(false) }
     Column(
         modifier = Modifier.testTag("webdav-auto-backup"),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        SettingsSwitchRow(
-            icon = Icons.Rounded.Storage,
-            title = stringResource(R.string.webdav_auto_title),
-            subtitle = stringResource(R.string.webdav_auto_subtitle),
-            checked = settings.enabled,
-            onCheckedChange = { on ->
-                scope.launch { store.setEnabled(on) }
-                com.x500x.cursimple.app.webdav.WebDavAutoBackupWorker.apply(context, on, runNow = on && configComplete)
-            },
-        )
+        SettingsCard {
+            SettingsSwitchRow(
+                icon = Icons.Rounded.Storage,
+                title = stringResource(R.string.webdav_auto_title),
+                subtitle = stringResource(R.string.webdav_auto_subtitle),
+                checked = settings.enabled,
+                onCheckedChange = { on ->
+                    scope.launch { store.setEnabled(on) }
+                    com.x500x.cursimple.app.webdav.WebDavAutoBackupWorker.apply(context, on, runNow = on && configComplete)
+                },
+            )
+            SettingsReveal(settings.enabled) {
+                NumberStepperRow(
+                    title = stringResource(R.string.webdav_auto_keep),
+                    value = settings.keep,
+                    unit = "",
+                    min = com.x500x.cursimple.app.webdav.WebDavAutoBackupSettings.MIN_KEEP,
+                    max = com.x500x.cursimple.app.webdav.WebDavAutoBackupSettings.MAX_KEEP,
+                    step = 1,
+                    onValueChange = { keep -> scope.launch { store.setKeep(keep) } },
+                    icon = Icons.Rounded.History,
+                )
+            }
+        }
         if (settings.enabled) {
-            NumberStepperRow(
-                stringResource(R.string.webdav_auto_keep),
-                settings.keep,
-                "",
-                com.x500x.cursimple.app.webdav.WebDavAutoBackupSettings.MIN_KEEP,
-                com.x500x.cursimple.app.webdav.WebDavAutoBackupSettings.MAX_KEEP,
-                1,
-            ) { keep -> scope.launch { store.setKeep(keep) } }
             Text(
                 text = when {
                     settings.lastError.isNotBlank() -> stringResource(R.string.webdav_auto_last_error, settings.lastError)
@@ -3329,9 +4109,13 @@ private fun WebDavAutoBackupPanel(configComplete: Boolean) {
                     )
                     else -> stringResource(R.string.webdav_auto_never)
                 },
-                style = MaterialTheme.typography.bodySmall,
-                color = if (settings.lastError.isNotBlank()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 4.dp).testTag("webdav-auto-status"),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 17.25.sp),
+                color = if (settings.lastError.isNotBlank()) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.padding(horizontal = 6.dp).testTag("webdav-auto-status"),
             )
             AppOutlinedButton(
                 enabled = !running && configComplete,
@@ -3357,12 +4141,7 @@ private fun WebDavAutoBackupPanel(configComplete: Boolean) {
                 Text(stringResource(if (running) R.string.webdav_auto_running else R.string.webdav_auto_now))
             }
             if (!configComplete) {
-                Text(
-                    text = stringResource(R.string.webdav_auto_need_config),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                )
+                SettingsHintText(stringResource(R.string.webdav_auto_need_config))
             }
         }
     }
@@ -3385,22 +4164,22 @@ private fun WebDavSettingsSection(
     var testing by rememberSaveable { mutableStateOf(false) }
 
     SettingsEditorPanel(title = stringResource(R.string.settings_webdav_panel_title)) {
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = urlDraft,
             onValueChange = { urlDraft = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            label = { Text("URL") },
+            label = { Text(stringResource(R.string.settings_webdav_url_label)) },
             placeholder = { Text(stringResource(R.string.settings_webdav_url_placeholder)) },
         )
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = usernameDraft,
             onValueChange = { usernameDraft = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             label = { Text(stringResource(R.string.settings_account)) },
         )
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = passwordDraft,
             onValueChange = { passwordDraft = it },
             modifier = Modifier.fillMaxWidth(),
@@ -3477,25 +4256,25 @@ private fun AiImportSettingsSection(
         mutableStateOf(coerceAiImportTimeoutSeconds(timeoutSeconds).toString())
     }
 
-    SettingsEditorPanel(title = stringResource(R.string.settings_dest_ai_import)) {
-        OutlinedTextField(
+    SettingsEditorPanel(title = stringResource(R.string.settings_ai_import_panel_title)) {
+        AppOutlinedTextField(
             value = apiUrlDraft,
             onValueChange = { apiUrlDraft = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            label = { Text("API URL") },
+            label = { Text(stringResource(R.string.settings_ai_import_api_url_label)) },
             placeholder = { Text("https://api.openai.com/v1/chat/completions") },
             supportingText = { Text(stringResource(R.string.settings_ai_import_url_hint)) },
         )
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = apiKeyDraft,
             onValueChange = { apiKeyDraft = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            label = { Text("Key") },
+            label = { Text(stringResource(R.string.settings_ai_import_key_label)) },
             placeholder = { Text("sk-...") },
         )
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = modelDraft,
             onValueChange = { modelDraft = it },
             modifier = Modifier.fillMaxWidth(),
@@ -3503,7 +4282,7 @@ private fun AiImportSettingsSection(
             label = { Text(stringResource(R.string.settings_ai_import_model_label)) },
             placeholder = { Text("gpt-4o-mini") },
         )
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = timeoutDraft,
             onValueChange = { timeoutDraft = it.filter(Char::isDigit).take(3) },
             modifier = Modifier.fillMaxWidth(),
@@ -3548,19 +4327,19 @@ private fun SettingsEditorPanel(
     title: String,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(12.dp),
-    ) {
+    SettingsCard(dividerStart = 16.dp) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
+                    letterSpacing = 0.sp,
+                ),
+                fontWeight = FontWeight.Bold,
             )
             content()
         }
@@ -3840,8 +4619,9 @@ private fun LogCategoriesDialog(
     onToggle: (LogCategory, Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.BugReport, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.settings_dev_log_categories_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -3872,7 +4652,7 @@ private fun LogCategoriesDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
+            AppDialogPrimaryButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
         },
     )
 }
@@ -3966,17 +4746,18 @@ private fun ForcedTimePickerDialog(
         initialMinute = initial.minute,
         is24Hour = true,
     )
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.AccessTime, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.settings_dev_time_picker_title)) },
         text = { TimePicker(state = state) },
         confirmButton = {
-            AppOutlinedButton(onClick = { onConfirm(LocalTime.of(state.hour, state.minute)) }) {
+            AppDialogPrimaryButton(onClick = { onConfirm(LocalTime.of(state.hour, state.minute)) }) {
                 Text(stringResource(R.string.settings_confirm))
             }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }
@@ -4010,62 +4791,39 @@ internal fun SettingsActionRow(
     if (LocalSettingsRowAsTile.current) {
         SettingsQuickTile(
             tile = SettingsQuickTileSpec(icon, title, subtitle, click, active = tileActive),
-            valueMaxLines = 2,
+            // At large text two columns still need more than two lines for the longer subtitles.
+            valueMaxLines = if (LocalDensity.current.fontScale > LARGE_TEXT_FONT_SCALE) Int.MAX_VALUE else 2,
             modifier = Modifier.settingsQuickDragSource(quickId),
         )
         return
     }
     val inCard = LocalSettingsRowInCard.current
-    val shape = if (inCard) RectangleShape else RoundedCornerShape(12.dp)
+    val shape = if (inCard) RectangleShape else RoundedCornerShape(16.dp)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .settingsQuickDragSource(quickId)
             .clip(shape)
             .clickable(onClick = click),
-        color = if (inCard) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        color = if (inCard) Color.Transparent else MaterialTheme.colorScheme.surface,
         shape = shape,
+        border = if (inCard) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
+            SettingsRowIcon(icon)
             Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                SettingsRowTitle(title)
+                SettingsRowSubtitle(subtitle)
             }
             if (trailing != null) {
+                Spacer(modifier = Modifier.width(8.dp))
                 trailing()
             } else {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                    modifier = Modifier.size(20.dp),
-                )
+                SettingsRowChevron()
             }
         }
     }
@@ -4080,7 +4838,7 @@ internal fun SettingsSwitchRow(
     onCheckedChange: (Boolean) -> Unit,
 ) {
     val inCard = LocalSettingsRowInCard.current
-    val shape = if (inCard) RectangleShape else RoundedCornerShape(12.dp)
+    val shape = if (inCard) RectangleShape else RoundedCornerShape(16.dp)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -4090,49 +4848,102 @@ internal fun SettingsSwitchRow(
                 role = Role.Switch,
                 onValueChange = onCheckedChange,
             ),
-        color = if (inCard) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        color = if (inCard) Color.Transparent else MaterialTheme.colorScheme.surface,
         shape = shape,
+        border = if (inCard) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(
-                        if (checked) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                        else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
+            // State is carried by the switch; the tile keeps the design's pale chip.
+            SettingsRowIcon(icon)
             Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                SettingsRowTitle(title)
+                SettingsRowSubtitle(subtitle)
             }
+            Spacer(modifier = Modifier.width(8.dp))
             Switch(
                 checked = checked,
                 onCheckedChange = null,
             )
         }
     }
+}
+
+/** 40dp rounded-square icon chip shared by every settings row. */
+@Composable
+private fun SettingsRowIcon(icon: ImageVector) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.primaryContainer),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+@Composable
+private fun SettingsRowTitle(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleSmall.copy(lineHeight = 18.sp, letterSpacing = 0.sp),
+        fontWeight = FontWeight.Bold,
+    )
+}
+
+@Composable
+private fun SettingsRowSubtitle(subtitle: String) {
+    Text(
+        text = subtitle,
+        modifier = Modifier.padding(top = 2.dp),
+        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 16.5.sp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun SettingsRowChevron() {
+    Icon(
+        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+        modifier = Modifier.size(18.dp),
+    )
+}
+
+/** Compact state value at the end of a row, e.g. "Not needed" or "Idle". */
+@Composable
+private fun SettingsRowValue(text: String, highlighted: Boolean = false) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
+        fontWeight = FontWeight.Bold,
+        color = if (highlighted) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        modifier = Modifier
+            .background(
+                color = if (highlighted) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant
+                },
+                shape = RoundedCornerShape(12.dp),
+            )
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        maxLines = 1,
+    )
 }
 
 @Composable
@@ -4244,81 +5055,51 @@ private fun Context.holidaySyncMessage(outcomes: List<HolidaySyncOutcome>): Stri
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun WeekStartDayRow(selected: WeekStartDay, onSelect: (WeekStartDay) -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+private fun WeekStartDayRow(selected: WeekStartDay, onSelect: (WeekStartDay) -> Unit, icon: ImageVector? = null) {
+    SettingsControlSurface(icon = icon) {
+        SettingsControlHeading(
+            title = stringResource(R.string.settings_display_week_start_title),
+            subtitle = stringResource(R.string.settings_display_week_start_subtitle),
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                text = stringResource(R.string.settings_display_week_start_title),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = stringResource(R.string.settings_display_week_start_subtitle),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                WeekStartDay.entries.forEach { day ->
-                    val label = when (day) {
-                        WeekStartDay.Monday -> R.string.settings_display_week_start_monday
-                        WeekStartDay.Sunday -> R.string.settings_display_week_start_sunday
-                    }
-                    if (day == selected) {
-                        Button(onClick = { onSelect(day) }) {
-                            Text(stringResource(label), maxLines = 2)
-                        }
-                    } else {
-                        AppOutlinedButton(onClick = { onSelect(day) }) {
-                            Text(stringResource(label), maxLines = 2)
-                        }
-                    }
+            WeekStartDay.entries.forEach { day ->
+                val label = when (day) {
+                    WeekStartDay.Monday -> R.string.settings_display_week_start_monday
+                    WeekStartDay.Sunday -> R.string.settings_display_week_start_sunday
                 }
+                SettingsOptionChip(
+                    text = stringResource(label),
+                    selected = day == selected,
+                    onClick = { onSelect(day) },
+                )
             }
         }
     }
 }
 
-/** Preview background opacity and course readability at timetable proportions. */
-@Composable
-private fun ScheduleBackgroundPreview(
-    scheduleBackground: ScheduleBackgroundPreferences,
-    scheduleCardStyle: ScheduleCardStylePreferences,
-    scheduleTextStyle: ScheduleTextStylePreferences,
-    scheduleDisplay: ScheduleDisplayPreferences,
-    customColorsAdaptToTheme: Boolean,
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.settings_background_preview_title),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold,
-        )
-        // The real timetable with sample courses, so background, cards and text read exactly as they will.
-        ScheduleAppearancePreview(
-            scheduleTextStyle = scheduleTextStyle,
-            scheduleCardStyle = scheduleCardStyle,
-            scheduleBackground = scheduleBackground,
-            scheduleDisplay = scheduleDisplay,
-            customColorsAdaptToTheme = customColorsAdaptToTheme,
-            maxSlots = 4,
-            maxHeight = 240.dp,
-            modifier = Modifier.testTag("settings-background-preview"),
-        )
-    }
+/** Style pages that keep the live timetable preview pinned above the content. */
+private fun SettingsDestination.showsSchedulePreview(): Boolean = when (this) {
+    SettingsDestination.ScheduleAppearance,
+    SettingsDestination.StyleCards,
+    SettingsDestination.StyleCourseText,
+    SettingsDestination.StyleHeader,
+    SettingsDestination.StyleAlignment,
+    SettingsDestination.StyleExamText,
+    SettingsDestination.StyleGrid,
+    SettingsDestination.StyleColorAdapt,
+    SettingsDestination.ScheduleBackground,
+    // Display pages change periods, cell contents and the time column, so they preview too.
+    SettingsDestination.ScheduleDisplay,
+    SettingsDestination.DisplayLayout,
+    SettingsDestination.DisplayCellInfo,
+    SettingsDestination.DisplayGridTime,
+    SettingsDestination.DisplayInteraction,
+    SettingsDestination.DisplayStats,
+    -> true
+    else -> false
 }
 
 @Composable
@@ -4327,83 +5108,35 @@ private fun CoursePaletteStyleSelector(
     onSelect: (CoursePaletteStyle) -> Unit,
     isDark: Boolean,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.settings_course_palette_title),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-
-        val styles = listOf(
-            CoursePaletteStyle.Default to R.string.settings_course_palette_default,
-            CoursePaletteStyle.Morandi to R.string.settings_course_palette_morandi,
-            CoursePaletteStyle.Macaron to R.string.settings_course_palette_macaron,
-            CoursePaletteStyle.Vibrant to R.string.settings_course_palette_vibrant,
-            CoursePaletteStyle.Vintage to R.string.settings_course_palette_vintage,
-        )
-
+    val styles = listOf(
+        CoursePaletteStyle.Default to R.string.settings_course_palette_default,
+        CoursePaletteStyle.Morandi to R.string.settings_course_palette_morandi,
+        CoursePaletteStyle.Macaron to R.string.settings_course_palette_macaron,
+        CoursePaletteStyle.Vibrant to R.string.settings_course_palette_vibrant,
+        CoursePaletteStyle.Vintage to R.string.settings_course_palette_vintage,
+    )
+    SettingsOptionCard(stringResource(R.string.settings_course_palette_title)) {
         styles.forEach { (style, labelRes) ->
-            val isSelected = currentStyle == style
             val palette = remember(style, isDark) { coursePaletteForStyle(style, isDark) }
-
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = if (isSelected) {
-                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
-                },
-                border = BorderStroke(
-                    width = if (isSelected) 1.5.dp else 1.dp,
-                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onSelect(style) },
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        RadioButton(
-                            selected = isSelected,
-                            onClick = { onSelect(style) },
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Text(
-                            text = stringResource(labelRes),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            SettingsRadioRow(
+                title = stringResource(labelRes),
+                subtitle = null,
+                selected = currentStyle == style,
+                onSelect = { onSelect(style) },
+                trailing = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         palette.take(6).forEach { entry ->
                             Box(
                                 modifier = Modifier
                                     .size(18.dp)
                                     .clip(CircleShape)
                                     .background(entry.container)
-                                    .border(0.5.dp, entry.onContainer.copy(alpha = 0.3f), CircleShape),
+                                    .border(0.5.dp, entry.onContainer.copy(alpha = 0.28f), CircleShape),
                             )
                         }
                     }
-                }
-            }
+                },
+            )
         }
     }
 }
@@ -4532,12 +5265,7 @@ private fun WidgetBackgroundPreview(widgetThemePreferences: WidgetThemePreferenc
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(
-            text = stringResource(R.string.settings_background_preview_title),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold,
-        )
+        SettingsSectionHeader(stringResource(R.string.settings_background_preview_title))
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -4577,48 +5305,69 @@ private fun transparencyToAlpha(percent: Int): Float = 1f - (percent.coerceIn(0,
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun RowFitModeRow(selected: ScheduleRowFitMode, onSelect: (ScheduleRowFitMode) -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+private fun RowFitModeRow(
+    selected: ScheduleRowFitMode,
+    onSelect: (ScheduleRowFitMode) -> Unit,
+    icon: ImageVector? = null,
+) {
+    val autoScrolling by com.x500x.cursimple.feature.schedule.ScheduleOverflowState.autoScrolling.collectAsState()
+    SettingsControlSurface(icon = icon) {
+        SettingsControlHeading(
+            title = stringResource(R.string.settings_display_row_fit_title),
+            subtitle = stringResource(R.string.settings_display_row_fit_subtitle),
+            trailing = if (selected == ScheduleRowFitMode.Fit && autoScrolling) {
+                {
+                    Text(
+                        text = stringResource(R.string.settings_display_row_fit_auto_scrolling),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            } else {
+                null
+            },
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                text = stringResource(R.string.settings_display_row_fit_title),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = stringResource(R.string.settings_display_row_fit_subtitle),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            val autoScrolling by com.x500x.cursimple.feature.schedule.ScheduleOverflowState.autoScrolling.collectAsState()
-            if (selected == ScheduleRowFitMode.Fit && autoScrolling) {
-                Text(
-                    text = stringResource(R.string.settings_display_row_fit_auto_scrolling),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
+            listOf(
+                ScheduleRowFitMode.Fit to R.string.settings_display_row_fit_fit,
+                ScheduleRowFitMode.Scroll to R.string.settings_display_row_fit_scroll,
+            ).forEach { (mode, label) ->
+                SettingsOptionChip(
+                    text = stringResource(label),
+                    selected = mode == selected,
+                    onClick = { onSelect(mode) },
                 )
             }
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                listOf(
-                    ScheduleRowFitMode.Fit to R.string.settings_display_row_fit_fit,
-                    ScheduleRowFitMode.Scroll to R.string.settings_display_row_fit_scroll,
-                ).forEach { (mode, label) ->
-                    if (mode == selected) {
-                        Button(onClick = { onSelect(mode) }) { Text(stringResource(label), maxLines = 1) }
-                    } else {
-                        AppOutlinedButton(onClick = { onSelect(mode) }) { Text(stringResource(label), maxLines = 1) }
-                    }
-                }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun InactiveCourseModeSelectorRow(
+    mode: com.x500x.cursimple.core.data.InactiveCourseDisplayMode,
+    onSelect: (com.x500x.cursimple.core.data.InactiveCourseDisplayMode) -> Unit,
+    icon: ImageVector? = null,
+) {
+    SettingsControlSurface(icon = icon) {
+        SettingsControlHeading(title = stringResource(R.string.settings_inactive_course_mode_title))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            listOf(
+                com.x500x.cursimple.core.data.InactiveCourseDisplayMode.Dimmed to R.string.settings_inactive_course_mode_dimmed,
+                com.x500x.cursimple.core.data.InactiveCourseDisplayMode.Hidden to R.string.settings_inactive_course_mode_hidden,
+                com.x500x.cursimple.core.data.InactiveCourseDisplayMode.Outline to R.string.settings_inactive_course_mode_outline,
+            ).forEach { (itemMode, label) ->
+                SettingsOptionChip(
+                    text = stringResource(label),
+                    selected = itemMode == mode,
+                    onClick = { onSelect(itemMode) },
+                )
             }
         }
     }
@@ -4629,36 +5378,24 @@ private fun RowFitModeRow(selected: ScheduleRowFitMode, onSelect: (ScheduleRowFi
 private fun WidgetThemeModeRow(
     selected: WidgetThemeMode,
     onSelect: (WidgetThemeMode) -> Unit,
+    icon: ImageVector? = null,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+    SettingsControlSurface(icon = icon) {
+        SettingsControlHeading(title = stringResource(R.string.widget_theme_mode_title))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                text = stringResource(R.string.widget_theme_mode_title),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                listOf(
-                    WidgetThemeMode.System to R.string.widget_theme_mode_system,
-                    WidgetThemeMode.Light to R.string.widget_theme_mode_light,
-                    WidgetThemeMode.Dark to R.string.widget_theme_mode_dark,
-                ).forEach { (mode, label) ->
-                    if (mode == selected) {
-                        Button(onClick = { onSelect(mode) }) { Text(stringResource(label), maxLines = 1) }
-                    } else {
-                        AppOutlinedButton(onClick = { onSelect(mode) }) { Text(stringResource(label), maxLines = 1) }
-                    }
-                }
+            listOf(
+                WidgetThemeMode.System to R.string.widget_theme_mode_system,
+                WidgetThemeMode.Light to R.string.widget_theme_mode_light,
+                WidgetThemeMode.Dark to R.string.widget_theme_mode_dark,
+            ).forEach { (mode, label) ->
+                SettingsOptionChip(
+                    text = stringResource(label),
+                    selected = mode == selected,
+                    onClick = { onSelect(mode) },
+                )
             }
         }
     }
@@ -4670,46 +5407,32 @@ private fun VisibleDaysRow(
     saturdayVisible: Boolean,
     weekendVisible: Boolean,
     onSelect: (Int) -> Unit,
+    icon: ImageVector? = null,
 ) {
     val selected = when {
         weekendVisible -> 7
         saturdayVisible -> 6
         else -> 5
     }
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+    SettingsControlSurface(icon = icon) {
+        SettingsControlHeading(
+            title = stringResource(R.string.settings_display_days_title),
+            subtitle = stringResource(R.string.settings_display_days_subtitle),
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                text = stringResource(R.string.settings_display_days_title),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = stringResource(R.string.settings_display_days_subtitle),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                listOf(
-                    5 to R.string.settings_display_days_five,
-                    6 to R.string.settings_display_days_six,
-                    7 to R.string.settings_display_days_seven,
-                ).forEach { (days, label) ->
-                    if (days == selected) {
-                        Button(onClick = { onSelect(days) }) { Text(stringResource(label), maxLines = 1) }
-                    } else {
-                        AppOutlinedButton(onClick = { onSelect(days) }) { Text(stringResource(label), maxLines = 1) }
-                    }
-                }
+            listOf(
+                5 to R.string.settings_display_days_five,
+                6 to R.string.settings_display_days_six,
+                7 to R.string.settings_display_days_seven,
+            ).forEach { (days, label) ->
+                SettingsOptionChip(
+                    text = stringResource(label),
+                    selected = days == selected,
+                    onClick = { onSelect(days) },
+                )
             }
         }
     }
@@ -4720,11 +5443,12 @@ private const val SCHEDULE_BACKGROUND_FRAME_ASPECT = 0.62f
 private const val WIDGET_BACKGROUND_FRAME_ASPECT = 2.0f
 
 @Composable
-private fun SettingsHintText(text: String) {
+internal fun SettingsHintText(text: String) {
+    // Explanatory note under a card: smaller than row text, aligned with the card's own padding.
     Text(
         text = text,
-        modifier = Modifier.padding(horizontal = 14.dp),
-        style = MaterialTheme.typography.labelSmall,
+        modifier = Modifier.padding(horizontal = 6.dp),
+        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 17.25.sp),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
@@ -4847,8 +5571,9 @@ internal fun ClassNoticeDiagnosticsDialog(preferences: ClassNoticePreferences, o
             }
         }
     }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.BugReport, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.settings_dev_notice_diagnostics_title)) },
         text = {
             Column(
@@ -4876,11 +5601,11 @@ internal fun ClassNoticeDiagnosticsDialog(preferences: ClassNoticePreferences, o
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
+            AppDialogPrimaryButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
         },
         dismissButton = {
             val current = lines
-            AppOutlinedButton(
+            AppDialogSecondaryButton(
                 enabled = current != null,
                 onClick = {
                     val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)

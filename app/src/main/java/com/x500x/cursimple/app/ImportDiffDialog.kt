@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
@@ -25,7 +26,6 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,6 +42,12 @@ import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.R
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.feature.schedule.ScheduleImportDiff
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Merge
 
 /** Preview import differences before replacing a timetable or creating a separate term. */
 @Composable
@@ -56,11 +62,12 @@ fun ImportDiffDialog(
     var termName by remember(suggestedTermName) { mutableStateOf(suggestedTermName) }
 
     if (namingNewTerm) {
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { namingNewTerm = false },
+            icon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = null, modifier = Modifier.size(22.dp)) },
             title = { Text(stringResource(R.string.import_diff_new_term_title)) },
             text = {
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = termName,
                     onValueChange = { termName = it },
                     singleLine = true,
@@ -69,7 +76,7 @@ fun ImportDiffDialog(
                 )
             },
             confirmButton = {
-                AppOutlinedButton(
+                AppDialogPrimaryButton(
                     enabled = termName.isNotBlank(),
                     onClick = {
                         namingNewTerm = false
@@ -78,7 +85,7 @@ fun ImportDiffDialog(
                 ) { Text(stringResource(R.string.import_diff_new_term_confirm)) }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = { namingNewTerm = false }) {
+                AppDialogSecondaryButton(onClick = { namingNewTerm = false }) {
                     Text(stringResource(R.string.import_diff_cancel))
                 }
             },
@@ -86,8 +93,10 @@ fun ImportDiffDialog(
         return
     }
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        tone = AppDialogTone.Warning,
+        icon = { Icon(Icons.Rounded.Merge, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.import_diff_title)) },
         text = {
             Column(
@@ -125,16 +134,16 @@ fun ImportDiffDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = { namingNewTerm = true }) {
+            AppDialogPrimaryButton(onClick = { namingNewTerm = true }) {
                 Text(stringResource(R.string.import_diff_new_term))
             }
         },
         dismissButton = {
             Row {
-                AppOutlinedButton(onClick = onDismiss) {
+                AppDialogSecondaryButton(onClick = onDismiss) {
                     Text(stringResource(R.string.import_diff_cancel))
                 }
-                AppOutlinedButton(onClick = onOverwrite) {
+                AppDialogSecondaryButton(onClick = onOverwrite) {
                     Text(
                         text = stringResource(R.string.import_diff_overwrite),
                         color = MaterialTheme.colorScheme.error,

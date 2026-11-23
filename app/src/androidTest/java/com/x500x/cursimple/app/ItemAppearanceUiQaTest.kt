@@ -64,6 +64,7 @@ class ItemAppearanceUiQaTest {
         showAdd(onSave = { saved = it })
         title("深色课")
         compose.onNodeWithTag("course-weeks-fill-term").performClick()
+        clickTag("course-day-1")
         compose.onNodeWithTag("item-appearance-section").performScrollTo().assertIsDisplayed()
         clickTag("appearance-fill-1E3A5F")
         clickTag("appearance-blend-switch")
@@ -83,6 +84,7 @@ class ItemAppearanceUiQaTest {
         showAdd(onSave = { saved = it })
         title("自定义")
         compose.onNodeWithTag("course-weeks-fill-term").performClick()
+        clickTag("course-day-1")
         clickTag("appearance-fill-custom")
         compose.onNodeWithTag("color-picker-hex").performTextReplacement("#336699")
         compose.onNodeWithTag("color-picker-confirm").performClick()
@@ -144,6 +146,7 @@ class ItemAppearanceUiQaTest {
         showAdd(onSave = { saved = it }, dark = true, fontScale = 1.3f)
         title("深色大字")
         compose.onNodeWithTag("course-weeks-fill-term").performClick()
+        clickTag("course-day-1")
         compose.onNodeWithTag("item-appearance-section").performScrollTo().assertIsDisplayed()
         clickTag("appearance-preset-4")
         Thread.sleep(300)
@@ -166,6 +169,7 @@ class ItemAppearanceUiQaTest {
             }
         }
         compose.onNodeWithTag("course-weeks-fill-term").performClick()
+        clickTag("course-day-1")
         title("高等数学")
         compose.waitForIdle()
         compose.onNodeWithTag("add-course-save").performClick()

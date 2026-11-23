@@ -67,15 +67,15 @@ class WeekPickerTotalWeeksTest {
     }
 
     @Test
-    fun `当前周比课程周次还靠后时总周数跟着当前周走`() {
-        // The picker must retain access to the current week even beyond course coverage.
+    fun `当前日期超出课程范围不会扩大学期`() {
+        // Calendar time is not evidence of a longer teaching term.
         val derived = derivedWeekCount(
             schedule = schedule(course(listOf(1, 16))),
             manualCourses = emptyList(),
-            currentWeek = 20,
+            currentWeek = 45,
         )
 
-        assertEquals(20, derived)
+        assertEquals(16, derived)
     }
 
     @Test

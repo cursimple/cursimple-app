@@ -70,6 +70,13 @@ class WidgetRefreshBoundariesTest {
     }
 
     @Test
+    fun `an installed capsule adds a refresh at the warning threshold`() {
+        val slots = listOf(slot("08:00", "09:40"))
+        assertTrue(at(7, 50) in widgetRefreshBoundaries(slots, at(7, 0), includeCapsuleWarning = true))
+        assertTrue(at(7, 50) !in widgetRefreshBoundaries(slots, at(7, 0)))
+    }
+
+    @Test
     fun `results come out in time order`() {
         val result = widgetRefreshBoundaries(
             listOf(slot("10:00", "11:40", node = 2), slot("08:00", "09:40")),

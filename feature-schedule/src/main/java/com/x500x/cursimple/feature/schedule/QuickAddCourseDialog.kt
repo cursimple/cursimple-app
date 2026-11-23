@@ -71,6 +71,7 @@ fun QuickAddCourseDialog(
     onDismiss: () -> Unit,
     onConfirm: (CourseItem) -> Unit,
     onConfirmEvent: ((ScheduleEvent) -> Unit)? = null,
+    onConfirmBatch: (List<CourseItem>) -> Unit = { courses -> courses.forEach(onConfirm) },
 ) {
     var scheduleType by rememberSaveable { mutableStateOf(ScheduleItemType.Course) }
     val isEventMode = scheduleType == ScheduleItemType.Event && onConfirmEvent != null
@@ -93,12 +94,25 @@ fun QuickAddCourseDialog(
     var pickingWeeks by rememberSaveable { mutableStateOf(false) }
     var category by rememberSaveable { mutableStateOf(CourseCategory.Course) }
     var byClock by rememberSaveable { mutableStateOf(false) }
+    val periods = remember(slotTimes, endNode) { coursePeriodSlots(slotTimes, maxOf(8, endNode)) }
+    var selectedStartNode by rememberSaveable(startNode) { mutableIntStateOf(startNode) }
+    var selectedEndNode by rememberSaveable(endNode) { mutableIntStateOf(endNode) }
+    var selectedDays by rememberSaveable(dayOfWeek) { mutableStateOf(listOf(dayOfWeek)) }
+    val zone = LocalAppZone.current
+    val eventDateDefault = remember(defaultDate, dayOfWeek, zone) {
+        defaultDate ?: zone.today().let { today ->
+            today.plusDays(Math.floorMod(dayOfWeek - today.dayOfWeek.value, 7).toLong())
+        }
+    }
+    var byDate by rememberSaveable { mutableStateOf(false) }
+    var pickedDates by rememberSaveable { mutableStateOf(emptyList<LocalDate>()) }
     val tappedClock = remember(slotTimes, startNode, endNode) { clockForNodes(slotTimes, startNode, endNode) }
     var clockStart by rememberSaveable { mutableIntStateOf(tappedClock?.first ?: DEFAULT_CLOCK_START) }
     var clockEnd by rememberSaveable { mutableIntStateOf(tappedClock?.second ?: (DEFAULT_CLOCK_START + DEFAULT_CLOCK_LENGTH)) }
     // Typed times move the course to the periods they overlap; the tapped cell is only the default.
     val clockValid = clockEnd > clockStart
-    val nodes = (if (byClock && clockValid) nodesForClock(slotTimes, clockStart, clockEnd) else null) ?: (startNode to endNode)
+    val clockNodes = if (byClock && clockValid) nodesForClock(slotTimes, clockStart, clockEnd) else null
+    val nodes = clockNodes ?: (selectedStartNode to selectedEndNode)
 
     val titleTrimmed = title.trim()
     val weekTitlesMap = remember(weekTitlesRaw) { decodeWeekLocations(weekTitlesRaw) }
@@ -107,40 +121,34 @@ fun QuickAddCourseDialog(
     val startWeek = startWeekText.toIntOrNull()
     val endWeek = endWeekText.toIntOrNull()
     val customWeeks = remember(customWeeksRaw, maxWeekCount) { decodeCustomWeeks(customWeeksRaw, maxWeekCount) }
-    val weeks = if (parity == WeekParity.Custom) {
+    val recurringWeeks = if (parity == WeekParity.Custom) {
         customWeeks.takeIf { it.isNotEmpty() }
     } else {
         manualCourseWeeksOrNull(startWeek, endWeek, parity, maxWeekCount)
     }
-    val weeksValid = weeks != null
-    val canSave = titleTrimmed.isNotBlank() && weeksValid && (!byClock || clockValid)
+    val weeksByDay = if (byDate) courseWeeksByDate(termStartDate, pickedDates, maxWeekCount)
+        else recurringWeeks?.let { selectedDays.sorted().associateWith { _ -> it } }.orEmpty()
+    val weeks = if (byDate) weeksByDay.values.flatten().distinct().sorted().takeIf { it.isNotEmpty() } else recurringWeeks
+    val canSave = titleTrimmed.isNotBlank() && weeksByDay.isNotEmpty() && (!byClock || clockValid)
     val conflictWarning = remember(
-        existingCourses, dayOfWeek, nodes, weeks, category, maxWeekCount,
+        existingCourses, weeksByDay, nodes, category, maxWeekCount,
     ) {
         addCourseConflictWarning(
-            draftCourseConflicts(
-                existingCourses = existingCourses,
-                dayOfWeek = dayOfWeek,
-                startNode = nodes.first,
-                endNode = nodes.second,
-                weeks = weeks,
-                category = category,
-                maxWeekCount = maxWeekCount,
-            ),
+            weeksByDay.flatMap { (courseDay, dayWeeks) ->
+                draftCourseConflicts(
+                    existingCourses = existingCourses,
+                    dayOfWeek = courseDay,
+                    startNode = nodes.first,
+                    endNode = nodes.second,
+                    weeks = dayWeeks,
+                    category = category,
+                    maxWeekCount = maxWeekCount,
+                )
+            },
         )
     }
 
     // Event state
-    val zone = LocalAppZone.current
-    val eventDateDefault = remember(defaultDate, dayOfWeek, zone) {
-        if (defaultDate != null) {
-            defaultDate
-        } else {
-            val currentDow = zone.today().dayOfWeek.value
-            val daysToAdd = (dayOfWeek - currentDow).let { if (it < 0) it + 7 else it }
-            zone.today().plusDays(daysToAdd.toLong())
-        }
-    }
     var eventDate by rememberSaveable { mutableStateOf(eventDateDefault) }
     var eventStart by rememberSaveable {
         mutableStateOf(tappedClock?.first?.let { minuteText(it) } ?: "08:00")
@@ -156,6 +164,7 @@ fun QuickAddCourseDialog(
     var eventAppearance by rememberSaveable(stateSaver = ItemAppearanceSaver) { mutableStateOf(ItemAppearance()) }
     var courseAppearance by rememberSaveable(stateSaver = ItemAppearanceSaver) { mutableStateOf(ItemAppearance()) }
     var eventSubmitted by remember { mutableStateOf(false) }
+    var eventSaving by remember { mutableStateOf(false) }
 
     val eventStartMinute = clockMinute(eventStart)
     val eventEndMinute = clockMinute(eventEnd)
@@ -221,8 +230,7 @@ fun QuickAddCourseDialog(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Show fixed day and periods as read-only destination chips.
-                FlowRow(
+                if (isEventMode) FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
@@ -363,7 +371,8 @@ fun QuickAddCourseDialog(
                             }
                         }
 
-                        CourseWeeksSection(
+                        CourseDateMode(byDate, { byDate = it }, pickedDates, eventDateDefault, termStartDate, maxWeekCount) { pickedDates = it }
+                        if (!byDate) CourseWeeksSection(
                             parity = parity,
                             onParityChange = { p ->
                                 parity = p
@@ -386,8 +395,38 @@ fun QuickAddCourseDialog(
                             maxWeekCount = maxWeekCount,
                         )
                         CourseFormSection(title = stringResource(R.string.schedule_add_course_time_label)) {
-                            CourseTimeModeChips(byClock = byClock, onByClock = { byClock = it })
+                            if (!byDate) {
+                                WeekdaySelector(
+                                    selectedDays = selectedDays,
+                                    multiSelect = true,
+                                    onSelect = { day ->
+                                        selectedDays = if (day in selectedDays) selectedDays - day else selectedDays + day
+                                    },
+                                )
+                                Text(
+                                    stringResource(R.string.schedule_course_pick_weekdays),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            CourseTimeModeChips(byClock = byClock, onByClock = { useClock ->
+                                if (useClock && !byClock) {
+                                    clockForNodes(slotTimes, selectedStartNode, selectedEndNode)?.let { (start, end) ->
+                                        clockStart = start
+                                        clockEnd = end
+                                    }
+                                }
+                                if (!useClock && byClock) clockNodes?.let { (start, end) ->
+                                    selectedStartNode = start
+                                    selectedEndNode = end
+                                }
+                                byClock = useClock
+                            })
                             if (byClock) CourseClockFields(clockStart, clockEnd, onStartChange = { clockStart = it }, onEndChange = { clockEnd = it })
+                            else CoursePeriodRangeFields(periods, selectedStartNode, selectedEndNode) { start, end ->
+                                selectedStartNode = start
+                                selectedEndNode = end
+                            }
                         }
 
                         CourseFormSection(title = stringResource(R.string.schedule_course_place_section)) {
@@ -427,11 +466,13 @@ fun QuickAddCourseDialog(
                     AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
-                        enabled = if (isEventMode) true else canSave,
+                        enabled = if (isEventMode) canSubmitEvent(eventSaving, canSaveEvent) else canSave,
                         onClick = {
                             if (isEventMode) {
                                 eventSubmitted = true
                                 if (!canSaveEvent) return@Button
+                                if (eventSaving) return@Button
+                                eventSaving = true
                                 val event = ScheduleEvent(
                                     id = "event-${UUID.randomUUID()}",
                                     title = titleTrimmed,
@@ -446,37 +487,30 @@ fun QuickAddCourseDialog(
                                 ).withRepeat(eventRepeat, eventRepeatUntil, eventPickedWeeks, weekAnchor)
                                 onConfirmEvent?.invoke(event)
                             } else {
-                            val weeks = weeks ?: return@Button
-                            val course = CourseItem(
-                                id = "manual-" + UUID.randomUUID().toString().take(12),
-                                title = titleTrimmed,
-                                teacher = teacher.trim(),
-                                weekTeachers = weekTeachersMap.filterKeys { it in weeks }
-                                    .mapValues { it.value.trim() }.filterValues { it.isNotBlank() },
-                                location = location.trim(),
-                                // Retain nonblank locations and titles for selected weeks only.
-                                weekLocations = weekLocationsMap
-                                    .filterKeys { it in weeks }
-                                    .mapValues { it.value.trim() }
-                                    .filterValues { it.isNotBlank() },
-                                weekTitles = weekTitlesMap
-                                    .filterKeys { it in weeks }
-                                    .mapValues { it.value.trim() }
-                                    .filterValues { it.isNotBlank() },
-                                weeks = weeks,
-                                category = category,
-                                time = CourseTimeSlot(
-                                    dayOfWeek = dayOfWeek,
-                                    startNode = nodes.first,
-                                    endNode = nodes.second,
-                                ),
-                                reminderStartTime = formatMinuteOfDay(clockStart).takeIf { byClock },
-                                reminderEndTime = formatMinuteOfDay(clockEnd).takeIf { byClock },
-                                colorArgb = courseAppearance.fill,
-                                colorEndArgb = courseAppearance.fillEnd,
-                                borderArgb = courseAppearance.border,
-                            )
-                            onConfirm(course)
+                            val courses = weeksByDay.map { (courseDay, dayWeeks) ->
+                                CourseItem(
+                                    id = "manual-" + UUID.randomUUID().toString().take(12),
+                                    title = titleTrimmed,
+                                    teacher = teacher.trim(),
+                                    weekTeachers = weekTeachersMap.selectedWeekValues(dayWeeks),
+                                    location = location.trim(),
+                                    weekLocations = weekLocationsMap.selectedWeekValues(dayWeeks),
+                                    weekTitles = weekTitlesMap.selectedWeekValues(dayWeeks),
+                                    weeks = dayWeeks,
+                                    category = category,
+                                    time = CourseTimeSlot(
+                                        dayOfWeek = courseDay,
+                                        startNode = nodes.first,
+                                        endNode = nodes.second,
+                                    ),
+                                    reminderStartTime = formatMinuteOfDay(clockStart).takeIf { byClock },
+                                    reminderEndTime = formatMinuteOfDay(clockEnd).takeIf { byClock },
+                                    colorArgb = courseAppearance.fill,
+                                    colorEndArgb = courseAppearance.fillEnd,
+                                    borderArgb = courseAppearance.border,
+                                )
+                            }
+                            onConfirmBatch(courses)
                         }
                     },
                 ) { Text(stringResource(R.string.schedule_action_save)) }

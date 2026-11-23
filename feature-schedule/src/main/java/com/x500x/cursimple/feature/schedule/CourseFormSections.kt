@@ -23,6 +23,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -58,16 +60,17 @@ internal fun CourseFormSection(
 /** Seven equal weekday buttons on one line; the full day name is the accessibility label. */
 @Composable
 internal fun WeekdaySelector(
-    selectedDay: Int,
+    selectedDays: Collection<Int>,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    multiSelect: Boolean = false,
 ) {
     Row(
         modifier = modifier.fillMaxWidth().testTag("course-weekday-selector"),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         (1..7).forEach { day ->
-            val selected = selectedDay == day
+            val selected = day in selectedDays
             val fullName = stringResource(scheduleWeekdayFullRes(day))
             Surface(
                 onClick = { onSelect(day) },
@@ -75,8 +78,8 @@ internal fun WeekdaySelector(
                     .weight(1f)
                     .height(44.dp)
                     .semantics {
-                        role = Role.RadioButton
-                        this.selected = selected
+                        role = if (multiSelect) Role.Checkbox else Role.RadioButton
+                        if (multiSelect) toggleableState = ToggleableState(selected) else this.selected = selected
                         contentDescription = fullName
                     }
                     .testTag("course-day-$day"),

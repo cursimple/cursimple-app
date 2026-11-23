@@ -37,6 +37,14 @@ import com.x500x.cursimple.core.reminder.permission.AlarmPermission
 import com.x500x.cursimple.core.reminder.permission.AlarmSettingsIntents
 import com.x500x.cursimple.core.reminder.permission.launchFirstAvailableSetting
 import com.x500x.cursimple.core.reminder.permission.readAlarmPermissionState
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material3.Icon
 
 /** Gate creation on blocking reminder access; present reliability-only access as advice. */
 @Stable
@@ -125,8 +133,10 @@ internal fun AlarmPermissionGateHost(state: AlarmPermissionGateState) {
         }
     }
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = { state.dismiss() },
+        tone = AppDialogTone.Warning,
+        icon = { Icon(Icons.Rounded.NotificationsActive, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.schedule_alarm_permission_gate_title)) },
         text = {
             Column(
@@ -158,12 +168,12 @@ internal fun AlarmPermissionGateHost(state: AlarmPermissionGateState) {
             }
         },
         confirmButton = {
-            Button(onClick = { state.refresh(context) }) {
+            AppDialogPrimaryButton(onClick = { state.refresh(context) }) {
                 Text(stringResource(R.string.schedule_alarm_permission_gate_recheck))
             }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = { state.dismiss() }) {
+            AppDialogSecondaryButton(onClick = { state.dismiss() }) {
                 Text(stringResource(R.string.schedule_action_cancel))
             }
         },

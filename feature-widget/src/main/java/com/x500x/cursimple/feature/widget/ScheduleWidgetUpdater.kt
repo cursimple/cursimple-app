@@ -29,8 +29,8 @@ object ScheduleWidgetUpdater {
         NextCourseDataSource.invalidate()
         ReminderDataSource.invalidate()
         ScheduleGlanceWidgetReceiver.updateWidgets(app)
-        NextCourseGlanceWidgetReceiver.updateWidgets(app)
-        CourseCapsuleWidgetReceiver.updateWidgets(app)
+        val nextCourseData = NextCourseGlanceWidgetReceiver.updateWidgetsAndGetData(app)
+        CourseCapsuleWidgetReceiver.updateWidgets(app, sharedData = nextCourseData)
         ReminderGlanceWidgetReceiver.updateWidgets(app)
         CalendarWidgetReceiver.updateWidgets(app)
         PendingTaskWidgetReceiver.updateWidgets(app)
@@ -52,7 +52,7 @@ object ScheduleWidgetUpdater {
         rescheduleBoundaryRefresh(app)
     }
 
-    private suspend fun rescheduleBoundaryRefresh(context: Context) {
+    internal suspend fun rescheduleBoundaryRefresh(context: Context) {
         runCatching {
             val preferences = DataStoreWidgetPreferencesRepository(context)
             // Null timing means unavailable data; preserve scheduled boundaries until an actual profile is read.

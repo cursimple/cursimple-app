@@ -40,6 +40,40 @@ class ExtensionRuntimeTest {
     }
 
     @Test
+    fun `failure text comes from the supplied messages in the caller's language`() {
+        val shouting = object : ExtensionRunMessages by ExtensionRunMessages.Plain {
+            override fun noResult() = "NO RESULT"
+            override fun tooLarge(bytes: Int) = "TOO LARGE $bytes"
+            override fun notJson() = "NOT JSON"
+            override fun scriptError() = "SCRIPT ERROR"
+        }
+        assertEquals("NO RESULT", (parseExtensionPayload(null, 1_000, shouting) as ExtensionRunResult.Failed).message)
+        assertEquals("TOO LARGE 100", (parseExtensionPayload("x".repeat(100), 10, shouting) as ExtensionRunResult.Failed).message)
+        assertEquals("NOT JSON", (parseExtensionPayload("[1,2]", 1_000, shouting) as ExtensionRunResult.Failed).message)
+        assertEquals("SCRIPT ERROR", (parseLoginPollResult("\"{\\\"kind\\\":\\\"fail\\\"}\"", 1_000, shouting) as ExtensionRunResult.Failed).message)
+    }
+
+    @Test
+    fun `the generated script carries localised templates instead of hardcoded text`() {
+        val localised = object : ExtensionRunMessages by ExtensionRunMessages.Plain {
+            override fun scriptTemplates() = mapOf(
+                "transportUnavailable" to "TRANSPORT", "permissionMissing" to "PERM {0}", "accessDenied" to "DENIED {0}",
+                "loadFailed" to "LOAD {0}", "functionMissing" to "FN {0}", "tooLarge" to "BIG",
+            )
+        }
+        val request = ExtensionRunRequest(
+            pluginId = "demo", mode = ExtensionRunMode.CheckLogin, url = "https://example.edu/",
+            entrySource = "function checkLogin() { return {}; }", allowedHosts = listOf("example.edu"),
+            permissions = emptySet(), userAgent = null, settings = JsonObject(emptyMap()), state = JsonObject(emptyMap()),
+            timeoutMs = 10_000, maxOutputBytes = 64 * 1024,
+        )
+        val script = buildExtensionScript(request, "token", useBridge = false, messages = localised)
+        assertTrue(script.contains("\"permissionMissing\":\"PERM {0}\""))
+        assertTrue(script.contains("say(\"tooLarge\")"))
+        assertTrue("no Chinese literal may remain in the script", script.none { it in '\u4e00'..'\u9fff' })
+    }
+
+    @Test
     fun `export keywords are stripped so the module can be inlined`() {
         val source = """
             export async function sync(ctx) { return {}; }

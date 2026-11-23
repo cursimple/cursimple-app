@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,7 +14,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -124,7 +124,7 @@ internal fun CourseWeeksSection(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    OutlinedTextField(
+                    AppOutlinedTextField(
                         value = startWeekText,
                         onValueChange = { onStartWeekChange(it.filter(Char::isDigit).take(2)) },
                         label = { Text(stringResource(R.string.schedule_week_start_label)) },
@@ -132,7 +132,7 @@ internal fun CourseWeeksSection(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                         modifier = Modifier.weight(1f),
                     )
-                    OutlinedTextField(
+                    AppOutlinedTextField(
                         value = endWeekText,
                         onValueChange = { onEndWeekChange(it.filter(Char::isDigit).take(2)) },
                         label = { Text(stringResource(R.string.schedule_week_end_label)) },

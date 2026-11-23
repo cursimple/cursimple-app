@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents
 import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
@@ -11,10 +12,8 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,8 +29,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.CourseCategory
@@ -42,6 +39,9 @@ import com.x500x.cursimple.core.kernel.model.locationForWeek
 import com.x500x.cursimple.core.kernel.model.teacherForWeek
 import com.x500x.cursimple.core.kernel.model.titleForWeek
 import com.x500x.cursimple.core.kernel.model.typedClock
+import com.x500x.cursimple.feature.schedule.time.LocalAppZone
+import com.x500x.cursimple.feature.schedule.time.today
+import java.time.LocalDate
 import java.util.UUID
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.EditCalendar
@@ -64,6 +64,10 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.CalendarMonth
 
 internal enum class WeekParity(@param:StringRes val labelRes: Int) {
     All(R.string.schedule_week_parity_all),
@@ -164,7 +168,7 @@ internal fun CourseEditFormFields(
     existingCourses: List<CourseItem>,
     maxNodeCount: Int,
     maxWeekCount: Int,
-    onDraftChange: (CourseItem?) -> Unit,
+    onDraftChange: (List<CourseItem>) -> Unit,
     modifier: Modifier = Modifier,
     spacing: Dp = 12.dp,
     slotTimes: List<ClassSlotTime> = emptyList(),
@@ -175,6 +179,8 @@ internal fun CourseEditFormFields(
     showCategorySelector: Boolean = true,
     /** Fill picked in the course detail before colors lived on the course; shown here until the editor saves. */
     legacyColorArgb: Long? = null,
+    termStartDate: LocalDate? = null,
+    defaultDate: LocalDate? = null,
 ) {
     val reuse = rememberCourseReuseValues(existingCourses, initial)
     var title by rememberSaveable(initial, sourceWeekNumber) {
@@ -186,13 +192,19 @@ internal fun CourseEditFormFields(
     var location by rememberSaveable(initial, sourceWeekNumber) {
         mutableStateOf(sourceWeekNumber?.let { initial?.locationForWeek(it) } ?: initial?.location.orEmpty())
     }
-    var dayOfWeek by rememberSaveable(initial) { mutableStateOf(initial?.time?.dayOfWeek ?: 1) }
-    var startNodeText by rememberSaveable(initial) {
-        mutableStateOf(initial?.time?.startNode?.toString() ?: "1")
+    var selectedDays by rememberSaveable(initial) { mutableStateOf(listOfNotNull(initial?.time?.dayOfWeek)) }
+    val periods = remember(slotTimes, maxNodeCount) { coursePeriodSlots(slotTimes, maxNodeCount) }
+    var selectedStartNode by rememberSaveable(initial, periods) {
+        mutableIntStateOf(initial?.time?.startNode ?: periods.first().startNode)
     }
-    var endNodeText by rememberSaveable(initial) {
-        mutableStateOf(initial?.time?.endNode?.toString() ?: "2")
+    var selectedEndNode by rememberSaveable(initial, periods) {
+        mutableIntStateOf(initial?.time?.endNode ?: if (slotTimes.isEmpty()) minOf(2, maxNodeCount) else periods.first().endNode)
     }
+    var byDate by rememberSaveable(initial) { mutableStateOf(false) }
+    val appZone = LocalAppZone.current
+    val today = remember(defaultDate, appZone) { defaultDate ?: appZone.today() }
+    var pickedDates by rememberSaveable(initial) { mutableStateOf(emptyList<LocalDate>()) }
+    val draftId = rememberSaveable(initial) { initial?.id ?: "manual-" + UUID.randomUUID().toString().take(12) }
     // Placeholders keep their own times; only real courses switch between periods and clock.
     val initialClock = initial?.takeUnless { it.reminderOnly }?.typedClock()
     var byClock by rememberSaveable(initial) { mutableStateOf(initialClock != null) }
@@ -251,8 +263,8 @@ internal fun CourseEditFormFields(
     val titleTrimmed = title.trim()
     val clockValid = clockEnd > clockStart
     val clockNodes = if (byClock && clockValid) nodesForClock(slotTimes, clockStart, clockEnd) else null
-    val startNode = clockNodes?.first ?: startNodeText.toIntOrNull()
-    val endNode = clockNodes?.second ?: endNodeText.toIntOrNull()
+    val startNode = clockNodes?.first ?: selectedStartNode
+    val endNode = clockNodes?.second ?: selectedEndNode
     val startWeek = startWeekText.toIntOrNull()
     val endWeek = endWeekText.toIntOrNull()
     val rangeValid = startWeek != null && endWeek != null &&
@@ -264,72 +276,61 @@ internal fun CourseEditFormFields(
     val customWeeks = remember(customWeeksRaw, weekLimit) {
         decodeCustomWeeks(customWeeksRaw, weekLimit)
     }
-    val weeks = if (parity == WeekParity.Custom) {
+    val recurringWeeks = if (parity == WeekParity.Custom) {
         customWeeks.takeIf { it.isNotEmpty() }
     } else {
         manualCourseWeeksOrNull(startWeek, endWeek, parity, maxWeekCount)
     }
+    val weeksByDay = if (byDate) courseWeeksByDate(termStartDate, pickedDates, maxWeekCount)
+        else recurringWeeks?.let { selectedDays.sorted().associateWith { _ -> it } }.orEmpty()
+    val weeks = if (byDate) weeksByDay.values.flatten().distinct().sorted().takeIf { it.isNotEmpty() } else recurringWeeks
     val nodesValid = if (byClock) {
-        clockValid && startNode != null && endNode != null && endNode >= startNode
+        clockValid && endNode >= startNode
     } else {
-        startNode != null && endNode != null && startNode in 1..maxNodeCount && endNode in startNode..maxNodeCount
+        val nodeLimit = maxOf(maxNodeCount, periods.maxOf { it.endNode }, initial?.time?.endNode ?: 1)
+        startNode in 1..nodeLimit && endNode in startNode..nodeLimit
     }
     val weekLocationsMap = remember(weekLocationsRaw) { decodeWeekLocations(weekLocationsRaw) }
     val weekTeachersMap = remember(weekTeachersRaw) { decodeWeekLocations(weekTeachersRaw) }
     val weekTitlesMap = remember(weekTitlesRaw) { decodeWeekLocations(weekTitlesRaw) }
-    // Retain nonblank values in selected weeks only; disabling clears overrides.
-    val effectiveWeekLocations = if (weeks != null) {
-        weekLocationsMap.filterKeys { it in weeks }.mapValues { it.value.trim() }.filterValues { it.isNotBlank() }
-    } else {
-        emptyMap()
-    }
-    val effectiveWeekTeachers = if (weeks != null) {
-        weekTeachersMap.filterKeys { it in weeks }.mapValues { it.value.trim() }.filterValues { it.isNotBlank() }
-    } else {
-        emptyMap()
-    }
-    val effectiveWeekTitles = if (weeks != null) {
-        weekTitlesMap.filterKeys { it in weeks }.mapValues { it.value.trim() }.filterValues { it.isNotBlank() }
-    } else {
-        emptyMap()
-    }
-    val draft = if (titleTrimmed.isNotBlank() && nodesValid && weeks != null) {
+    val drafts = if (titleTrimmed.isNotBlank() && nodesValid) weeksByDay.map { (courseDay, dayWeeks) ->
         buildCourse(
+            id = initial?.id ?: "$draftId-$courseDay",
             title = titleTrimmed,
             teacher = teacher.trim(),
             location = location.trim(),
-            dayOfWeek = dayOfWeek,
-            startNode = startNode!!,
-            endNode = endNode!!,
-            weeks = weeks,
+            dayOfWeek = courseDay,
+            startNode = startNode,
+            endNode = endNode,
+            weeks = dayWeeks,
             category = category,
-            weekLocations = effectiveWeekLocations,
-            weekTeachers = effectiveWeekTeachers,
-            weekTitles = effectiveWeekTitles,
+            weekLocations = weekLocationsMap.selectedWeekValues(dayWeeks),
+            weekTeachers = weekTeachersMap.selectedWeekValues(dayWeeks),
+            weekTitles = weekTitlesMap.selectedWeekValues(dayWeeks),
             existing = initial,
             clock = if (byClock) clockStart to clockEnd else null,
             appearance = ItemAppearance(fillArgb, fillEndArgb, borderArgb),
         )
-    } else {
-        null
-    }
+    } else emptyList()
     val currentOnDraftChange by rememberUpdatedState(onDraftChange)
-    LaunchedEffect(draft) { currentOnDraftChange(draft) }
+    LaunchedEffect(drafts) { currentOnDraftChange(drafts) }
 
     val conflictWarning = remember(
-        existingCourses, dayOfWeek, startNode, endNode, weeks, category, maxNodeCount, maxWeekCount,
+        existingCourses, weeksByDay, startNode, endNode, category, maxNodeCount, maxWeekCount,
     ) {
         addCourseConflictWarning(
-            draftCourseConflicts(
-                existingCourses = existingCourses,
-                dayOfWeek = dayOfWeek,
-                startNode = startNode,
-                endNode = endNode,
-                weeks = weeks,
-                category = category,
-                maxNodeCount = maxNodeCount,
-                maxWeekCount = maxWeekCount,
-            ),
+            weeksByDay.flatMap { (courseDay, dayWeeks) ->
+                draftCourseConflicts(
+                    existingCourses = existingCourses,
+                    dayOfWeek = courseDay,
+                    startNode = startNode,
+                    endNode = endNode,
+                    weeks = dayWeeks,
+                    category = category,
+                    maxNodeCount = maxNodeCount,
+                    maxWeekCount = maxWeekCount,
+                )
+            },
         )
     }
 
@@ -378,7 +379,10 @@ internal fun CourseEditFormFields(
             }
         }
 
-        CourseWeeksSection(
+        if (initial == null) {
+            CourseDateMode(byDate, { byDate = it }, pickedDates, today, termStartDate, maxWeekCount) { pickedDates = it }
+        }
+        if (!byDate) CourseWeeksSection(
             parity = parity,
             onParityChange = { p ->
                 parity = p
@@ -401,7 +405,7 @@ internal fun CourseEditFormFields(
             maxWeekCount = maxWeekCount,
         )
 
-        if (rangeValid && parity != WeekParity.Custom && weeks == null) {
+        if (!byDate && rangeValid && parity != WeekParity.Custom && weeks == null) {
             Text(
                 text = stringResource(
                     R.string.schedule_add_course_parity_empty,
@@ -413,45 +417,41 @@ internal fun CourseEditFormFields(
         }
 
         CourseFormSection(title = stringResource(R.string.schedule_add_course_time_label)) {
-        WeekdaySelector(selectedDay = dayOfWeek, onSelect = { dayOfWeek = it })
+            if (!byDate) {
+                WeekdaySelector(
+                    selectedDays = selectedDays,
+                    multiSelect = initial == null,
+                    onSelect = { day ->
+                        selectedDays = if (initial != null) listOf(day)
+                            else if (day in selectedDays) selectedDays - day else selectedDays + day
+                    },
+                )
+                if (initial == null) Text(
+                    stringResource(R.string.schedule_course_pick_weekdays),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (initial?.reminderOnly != true) {
                 CourseTimeModeChips(byClock = byClock, onByClock = { clock ->
                     if (clock && !byClock) {
-                        val nodes = startNodeText.toIntOrNull()?.let { s -> endNodeText.toIntOrNull()?.let { s to it } }
-                        nodes?.let { (s, e) -> clockForNodes(slotTimes, s, e) }?.let { (s, e) ->
-                            clockStart = s
-                            clockEnd = e
+                        clockForNodes(slotTimes, selectedStartNode, selectedEndNode)?.let { (start, end) ->
+                            clockStart = start
+                            clockEnd = end
                         }
                     }
                     if (!clock && byClock) clockNodes?.let { (s, e) ->
-                        startNodeText = s.toString()
-                        endNodeText = e.toString()
+                        selectedStartNode = s
+                        selectedEndNode = e
                     }
                     byClock = clock
                 })
             }
 
             if (byClock) CourseClockFields(clockStart, clockEnd, onStartChange = { clockStart = it }, onEndChange = { clockEnd = it })
-            else Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedTextField(
-                    value = startNodeText,
-                    onValueChange = { startNodeText = it.filter(Char::isDigit).take(2) },
-                    label = { Text(stringResource(R.string.schedule_node_start_label)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = endNodeText,
-                    onValueChange = { endNodeText = it.filter(Char::isDigit).take(2) },
-                    label = { Text(stringResource(R.string.schedule_node_end_label)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f),
-                )
+            else CoursePeriodRangeFields(periods, selectedStartNode, selectedEndNode) { start, end ->
+                selectedStartNode = start
+                selectedEndNode = end
             }
         }
 
@@ -603,8 +603,9 @@ internal fun WeekMatrixDialog(
     onDismiss: () -> Unit,
 ) {
     val picked = remember(selected) { mutableStateListOf<Int>().apply { addAll(selected.sorted()) } }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.schedule_week_custom_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -641,13 +642,13 @@ internal fun WeekMatrixDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(
+            AppDialogPrimaryButton(
                 enabled = picked.isNotEmpty(),
                 onClick = { onConfirm(picked.toSet()) },
             ) { Text(stringResource(R.string.schedule_action_save)) }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
         },
     )
 }
@@ -777,10 +778,11 @@ private fun WeekCourseValueDialog(
     val applied = batchWeekValues(draft, sorted, selected, value, defaultTrimmed)
     val odd = visible.filter { it % 2 == 1 }.toSet()
     val even = visible.filter { it % 2 == 0 }.toSet()
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().testTag("course-week-values-dialog"),
+        icon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(titleRes)) },
         text = {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
@@ -947,11 +949,11 @@ private fun WeekCourseValueDialog(
             }
         },
         confirmButton = {
-            androidx.compose.material3.Button(onClick = { onConfirm(draft) }, modifier = Modifier.testTag("week-batch-save")) {
+            AppDialogPrimaryButton(onClick = { onConfirm(draft) }, modifier = Modifier.testTag("week-batch-save")) {
                 Text(stringResource(R.string.schedule_action_save))
             }
         },
-        dismissButton = { AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
+        dismissButton = { AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
     )
 }
 
@@ -989,7 +991,11 @@ private fun FlowChipRow(content: @Composable () -> Unit) {
     }
 }
 
+internal fun Map<Int, String>.selectedWeekValues(weeks: List<Int>): Map<Int, String> =
+    filterKeys { it in weeks }.mapValues { it.value.trim() }.filterValues { it.isNotBlank() }
+
 private fun buildCourse(
+    id: String,
     title: String,
     teacher: String,
     location: String,
@@ -1028,7 +1034,7 @@ private fun buildCourse(
         )
     }
     return CourseItem(
-        id = "manual-" + UUID.randomUUID().toString().take(12),
+        id = id,
         title = title,
         teacher = teacher,
         location = location,

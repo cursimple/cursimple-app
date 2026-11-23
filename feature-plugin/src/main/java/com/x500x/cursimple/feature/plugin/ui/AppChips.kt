@@ -2,6 +2,7 @@ package com.x500x.cursimple.feature.plugin.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -9,13 +10,17 @@ import androidx.compose.material3.ChipColors
 import androidx.compose.material3.ChipElevation
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SelectableChipColors
 import androidx.compose.material3.SelectableChipElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 private val ChipShape: Shape = RoundedCornerShape(50)
 
@@ -40,17 +45,26 @@ fun AppFilterChip(
     border: BorderStroke? = FilterChipDefaults.filterChipBorder(
         enabled = enabled,
         selected = selected,
-        borderColor = MaterialTheme.colorScheme.outline,
+        borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.72f),
         selectedBorderColor = MaterialTheme.colorScheme.primary,
-        selectedBorderWidth = 1.dp,
+        selectedBorderWidth = 1.5.dp,
+        borderWidth = 1.5.dp,
     ),
     interactionSource: MutableInteractionSource? = null,
 ) {
     FilterChip(
         selected = selected,
         onClick = onClick,
-        label = label,
-        modifier = modifier,
+        label = {
+            CompositionLocalProvider(
+                // Reference pills: 12.5sp, bold while selected.
+                LocalTextStyle provides MaterialTheme.typography.labelLarge.copy(
+                    fontSize = 12.5.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                ),
+            ) { label() }
+        },
+        modifier = modifier.height(36.dp),
         enabled = enabled,
         leadingIcon = leadingIcon,
         trailingIcon = trailingIcon,

@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -21,7 +22,7 @@ fun MemoNotebookSelector(notebooks: List<MemoNotebook>, selectedKey: String?, mo
     enabled: Boolean = true, openCounts: Map<String?, Int> = emptyMap(), onSelect: (MemoNotebook) -> Unit) {
     if (enabled) MemoNotebookDropdown(notebooks, openCounts, selectedKey,
         onSelect = { key -> notebooks.firstOrNull { it.key == key }?.let(onSelect) }, modifier = modifier)
-    else OutlinedTextField(value = notebooks.firstOrNull { it.key == selectedKey }?.title.orEmpty(), onValueChange = {},
+    else AppOutlinedTextField(value = notebooks.firstOrNull { it.key == selectedKey }?.title.orEmpty(), onValueChange = {},
         modifier = modifier, enabled = false, readOnly = true, singleLine = true, shape = RoundedCornerShape(16.dp))
 }
 

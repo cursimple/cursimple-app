@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import android.content.Context
 import android.appwidget.AppWidgetManager
 import android.os.Bundle
@@ -13,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Tune
@@ -53,6 +55,7 @@ import com.x500x.cursimple.feature.schedule.buildMemoNotebooks
 import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import com.x500x.cursimple.feature.plugin.ui.AppConfirmationDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import com.x500x.cursimple.feature.widget.WidgetDeepLinks
 import kotlinx.coroutines.Dispatchers
@@ -62,6 +65,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.time.LocalDateTime
 import java.util.UUID
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Save
 
 /** A floating window with its own task; closing returns to the launcher, not the Notes page. */
 class MemoTodoQuickEditActivity : ComponentActivity() {
@@ -283,11 +288,14 @@ internal fun MemoTodoQuickEditor(note: MemoNote, line: Int?, isNew: Boolean, not
     }
     // Keep the keyboard closed on entry; the user focuses a field after the window settles.
     LaunchedEffect(options) { if (options) optionsScroll.scrollTo(0) }
-    if (discard) AppConfirmationDialog(title = stringResource(R.string.memo_quick_discard_title),
+    if (discard) AppConfirmationDialog(
+        icon = Icons.Rounded.Edit, tone = AppDialogTone.Warning, dangerConfirm = true,
+        title = stringResource(R.string.memo_quick_discard_title),
         message = stringResource(R.string.memo_quick_discard_body),
         confirmLabel = stringResource(R.string.memo_quick_discard), cancelLabel = stringResource(R.string.memo_quick_keep),
         onConfirm = onClose, onDismiss = { discard = false })
-    if (confirm) AppConfirmationDialog(title = stringResource(R.string.memo_quick_confirm_title),
+    if (confirm) AppConfirmationDialog(
+        icon = Icons.Rounded.Check, title = stringResource(R.string.memo_quick_confirm_title),
         message = stringResource(R.string.memo_quick_confirm_body),
         confirmLabel = stringResource(R.string.memo_quick_save), cancelLabel = stringResource(R.string.memo_quick_cancel),
         onDismiss = { confirm = false }, onConfirm = {
@@ -352,7 +360,7 @@ internal fun MemoTodoQuickEditor(note: MemoNote, line: Int?, isNew: Boolean, not
                         courseKey = selected.key; courseTitle = if (selected.key == null) "" else selected.title
                     }
                     if (!settings) {
-                        OutlinedTextField(text, { text = it; error = null }, enabled = !busy, singleLine = true,
+                        AppOutlinedTextField(text, { text = it; error = null }, enabled = !busy, singleLine = true,
                             placeholder = { Text(stringResource(com.x500x.cursimple.feature.schedule.R.string.memo_editor_title_hint)) },
                             textStyle = MaterialTheme.typography.titleMedium, shape = RoundedCornerShape(16.dp),
                             modifier = Modifier.fillMaxWidth().testTag("memo-quick-text"))

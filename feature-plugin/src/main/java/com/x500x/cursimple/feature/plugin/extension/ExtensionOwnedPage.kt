@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
@@ -55,6 +56,17 @@ import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 import java.net.URI
 import java.util.UUID
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppDialogDangerButton
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.R
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.ui.unit.dp
 
 /**
  * Business pages belong to components; the host provides generic configuration, session, sync
@@ -412,11 +424,13 @@ internal fun ExtensionOwnedDocument(
         it.setBackgroundColor(colors.background.toArgb())
     })
     pdfPreview?.let { ExtensionPdfPreview(it, onDismiss = { pdfPreview = null }) }
-    if (removeConfirmation) AlertDialog(
+    if (removeConfirmation) AppAlertDialog(
         onDismissRequest = { removeConfirmation = false },
-        title = { Text("移除 ${record.name}？") },
-        text = { Text("移除组件及其登录、缓存、提醒和课表事务。") },
-        confirmButton = { TextButton(onClick = {
+        tone = AppDialogTone.Danger,
+        icon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null, modifier = Modifier.size(22.dp)) },
+        title = { Text(stringResource(R.string.extension_remove_confirm_title, record.name)) },
+        text = { Text(stringResource(R.string.extension_remove_confirm_body)) },
+        confirmButton = { AppDialogDangerButton(onClick = {
             removeConfirmation = false; removing = true; bridge.close()
             scope.launch {
                 clearExtensionCookies(manifest.allowedHosts)
@@ -424,8 +438,8 @@ internal fun ExtensionOwnedDocument(
                 currentActions.onDataChanged(record.pluginId)
                 onRemove()
             }
-        }) { Text("移除") } },
-        dismissButton = { TextButton(onClick = { removeConfirmation = false }) { Text("取消") } },
+        }) { Text(stringResource(R.string.extension_action_remove)) } },
+        dismissButton = { AppDialogSecondaryButton(onClick = { removeConfirmation = false }) { Text(stringResource(R.string.plugin_action_cancel)) } },
     )
 }
 

@@ -12,6 +12,8 @@ object WidgetDeepLinks {
     const val EXTRA_OPEN_COMPONENT_ABOUT = "com.x500x.cursimple.extra.OPEN_EXTENSION_WIDGET_ABOUT"
 
     const val EXTRA_OPEN_SCHEDULE_DATE = "com.x500x.cursimple.extra.OPEN_SCHEDULE_DATE"
+    const val DATE_PICKER_ACTIVITY = "com.x500x.cursimple.app.WidgetDatePickerActivity"
+    const val EXTRA_SHOWN_DATE = "com.x500x.cursimple.extra.WIDGET_SHOWN_DATE"
     const val COURSE_DETAIL_ACTIVITY = "com.x500x.cursimple.app.WidgetCourseDetailActivity"
     const val EXTRA_COURSE_START_NODE = "com.x500x.cursimple.extra.COURSE_START_NODE"
     const val EXTRA_COURSE_END_NODE = "com.x500x.cursimple.extra.COURSE_END_NODE"

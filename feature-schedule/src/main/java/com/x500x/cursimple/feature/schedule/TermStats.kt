@@ -24,11 +24,19 @@ data class TermStats(
     val doneSessions: Int,
     /** Sessions per teaching week, index 0 is week 1. */
     val perWeek: List<Int>,
+    val weekCourses: List<List<String>>,
     val courses: List<CourseTermStat>,
+    /** Sessions grouped by weekday, Monday at index 0. */
+    val perDay: List<Int>,
+    val dayCourses: List<List<String>>,
+    val earlyMorningSessions: Int,
+    val eveningSessions: Int,
     val attended: Int,
     val missed: Int,
     val leave: Int,
 ) {
+    val peakWeekIndex: Int? get() = perWeek.indices.maxByOrNull { perWeek[it] }?.takeIf { perWeek[it] > 0 }
+    val peakDay: DayOfWeek? get() = perDay.indices.maxByOrNull { perDay[it] }?.takeIf { perDay[it] > 0 }?.let { DayOfWeek.of(it + 1) }
     /** Share of marked sessions that were attended; null before any session has been marked. */
     val attendanceRate: Double? get() {
         val marked = attended + missed + leave
@@ -50,10 +58,15 @@ fun computeTermStats(
     val active = courses.filter { !it.hidden && !it.reminderOnly }
     val firstDay = termStart.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     val perWeek = IntArray(lastWeek)
+    val weekCourses = List(lastWeek) { mutableListOf<String>() }
+    val perDay = IntArray(7)
+    val dayCourses = List(7) { mutableListOf<String>() }
     val totals = LinkedHashMap<String, Int>()
     val done = LinkedHashMap<String, Int>()
     var totalSessions = 0
     var doneSessions = 0
+    var earlyMorningSessions = 0
+    var eveningSessions = 0
     for (offset in 0 until lastWeek * 7) {
         val date = firstDay.plusDays(offset.toLong())
         // Holidays are not class days, so they never count as a session.
@@ -66,6 +79,11 @@ fun computeTermStats(
             val title = course.title.trim()
             totalSessions++
             perWeek[week]++
+            weekCourses[week] += course.title.trim()
+            perDay[date.dayOfWeek.value - 1]++
+            dayCourses[date.dayOfWeek.value - 1] += course.title.trim()
+            if (course.time.startNode <= 2) earlyMorningSessions++
+            if (course.time.startNode >= 7) eveningSessions++
             totals[title] = (totals[title] ?: 0) + 1
             if (!date.isAfter(today)) {
                 doneSessions++
@@ -80,7 +98,12 @@ fun computeTermStats(
         totalSessions = totalSessions,
         doneSessions = doneSessions,
         perWeek = perWeek.toList(),
+        weekCourses = weekCourses.map { it.distinct().sorted() },
         courses = courseStats,
+        perDay = perDay.toList(),
+        dayCourses = dayCourses.map { it.distinct().sorted() },
+        earlyMorningSessions = earlyMorningSessions,
+        eveningSessions = eveningSessions,
         attended = marks[AttendanceStatus.Present] ?: 0,
         missed = marks[AttendanceStatus.Absent] ?: 0,
         leave = marks[AttendanceStatus.Leave] ?: 0,

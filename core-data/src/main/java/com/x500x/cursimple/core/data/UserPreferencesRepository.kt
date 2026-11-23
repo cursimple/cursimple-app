@@ -49,6 +49,12 @@ enum class AppLanguage(val tag: String) {
     English("en"),
 }
 
+enum class InactiveCourseDisplayMode {
+    Dimmed, // 置灰半透明 (默认)
+    Hidden, // 完全隐藏非本周
+    Outline, // 虚线轮廓线框
+}
+
 enum class ScheduleBackgroundType { Color, Image, Header }
 
 enum class AutoSilenceMode {
@@ -254,18 +260,20 @@ data class ScheduleCardStylePreferences(
     val gridBorderColorArgb: Long = DEFAULT_GRID_BORDER_COLOR_ARGB,
     val gridBorderOpacityPercent: Int = DEFAULT_GRID_BORDER_OPACITY_PERCENT,
     val gridBorderWidthDp: Float = DEFAULT_GRID_BORDER_WIDTH_DP,
-    val gridBorderDashed: Boolean = false,
+    val gridBorderDashed: Boolean = true,
     val coursePaletteStyle: CoursePaletteStyle = CoursePaletteStyle.Default,
     val customCourseColors: Map<String, Long> = emptyMap(),
 ) {
     companion object {
-        const val DEFAULT_COURSE_CORNER_RADIUS_DP = 10
+        /** Small enough that narrow lanes keep their text clear of the corner arcs. */
+        const val DEFAULT_COURSE_CORNER_RADIUS_DP = 6
         const val DEFAULT_COURSE_CARD_HEIGHT_DP = 100
         const val DEFAULT_SCHEDULE_OPACITY_PERCENT = 0
         const val DEFAULT_INACTIVE_COURSE_OPACITY_PERCENT = 50
         const val DEFAULT_GRID_BORDER_COLOR_ARGB = 0xFFCFD8DCL
         const val DEFAULT_GRID_BORDER_OPACITY_PERCENT = 100
-        const val DEFAULT_GRID_BORDER_WIDTH_DP = 0.5f
+        /** Grid lines stay off until the user raises the width; 0 draws nothing. */
+        const val DEFAULT_GRID_BORDER_WIDTH_DP = 0f
         const val MIN_CORNER_RADIUS_DP = 0
         const val MAX_CORNER_RADIUS_DP = 32
         const val MIN_CARD_HEIGHT_DP = 56
@@ -334,6 +342,12 @@ data class ScheduleDisplayPreferences(
     val gridDashedLinesEnabled: Boolean = false,
     /** Width of the period column in dp; 0 keeps the automatic width that follows the labels and font. */
     val timeColumnWidthDp: Int = 0,
+    val inactiveCourseDisplayMode: InactiveCourseDisplayMode = InactiveCourseDisplayMode.Dimmed,
+    /** Day view is an agenda for one day, so its events are on unless the user turns them off. */
+    val dayViewEventsEnabled: Boolean = true,
+    val periodBreakDividersEnabled: Boolean = false,
+    /** Highlight courses in the final two teaching weeks before their declared end. */
+    val courseEndWarningEnabled: Boolean = true,
 )
 
 /** Bounds of a custom period column width. */
@@ -432,6 +446,7 @@ data class UserPreferences(
     val reminderMutedDates: Set<String> = emptySet(),
     val debugForcedDateTime: LocalDateTime? = null,
     val disclaimerAccepted: Boolean = false,
+    val firstRunPermissionsReviewed: Boolean = false,
     val firstRunGuideCompleted: Boolean = false,
     val alarmBackend: ReminderAlarmBackend = ReminderAlarmBackend.AppAlarmClock,
     val alarmRingtoneUri: String? = null,
@@ -556,6 +571,7 @@ interface UserPreferencesRepository {
     suspend fun setScheduleCustomColorsAdaptToTheme(enabled: Boolean)
     suspend fun setScheduleNodeColumnTimeEnabled(enabled: Boolean)
     suspend fun setTodayOverviewEnabled(enabled: Boolean)
+    suspend fun setCourseEndWarningEnabled(enabled: Boolean)
     suspend fun setScheduleSaturdayVisible(visible: Boolean)
     suspend fun setScheduleWeekendVisible(visible: Boolean)
 
@@ -603,6 +619,7 @@ interface UserPreferencesRepository {
     suspend fun setDebugForcedDateTime(dateTime: LocalDateTime?)
     suspend fun setDisclaimerAccepted(accepted: Boolean)
 
+    suspend fun markFirstRunPermissionsReviewed()
     suspend fun setFirstRunGuideCompleted(completed: Boolean)
     suspend fun setAlarmBackend(backend: ReminderAlarmBackend)
     suspend fun setAlarmRingtoneUri(uri: String?)
@@ -647,6 +664,9 @@ interface UserPreferencesRepository {
     suspend fun setTimelineIndicatorEnabled(enabled: Boolean)
     suspend fun setGridDashedLinesEnabled(enabled: Boolean)
     suspend fun setTimeColumnWidthDp(widthDp: Int)
+    suspend fun setInactiveCourseDisplayMode(mode: InactiveCourseDisplayMode)
+    suspend fun setDayViewEventsEnabled(enabled: Boolean)
+    suspend fun setPeriodBreakDividersEnabled(enabled: Boolean)
     suspend fun setEveningBriefingEnabled(enabled: Boolean)
     suspend fun setTransitReminderEnabled(enabled: Boolean)
     suspend fun setExamAlertEnabled(enabled: Boolean)

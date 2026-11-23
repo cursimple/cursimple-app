@@ -66,7 +66,7 @@ class UserPreferencesTest {
         assertEquals(false, prefs.scheduleTextStyle.headerTextColorCustomized)
         assertEquals(0xFF000000L, prefs.scheduleTextStyle.todayHeaderBackgroundColorArgb)
         assertEquals(false, prefs.scheduleTextStyle.todayHeaderBackgroundColorCustomized)
-        assertEquals(10, prefs.scheduleCardStyle.courseCornerRadiusDp)
+        assertEquals(6, prefs.scheduleCardStyle.courseCornerRadiusDp)
         assertEquals(100, prefs.scheduleCardStyle.courseCardHeightDp)
         assertEquals(0, prefs.scheduleCardStyle.scheduleOpacityPercent)
         assertEquals(50, prefs.scheduleCardStyle.inactiveCourseOpacityPercent)

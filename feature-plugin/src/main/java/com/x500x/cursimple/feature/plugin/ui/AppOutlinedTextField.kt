@@ -17,8 +17,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 
 /**
- * Shared app-styled [OutlinedTextField] with consistent 16dp rounded corners,
- * distinct primary-tinted outline matching [AppOutlinedButton], and surface-tinted container.
+ * Shared app-styled [OutlinedTextField]: 14dp rounded corners, a neutral hairline outline that
+ * turns accent on focus, and a plain surface container so fields read as white cards.
  */
 @Composable
 fun AppOutlinedTextField(
@@ -30,6 +30,8 @@ fun AppOutlinedTextField(
     textStyle: TextStyle = MaterialTheme.typography.bodyMedium,
     label: @Composable (() -> Unit)? = null,
     placeholder: @Composable (() -> Unit)? = null,
+    prefix: @Composable (() -> Unit)? = null,
+    suffix: @Composable (() -> Unit)? = null,
     leadingIcon: @Composable (() -> Unit)? = null,
     trailingIcon: @Composable (() -> Unit)? = null,
     supportingText: @Composable (() -> Unit)? = null,
@@ -41,18 +43,18 @@ fun AppOutlinedTextField(
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     minLines: Int = 1,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
-    shape: Shape = RoundedCornerShape(16.dp),
+    shape: Shape = RoundedCornerShape(14.dp),
     colors: TextFieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = MaterialTheme.colorScheme.primary,
-        unfocusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
+        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
         focusedContainerColor = MaterialTheme.colorScheme.surface,
-        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
         focusedLabelColor = MaterialTheme.colorScheme.primary,
         unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
         cursorColor = MaterialTheme.colorScheme.primary,
         errorBorderColor = MaterialTheme.colorScheme.error,
         errorLabelColor = MaterialTheme.colorScheme.error,
-        errorContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        errorContainerColor = MaterialTheme.colorScheme.surface,
     ),
 ) {
     OutlinedTextField(
@@ -64,6 +66,8 @@ fun AppOutlinedTextField(
         textStyle = textStyle,
         label = label,
         placeholder = placeholder,
+        prefix = prefix,
+        suffix = suffix,
         leadingIcon = leadingIcon,
         trailingIcon = trailingIcon,
         supportingText = supportingText,

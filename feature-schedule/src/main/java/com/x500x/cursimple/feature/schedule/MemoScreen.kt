@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.x500x.cursimple.feature.plugin.ui.AppSearchField
 import com.x500x.cursimple.feature.plugin.ui.rememberAppHaptics
 import com.x500x.cursimple.feature.plugin.ui.AppConfirmationDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -41,7 +42,6 @@ import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -71,6 +71,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.MemoDueState
@@ -334,6 +335,8 @@ internal fun MemoScreen(
     }
     pendingDelete?.let { target ->
         AppConfirmationDialog(
+            icon = Icons.Rounded.DeleteOutline,
+            tone = AppDialogTone.Danger,
             title = stringResource(R.string.memo_delete_title),
             message = stringResource(R.string.memo_delete_body, target.title.ifBlank { stringResource(R.string.memo_untitled) }),
             confirmLabel = stringResource(R.string.schedule_action_delete),
@@ -476,14 +479,32 @@ internal fun MemoScreen(
                 }
             }
         }
-        ExtendedFloatingActionButton(
+        Surface(
             onClick = { haptics.click(); editing = newDraft() },
-            icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
-            text = { Text(stringResource(R.string.memo_new)) },
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            shadowElevation = 10.dp,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(20.dp),
-        )
+                .padding(20.dp)
+                .height(54.dp)
+                .testTag("memo-new"),
+        ) {
+            Row(
+                modifier = Modifier.padding(start = 18.dp, end = 22.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(22.dp))
+                Text(
+                    text = stringResource(R.string.memo_new),
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp, letterSpacing = 0.sp),
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+            }
+        }
     }
 }
 
@@ -557,7 +578,7 @@ private fun MemoStatsRow(
     val todo = memos.count { !it.completed }
     val today = memos.count { it.dueState(now) == MemoDueState.Today }
     val overdue = memos.count { it.dueState(now) == MemoDueState.Overdue }
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         MemoStatCard(
             label = stringResource(R.string.memo_stat_todo),
             value = todo,
@@ -569,7 +590,7 @@ private fun MemoStatsRow(
         MemoStatCard(
             label = stringResource(R.string.memo_stat_today),
             value = today,
-            accent = Color(0xFFE39A2D),
+            accent = Color(0xFFA5600A),
             selected = selected == MemoQuickFilter.Today,
             onClick = { haptics.click(); onSelect(if (selected == MemoQuickFilter.Today) null else MemoQuickFilter.Today) },
             modifier = Modifier.weight(1f),
@@ -596,8 +617,8 @@ private fun MemoStatCard(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        color = if (selected) accent.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(18.dp),
+        color = if (selected) accent.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surface,
         border = androidx.compose.foundation.BorderStroke(
             if (selected) 1.5.dp else 1.dp,
             if (selected) accent else MaterialTheme.colorScheme.outlineVariant,
@@ -605,19 +626,22 @@ private fun MemoStatCard(
         modifier = modifier,
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 8.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 68.dp).padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             AppAtomicText(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = value.toString(),
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontSize = 22.sp,
+                    lineHeight = 23.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+                color = if (value > 0) accent else MaterialTheme.colorScheme.onSurfaceVariant,
             )
             AppAtomicText(
-                text = value.toString(),
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = if (value > 0) accent else MaterialTheme.colorScheme.onSurfaceVariant,
+                text = label,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 16.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -715,14 +739,14 @@ private fun MemoCard(
     Surface(
         interactionSource = press,
         onClick = onOpen,
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface,
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
             if (note.pinned && !note.completed) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.32f)
             } else {
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                MaterialTheme.colorScheme.outlineVariant
             },
         ),
         modifier = Modifier
@@ -741,7 +765,7 @@ private fun MemoCard(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = 12.dp, end = 4.dp, top = 10.dp, bottom = 12.dp),
+                    .padding(start = 15.dp, end = 8.dp, top = 14.dp, bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -761,14 +785,18 @@ private fun MemoCard(
                         style = MaterialTheme.typography.titleMedium.copy(
                             textDecoration = if (note.completed) TextDecoration.LineThrough else null,
                         ),
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
                     Box {
-                        IconButton(onClick = { menu = true }) {
-                            Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.memo_more))
+                        IconButton(onClick = { menu = true }, modifier = Modifier.size(36.dp)) {
+                            Icon(
+                                Icons.Rounded.MoreVert,
+                                contentDescription = stringResource(R.string.memo_more),
+                                modifier = Modifier.size(20.dp),
+                            )
                         }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             DropdownMenuItem(
@@ -848,7 +876,7 @@ private fun MemoCard(
                         Spacer(Modifier.width(10.dp))
                         Text(
                             text = "${progress.done}/${progress.total}",
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, lineHeight = 15.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -864,7 +892,7 @@ private fun MemoDoneToggle(done: Boolean, onClick: () -> Unit) {
     val primary = MaterialTheme.colorScheme.primary
     Box(
         modifier = Modifier
-            .size(22.dp)
+            .size(24.dp)
             .clip(CircleShape)
             .background(if (done) primary else Color.Transparent)
             .border(2.dp, if (done) primary else MaterialTheme.colorScheme.outline, CircleShape)
@@ -889,16 +917,16 @@ private fun MemoDoneToggle(done: Boolean, onClick: () -> Unit) {
 internal fun MemoTag(text: String, color: Color, icon: androidx.compose.ui.graphics.vector.ImageVector? = null) {
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
+            .clip(RoundedCornerShape(10.dp))
             .background(color.copy(alpha = 0.14f))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+            .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
             Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(13.dp))
-            Spacer(Modifier.width(3.dp))
+            Spacer(Modifier.width(5.dp))
         }
-        Text(text = text, style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.SemiBold)
+        Text(text = text, style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -907,16 +935,16 @@ private fun MemoNotebookTag(notebook: MemoNotebook) {
     val colors = memoNotebookColor(notebook)
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
+            .clip(RoundedCornerShape(10.dp))
             .background(colors?.container ?: MaterialTheme.colorScheme.surfaceVariant)
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+            .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = notebook.title,
             style = MaterialTheme.typography.labelSmall,
             color = colors?.onContainer ?: MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -935,12 +963,12 @@ private fun MemoDueTag(note: MemoNote, now: LocalDateTime) {
         )
         MemoDueState.Today -> MemoTag(
             text = stringResource(R.string.memo_due_today, clock),
-            color = Color(0xFFE39A2D),
+            color = Color(0xFFA5600A),
             icon = Icons.Rounded.Schedule,
         )
         MemoDueState.Soon -> MemoTag(
             text = stringResource(R.string.memo_due_soon, memoDurationText(Duration.between(now, due)), clock),
-            color = Color(0xFFE39A2D),
+            color = Color(0xFFA5600A),
             icon = Icons.Rounded.Schedule,
         )
         MemoDueState.Later, MemoDueState.None -> MemoTag(

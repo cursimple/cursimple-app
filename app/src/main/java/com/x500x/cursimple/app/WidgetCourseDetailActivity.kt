@@ -24,6 +24,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 
 /** Transparent launcher task hosts the same course dialog with all mutations disabled. */
 class WidgetCourseDetailActivity : ComponentActivity() {
@@ -87,10 +95,11 @@ class WidgetCourseDetailActivity : ComponentActivity() {
                         holidayCalendar = info.prefs.holidayCalendar, countHolidays = info.prefs.scheduleDisplay.courseSessionCountIncludeHolidays,
                         onDismiss = ::finish, onSetReminder = {}, onDelete = {}, readOnly = true)
                 } else {
-                    AlertDialog(onDismissRequest = ::finish,
+                    AppAlertDialog(onDismissRequest = ::finish,
+                        icon = { Icon(Icons.Rounded.Schedule, contentDescription = null, modifier = Modifier.size(22.dp)) },
                         title = { Text(stringResource(R.string.widget_course_detail_title)) },
                         text = { Text(stringResource(if (loaded) R.string.widget_course_detail_changed else R.string.widget_course_detail_loading)) },
-                        confirmButton = { TextButton(onClick = ::finish) { Text(stringResource(android.R.string.ok)) } })
+                        confirmButton = { AppDialogPrimaryButton(onClick = ::finish) { Text(stringResource(android.R.string.ok)) } })
                 }
             }
         }

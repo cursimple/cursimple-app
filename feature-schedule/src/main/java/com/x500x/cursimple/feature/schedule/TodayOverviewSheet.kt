@@ -25,7 +25,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import com.x500x.cursimple.feature.plugin.ui.AppModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -58,7 +58,7 @@ internal fun TodayOverviewSheet(
     onOpenCourse: (CourseItem) -> Unit,
 ) {
     val locale = LocalConfiguration.current.locales[0]
-    ModalBottomSheet(
+    AppModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag("today-overview-sheet"),
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -119,7 +119,9 @@ internal fun TodayOverviewSheet(
                                     shape = RoundedCornerShape(8.dp),
                                     color = MaterialTheme.colorScheme.surface,
                                 ) {
-                                    val text = if (slot.descriptionRes == R.string.schedule_today_free_nodes) {
+                                    val text = if (!slot.label.isNullOrBlank()) {
+                                        slot.label
+                                    } else if (slot.descriptionRes == R.string.schedule_today_free_nodes) {
                                         stringResource(slot.descriptionRes, slot.startNode, slot.endNode)
                                     } else {
                                         stringResource(slot.descriptionRes)

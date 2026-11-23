@@ -23,7 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import com.x500x.cursimple.feature.plugin.ui.AppModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.R
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.allCoursesWith
+import com.x500x.cursimple.core.kernel.model.CourseWeekPreview
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.isCurrentTermWeek
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
@@ -54,6 +55,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogDangerButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.DeleteOutline
 
 private const val DefaultWeekPickerTotalWeeks = 20
 
@@ -70,11 +77,12 @@ fun WeekPickerSheet(
     onAddWeek: () -> Unit = {},
     onDeleteWeek: (Int) -> Unit = {},
     onDismiss: () -> Unit,
+    preview: CourseWeekPreview? = null,
 ) {
     val haptics = rememberAppHaptics()
     var pendingDeleteWeek by remember { mutableStateOf<Int?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    AppModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {
@@ -121,7 +129,8 @@ fun WeekPickerSheet(
                 )
             }
 
-            val cells: List<Int?> = (1..totalWeeks).toList<Int?>() + listOf<Int?>(null)
+            val firstWeek = preview?.firstCourseWeek ?: 1
+            val cells: List<Int?> = (firstWeek..totalWeeks).toList<Int?>() + listOf<Int?>(null)
             val rows = cells.chunked(5)
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 rows.forEach { rowCells ->
@@ -140,7 +149,7 @@ fun WeekPickerSheet(
                                 )
                             } else {
                                 WeekCell(
-                                    week = week,
+                                    week = preview?.displayWeek(week) ?: week,
                                     isCurrent = isCurrentTermWeek(termStart, week, currentWeek),
                                     isSelected = week == selectedWeek,
                                     onClick = {
@@ -171,7 +180,7 @@ fun WeekPickerSheet(
 
     pendingDeleteWeek?.let { week ->
         DeleteWeekConfirmDialog(
-            week = week,
+            week = preview?.displayWeek(week) ?: week,
             onConfirm = {
                 pendingDeleteWeek = null
                 onDeleteWeek(week)
@@ -201,7 +210,8 @@ internal fun derivedWeekCount(
         .flatMap { it.weeks }
         .maxOrNull()
     val baseWeeks = explicitMaxWeek ?: fallbackWeeks
-    return maxOf(1, baseWeeks, currentWeek)
+    // Elapsed calendar time must not grow an imported teaching term.
+    return maxOf(1, baseWeeks)
 }
 
 /** Derive totals only from courses and explicit extra weeks, never the viewed week. */
@@ -251,20 +261,19 @@ private fun DeleteWeekConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        tone = AppDialogTone.Danger,
+        icon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.week_picker_delete_title, week)) },
         text = { Text(stringResource(R.string.week_picker_delete_body)) },
         confirmButton = {
-            AppOutlinedButton(onClick = onConfirm) {
-                Text(
-                    text = stringResource(R.string.week_picker_delete_confirm),
-                    color = MaterialTheme.colorScheme.error,
-                )
+            AppDialogDangerButton(onClick = onConfirm) {
+                Text(stringResource(R.string.week_picker_delete_confirm))
             }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.week_picker_delete_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.week_picker_delete_cancel)) }
         },
     )
 }

@@ -15,7 +15,9 @@ internal fun schoolPortalGuidance(request: WebSessionRequest, url: String): Int?
     val host = page.host.orEmpty()
     val path = page.path.orEmpty().trimEnd('/')
     val route = page.fragment.orEmpty().substringBefore('?').trimEnd('/')
-    if (host.equals("atrust.yangtzeu.edu.cn", ignoreCase = true) &&
+    // Only the generic import needs this: a plugin's own script moves on from the workbench by itself.
+    if (request.pluginId == SchoolPortalCatalog.PLUGIN_ID &&
+        host.equals("atrust.yangtzeu.edu.cn", ignoreCase = true) &&
         path == "/portal" && route == "/app_center"
     ) return R.string.plugin_web_yangtze_workbench_hint
 

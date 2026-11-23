@@ -12,6 +12,7 @@ import com.x500x.cursimple.core.data.term.DataStoreTermProfileRepository
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import com.x500x.cursimple.core.data.widget.resolveAccent
+import com.x500x.cursimple.core.data.widget.resolveThemeMode
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.kernel.model.DailySchedule
 import com.x500x.cursimple.core.kernel.model.allCoursesWith
@@ -76,6 +77,7 @@ internal object ReminderDataSource {
         val userPrefs = userPreferencesRepository.preferencesFlow.first()
         val widgetTheme = widgetPreferencesRepository.themePreferencesFlow.first()
             .resolveAccent(userPrefs.themeAccent, userPrefs.themeCustomColorArgb)
+            .resolveThemeMode(userPrefs.themeMode)
         val zone = BeijingTime.zone
         BeijingTime.setForcedNow(userPrefs.debugForcedDateTime)
 

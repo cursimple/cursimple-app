@@ -27,11 +27,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.constrainHeight
+import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -43,8 +45,10 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import com.x500x.cursimple.R
@@ -54,6 +58,7 @@ import com.x500x.cursimple.app.update.rememberReleaseImageLoader
 import com.x500x.cursimple.app.update.ReleaseNoteBlock
 import com.x500x.cursimple.app.update.ReleaseNoteSpan
 import com.x500x.cursimple.app.update.parseReleaseNotes
+import kotlin.math.roundToInt
 
 @Composable
 fun ReleaseNotesCard(
@@ -64,7 +69,8 @@ fun ReleaseNotesCard(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(max = maxHeight),
+            .heightIn(max = maxHeight)
+            .clipToBounds(),
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(12.dp),
     ) {
@@ -160,19 +166,16 @@ fun ReleaseImage(
     }
     val shape = RoundedCornerShape(cornerRadius)
     Box(
-        modifier = modifier.heightIn(min = 120.dp),
+        modifier = modifier.heightIn(min = 120.dp).clipToBounds(),
         contentAlignment = Alignment.Center,
     ) {
         when (val current = state) {
-            // No forced full width: a tall image under a height cap would otherwise overflow onto nearby text.
             is ReleaseImageState.Loaded -> Image(
                 bitmap = current.bitmap,
                 contentDescription = image.caption.ifBlank { null },
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .aspectRatio(
-                        current.bitmap.width.toFloat() / current.bitmap.height.coerceAtLeast(1),
-                    )
+                    .fitReleaseImage(current.bitmap)
                     .clip(shape)
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
                     .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
@@ -206,6 +209,19 @@ fun ReleaseImage(
             }
         }
     }
+}
+
+/** Measure within both available dimensions before drawing, even for tall screenshots. */
+private fun Modifier.fitReleaseImage(bitmap: ImageBitmap): Modifier = layout { measurable, constraints ->
+    val ratio = bitmap.width.toDouble() / bitmap.height
+    val availableWidth = if (constraints.hasBoundedWidth) constraints.maxWidth else bitmap.width
+    val width = constraints.constrainWidth(
+        if (constraints.hasBoundedHeight) minOf(availableWidth, (constraints.maxHeight * ratio).roundToInt())
+        else availableWidth,
+    )
+    val height = constraints.constrainHeight((width / ratio).roundToInt())
+    val image = measurable.measure(Constraints.fixed(width, height))
+    layout(width, height) { image.placeRelative(0, 0) }
 }
 
 private sealed interface ReleaseImageState {

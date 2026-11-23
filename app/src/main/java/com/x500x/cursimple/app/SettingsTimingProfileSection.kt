@@ -1,9 +1,13 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,7 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
@@ -24,7 +28,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -36,12 +40,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
+import com.x500x.cursimple.feature.schedule.TimingProfilePeriodNumberField
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.x500x.cursimple.R
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
 import com.x500x.cursimple.app.reminder.AutoSilenceController
@@ -66,6 +72,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.AccessTime
 
 @Composable
 internal fun TimingProfileEntryRow(quickId: String? = null, onClick: () -> Unit) {
@@ -165,47 +174,63 @@ internal fun TimingProfileSettingsSection() {
         },
     )
 
-    SettingsSectionHeader(stringResource(R.string.settings_dest_timing_profile))
+    val activeEntry = library.active
+    val activeSlotCount = activeEntry?.slotTimes?.size ?: 0
+    // Mirrors the reference subtitle: set name · slot count · whether plugin sync still owns it.
+    val editorSubtitle = listOfNotNull(
+        activeEntry?.let { timingProfileDisplayName(it) },
+        if (activeSlotCount > 0) {
+            pluralStringResource(R.plurals.settings_timing_profile_slot_count, activeSlotCount, activeSlotCount)
+        } else {
+            stringResource(R.string.settings_timing_profile_empty)
+        },
+        stringResource(
+            if (manuallyEdited) R.string.settings_timing_mode_manual else R.string.settings_timing_mode_auto,
+        ),
+    ).joinToString(" · ")
+
+    SettingsSectionHeader(stringResource(R.string.settings_timing_edit_active))
+    SettingsCard {
+        TimingEditorHeaderRow(subtitle = editorSubtitle)
+    }
 
     fun updateRow(index: Int, transform: (SlotDraftInput) -> SlotDraftInput) {
         drafts[index] = transform(drafts[index])
     }
 
     if (drafts.isEmpty()) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 Text(
                     text = stringResource(R.string.settings_timing_empty_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = 14.sp,
+                        lineHeight = 18.sp,
+                        letterSpacing = 0.sp,
+                    ),
+                    fontWeight = FontWeight.Bold,
                 )
-                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = stringResource(R.string.settings_timing_empty_body),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 17.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
     }
 
-    Text(
-        text = stringResource(R.string.settings_timing_hint, MIN_SLOT_NODE, MAX_SLOT_NODE),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    SettingsHintText(stringResource(R.string.settings_timing_hint, MIN_SLOT_NODE, MAX_SLOT_NODE))
 
     if (manuallyEdited) {
-        Text(
-            text = stringResource(R.string.settings_timing_manual_notice),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        SettingsHintText(stringResource(R.string.settings_timing_manual_notice))
     }
 
     drafts.forEachIndexed { index, draft ->
@@ -240,22 +265,26 @@ internal fun TimingProfileSettingsSection() {
     }
 
     if (errors.isNotEmpty()) {
-        Card(
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+            shape = RoundedCornerShape(18.dp),
+            color = MaterialTheme.colorScheme.errorContainer,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f)),
         ) {
-            Column(modifier = Modifier.padding(14.dp)) {
+            Column(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
                 Text(
                     text = stringResource(R.string.settings_timing_errors_title),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp, lineHeight = 17.5.sp),
                     color = MaterialTheme.colorScheme.onErrorContainer,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                 )
-                Spacer(modifier = Modifier.height(4.dp))
                 errors.forEach { error ->
                     Text(
                         text = "· ${context.timingDraftErrorText(error)}",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 18.sp),
                         color = MaterialTheme.colorScheme.onErrorContainer,
                     )
                 }
@@ -342,6 +371,52 @@ internal fun TimingProfileSettingsSection() {
     }
 }
 
+/** Header row of the editor card: icon chip, section title and the active set's summary. */
+@Composable
+private fun TimingEditorHeaderRow(subtitle: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Schedule,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.settings_dest_timing_profile),
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
+                    letterSpacing = 0.sp,
+                ),
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 17.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
 @Composable
 internal fun TimingSlotEditorRow(
     index: Int,
@@ -349,11 +424,13 @@ internal fun TimingSlotEditorRow(
     onChange: (SlotDraftInput) -> Unit,
     onDelete: () -> Unit,
 ) {
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = stringResource(R.string.settings_timing_row_index, index + 1),
@@ -370,27 +447,21 @@ internal fun TimingSlotEditorRow(
                     )
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = draft.startNode,
-                    onValueChange = { onChange(draft.copy(startNode = it.filter(Char::isDigit))) },
-                    label = { Text(stringResource(R.string.settings_timing_start_node)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = draft.endNode,
-                    onValueChange = { onChange(draft.copy(endNode = it.filter(Char::isDigit))) },
-                    label = { Text(stringResource(R.string.settings_timing_end_node)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f),
-                )
+            val start = draft.startNode.toIntOrNull()
+            val end = draft.endNode.toIntOrNull()
+            TimingProfilePeriodNumberField(stringResource(R.string.settings_timing_start_node), start) { picked ->
+                onChange(draft.copy(startNode = picked.toString(), endNode = maxOf(picked, end ?: picked).toString()))
             }
             Spacer(modifier = Modifier.height(8.dp))
+            TimingProfilePeriodNumberField(
+                label = stringResource(R.string.settings_timing_end_node),
+                value = end,
+                minimum = start?.coerceIn(1, 32) ?: 1,
+                onSelect = { onChange(draft.copy(endNode = it.toString())) },
+            )
+            Spacer(modifier = Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = draft.startTime,
                     onValueChange = { onChange(draft.copy(startTime = it)) },
                     label = { Text(stringResource(R.string.settings_timing_start_time)) },
@@ -398,7 +469,7 @@ internal fun TimingSlotEditorRow(
                     singleLine = true,
                     modifier = Modifier.weight(1f),
                 )
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = draft.endTime,
                     onValueChange = { onChange(draft.copy(endTime = it)) },
                     label = { Text(stringResource(R.string.settings_timing_end_time)) },
@@ -408,7 +479,7 @@ internal fun TimingSlotEditorRow(
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
+            AppOutlinedTextField(
                 value = draft.label,
                 onValueChange = { onChange(draft.copy(label = it)) },
                 label = { Text(stringResource(R.string.settings_timing_label_hint)) },
@@ -424,8 +495,9 @@ internal fun TimingTemplatePickerDialog(
     onDismiss: () -> Unit,
     onSelect: (com.x500x.cursimple.core.data.widget.TimingTemplate) -> Unit,
 ) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.AccessTime, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(R.string.settings_timing_template_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -459,7 +531,7 @@ internal fun TimingTemplatePickerDialog(
         },
         confirmButton = {},
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }

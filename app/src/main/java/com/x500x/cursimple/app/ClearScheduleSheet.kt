@@ -27,7 +27,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import com.x500x.cursimple.feature.plugin.ui.AppModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -48,6 +48,11 @@ import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.R
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import kotlinx.coroutines.launch
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogDangerButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogTone
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
+import androidx.compose.material.icons.rounded.DeleteOutline
 
 enum class ClearScope { ManualOnly, ImportedOnly, Everything }
 
@@ -93,7 +98,7 @@ fun ClearScheduleSheet(
         ),
     )
 
-    ModalBottomSheet(
+    AppModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surface,
@@ -222,8 +227,10 @@ private fun ClearConfirmDialog(
     val previewLimit = 5
     val needsFold = affected.size > previewLimit
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        tone = AppDialogTone.Danger,
+        icon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(title) },
         text = {
             Column {
@@ -307,15 +314,12 @@ private fun ClearConfirmDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = onConfirm) {
-                Text(
-                    text = stringResource(R.string.clear_confirm_button),
-                    color = MaterialTheme.colorScheme.error,
-                )
+            AppDialogDangerButton(onClick = onConfirm) {
+                Text(stringResource(R.string.clear_confirm_button))
             }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.clear_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.clear_cancel)) }
         },
     )
 }

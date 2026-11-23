@@ -264,11 +264,13 @@ internal data class CollapsedLanes<K>(
 
 /**
  * Like [assignLanes], but never uses more than [maxLanes] lanes (at most [WIDE_DAY_LANES]). A cluster that
- * fits keeps its lanes. In a cluster that needs more, the nearest items (lowest priority value) fill the
- * lanes, left first, and the rest fold into one chip at the bottom of the last lane. The last lane's items
- * that the chip covers are shortened by [chipUnits]. With several lanes, an item that would be left
- * shorter than [minCardUnits] folds away instead; with a single lane it keeps its height and the chip
- * overlays its bottom edge.
+ * fits keeps its lanes. In a cluster that needs more, the nearest items (lowest priority value) fill every
+ * lane but the last, left first, and everything else folds into one "more" chip that owns the last lane.
+ * Only the stretches where more than the limit run at once fold: items outside them keep their own lane, so a
+ * card on the left with two stacked on the right is fine, and the chip appears only where a third really
+ * conflicts. With a single lane the nearest items keep the full width instead and the chip overlays the bottom
+ * edge: the last card is shortened by [chipUnits], or folds away when that would leave it
+ * shorter than [minCardUnits].
  */
 internal fun <K> assignLanesCollapsing(
     items: List<LaneItem<K>>,
@@ -282,41 +284,90 @@ internal fun <K> assignLanesCollapsing(
     val positions = HashMap<K, LanePosition>()
     val overflows = mutableListOf<LaneOverflow<K>>()
     val trimmed = HashMap<K, Float>()
+
+    /** Folded result of one crowd: the card lanes it keeps and the chip over its full height. */
+    class Fold(val laneItems: List<List<LaneItem<K>>>, val overflow: LaneOverflow<K>, val trimmed: Map<K, Float>)
+
+    // With room for two lanes or more the chip gets a lane of its own; one lane has to share it.
+    fun fold(group: List<LaneItem<K>>): Fold {
+        val cardLanes = if (laneLimit > 1) laneLimit - 1 else 1
+        val laneItems = List(cardLanes) { mutableListOf<LaneItem<K>>() }
+        val hidden = mutableListOf<LaneItem<K>>()
+        for (item in group.sortedWith(compareBy({ it.priority }, { it.top }, { it.order }))) {
+            val lane = laneItems.firstOrNull { l -> l.none { it.overlaps(item) } }
+            if (lane != null) lane += item else hidden += item
+        }
+        // The chip spans what it holds, so a clear card before or after the crowd keeps the lane beside it.
+        val folded = hidden.ifEmpty { group }
+        val chipBottom = if (laneLimit > 1) folded.maxOf { it.bottom } else group.maxOf { it.bottom }
+        val chipTop: Float
+        val cut = HashMap<K, Float>()
+        if (laneLimit > 1) {
+            chipTop = folded.minOf { it.top }
+        } else {
+            chipTop = chipBottom - chipUnits
+            for (item in laneItems.last()) {
+                val room = chipTop - item.top
+                // Single lane: a card that cannot spare the room keeps its height and the chip overlays its edge.
+                if (item.bottom > chipTop + epsilon && room >= minCardUnits) cut[item.key] = chipTop
+            }
+        }
+        val overflow = LaneOverflow(
+            top = chipTop,
+            bottom = chipBottom,
+            hidden = hidden.sortedWith(compareBy({ it.top }, { it.order })).map { it.key },
+            position = LanePosition(laneLimit - 1, laneLimit),
+        )
+        return Fold(laneItems, overflow, cut)
+    }
+
+    fun apply(fold: Fold) {
+        fold.laneItems.forEachIndexed { lane, list ->
+            list.forEach { positions[it.key] = LanePosition(lane, laneLimit) }
+        }
+        overflows += fold.overflow
+        trimmed += fold.trimmed
+    }
+
+    /**
+     * Fold only the stretches where more than [laneLimit] items run at once. Items clear of those stretches keep
+     * a lane of their own beside the chip (for example one card on the left and two stacked on the right).
+     * Returns false when such an item finds no free lane, so the caller folds the whole cluster instead.
+     */
+    fun foldCrowdedStretches(cluster: List<LaneItem<K>>): Boolean {
+        val edges = cluster.flatMap { listOf(it.top, it.bottom) }.distinct().sorted()
+        val crowded = edges.zipWithNext().filter { (from, to) ->
+            to - from > epsilon &&
+                cluster.count { it.top < to - epsilon && from < it.bottom - epsilon } > laneLimit
+        }
+        val members = cluster.filter { item -> crowded.any { (from, to) -> item.top < to - epsilon && from < item.bottom - epsilon } }
+        val memberSet = members.toSet()
+        val folds = clusterByOverlap(members, { it.top }, { it.bottom }).map(::fold)
+        val taken = List(laneLimit) { mutableListOf<Pair<Float, Float>>() }
+        folds.forEach { fold ->
+            fold.laneItems.forEachIndexed { lane, list -> list.forEach { taken[lane] += it.top to it.bottom } }
+            taken[laneLimit - 1] += fold.overflow.top to fold.overflow.bottom
+        }
+        val placed = HashMap<K, Int>()
+        for (item in cluster.filter { it !in memberSet }.sortedWith(compareBy({ it.top }, { it.order }, { -it.bottom }))) {
+            val lane = taken.indexOfFirst { spans -> spans.none { (top, bottom) -> item.top < bottom - epsilon && top < item.bottom - epsilon } }
+            if (lane < 0) return false
+            taken[lane] += item.top to item.bottom
+            placed[item.key] = lane
+        }
+        folds.forEach(::apply)
+        placed.forEach { (key, lane) -> positions[key] = LanePosition(lane, laneLimit) }
+        return true
+    }
+
     for (cluster in clusterByOverlap(items, { it.top }, { it.bottom })) {
         val lanes = assignLanes(cluster)
         if ((lanes.values.maxOfOrNull { it.laneCount } ?: 1) <= laneLimit) {
             positions += lanes
             continue
         }
-        val laneItems = List(laneLimit) { mutableListOf<LaneItem<K>>() }
-        val hidden = mutableListOf<LaneItem<K>>()
-        for (item in cluster.sortedWith(compareBy({ it.priority }, { it.top }, { it.order }))) {
-            val lane = laneItems.firstOrNull { l -> l.none { it.overlaps(item) } }
-            if (lane != null) lane += item else hidden += item
-        }
-        val chipBottom = cluster.maxOf { it.bottom }
-        val chipTop = chipBottom - chipUnits
-        val lastLane = laneItems.last()
-        for (item in lastLane.toList()) {
-            val room = chipTop - item.top
-            when {
-                item.bottom <= chipTop + epsilon -> Unit
-                room >= minCardUnits -> trimmed[item.key] = chipTop
-                laneLimit > 1 -> {
-                    lastLane -= item
-                    hidden += item
-                }
-            }
-        }
-        laneItems.forEachIndexed { lane, list ->
-            list.forEach { positions[it.key] = LanePosition(lane, laneLimit) }
-        }
-        overflows += LaneOverflow(
-            top = chipTop,
-            bottom = chipBottom,
-            hidden = hidden.sortedWith(compareBy({ it.top }, { it.order })).map { it.key },
-            position = LanePosition(laneLimit - 1, laneLimit),
-        )
+        if (laneLimit > 1 && foldCrowdedStretches(cluster)) continue
+        apply(fold(cluster))
     }
     return CollapsedLanes(positions, overflows, trimmed)
 }
@@ -360,6 +411,45 @@ internal fun lanePriority(top: Float, bottom: Float, nowUnits: Float?, inactive:
         else -> 1_000f + (nowUnits - bottom)
     }
     return base + if (inactive) 10_000f else 0f
+}
+
+/** Axis-aligned rectangle in grid dp, used to hit-test blank space between drawn cards. */
+internal data class GridRect(val left: Float, val top: Float, val right: Float, val bottom: Float) {
+    val width: Float get() = right - left
+    val height: Float get() = bottom - top
+    fun contains(x: Float, y: Float) = x >= left && x < right && y >= top && y < bottom
+}
+
+/**
+ * The largest free rectangle around ([x], [y]) inside [bounds] that touches none of [occupied], or null when
+ * the point sits on a drawn card or the free area is thinner than [minSize] on either side. The free height
+ * is found at the tap column first, then the width across that height, so the result never overlaps a card.
+ */
+internal fun findBlankRect(
+    x: Float,
+    y: Float,
+    bounds: GridRect,
+    occupied: List<GridRect>,
+    minSize: Float,
+): GridRect? {
+    if (!bounds.contains(x, y)) return null
+    if (occupied.any { it.contains(x, y) }) return null
+    var top = bounds.top
+    var bottom = bounds.bottom
+    for (r in occupied) {
+        if (x < r.left || x >= r.right) continue
+        if (r.bottom <= y) top = maxOf(top, r.bottom)
+        if (r.top > y) bottom = minOf(bottom, r.top)
+    }
+    var left = bounds.left
+    var right = bounds.right
+    for (r in occupied) {
+        if (r.bottom <= top || r.top >= bottom) continue
+        if (r.right <= x) left = maxOf(left, r.right)
+        if (r.left > x) right = minOf(right, r.left)
+    }
+    val rect = GridRect(left, top, right, bottom)
+    return rect.takeIf { it.width >= minSize && it.height >= minSize }
 }
 
 /** Express lanes as column fractions; every overlap gets equal width without occlusion. */

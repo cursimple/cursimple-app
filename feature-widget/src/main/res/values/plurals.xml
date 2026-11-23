@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="widget_course_end_weeks_left">
+        <item quantity="one">剩 1 周</item>
+        <item quantity="other">剩 %d 周</item>
+    </plurals>
+</resources>

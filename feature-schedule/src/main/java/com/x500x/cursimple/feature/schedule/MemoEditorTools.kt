@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -32,6 +33,9 @@ import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.net.URI
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
 
 /** Header-only history controls; the bottom bar remains entirely for editing tools. */
 @Composable
@@ -153,16 +157,18 @@ private fun MemoTool(icon: ImageVector, label: Int, tag: String, enabled: Boolea
 private fun MemoLinkDialog(initialLabel: String, onInsert: (String, String) -> Unit, onDismiss: () -> Unit) {
     var label by remember { mutableStateOf(initialLabel) }
     var url by remember { mutableStateOf("") }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.memo_tool_link)) }, text = {
+    AppAlertDialog(onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Link, contentDescription = null, modifier = Modifier.size(22.dp)) },
+        title = { Text(stringResource(R.string.memo_tool_link)) }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(label, { label = it }, label = { Text(stringResource(R.string.memo_link_label)) },
+            AppOutlinedTextField(label, { label = it }, label = { Text(stringResource(R.string.memo_link_label)) },
                 singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(url, { url = it }, label = { Text(stringResource(R.string.memo_link_url)) },
+            AppOutlinedTextField(url, { url = it }, label = { Text(stringResource(R.string.memo_link_url)) },
                 singleLine = true, modifier = Modifier.fillMaxWidth())
         }
     }, confirmButton = {
-        Button(onClick = { onInsert(label.trim(), url.trim()) }, enabled = memoLinkIsValid(url)) {
+        AppDialogPrimaryButton(onClick = { onInsert(label.trim(), url.trim()) }, enabled = memoLinkIsValid(url)) {
             AppAtomicText(stringResource(R.string.memo_tool_insert))
         }
-    }, dismissButton = { AppOutlinedButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.schedule_action_cancel)) } })
+    }, dismissButton = { AppDialogSecondaryButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.schedule_action_cancel)) } })
 }

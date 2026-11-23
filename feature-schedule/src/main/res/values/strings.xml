@@ -150,7 +150,7 @@
     <string name="schedule_reminder_rule_action_label">动作</string>
     <string name="schedule_reminder_rule_delete_condition">删除条件</string>
     <string name="schedule_reminder_rule_delete_action">删除动作</string>
-    <string name="schedule_reminder_rule_no_label">无可选 label</string>
+    <string name="schedule_reminder_rule_no_label">无标签</string>
     <string name="schedule_reminder_rule_course_label">节次</string>
     <string name="schedule_reminder_presence_exists">有课</string>
     <string name="schedule_reminder_presence_absent">没课</string>
@@ -345,6 +345,8 @@
     </plurals>
     <string name="schedule_library_empty">这学期还没有课程呢，等课表来敲门～</string>
     <string name="schedule_library_no_match">没有匹配的课程</string>
+    <string name="schedule_library_event_no_match">没有匹配的事务</string>
+    <string name="schedule_library_event_source_no_match">没有符合所选来源的事务</string>
     <string name="schedule_library_variants_expand">展开各周安排</string>
     <string name="schedule_library_variants_collapse">收起</string>
     <string name="schedule_library_variants_hint">其余各行和「主安排」不同的地方已标色，点一行可以直接修改</string>
@@ -358,7 +360,7 @@
     <string name="schedule_library_add">新增课程</string>
     <string name="schedule_library_plugin_editable_hint">插件同步的课程也能改，改完会转为手动课程，下次同步不再覆盖</string>
     <string name="schedule_library_delete_title">删除这门课？</string>
-    <string name="schedule_library_delete_body">%1$s 会从课表中移除，它的单课闹钟也会一并删掉。</string>
+    <string name="schedule_library_delete_body">%1$s 会从课表中移除，它的单课闹钟也会一并删掉。删除后可以在「管理列表」右上角的回收站里恢复。</string>
     <string name="schedule_library_delete_confirm">删除</string>
     <string name="schedule_library_restore_title">还原为插件数据？</string>
     <string name="schedule_library_restore_body">%1$s 的手动修改会丢掉，恢复成插件同步下发的那一份。</string>
@@ -455,8 +457,8 @@
     <string name="schedule_conflict_warning_separator">；</string>
     <string name="schedule_conflict_warning_overflow">等 %1$d 门</string>
     <string name="schedule_holiday_unnamed">放假</string>
-    <string name="schedule_hint_needs_sync">还没有同步到课表，可以去插件页同步，或点空格子直接加课。</string>
-    <string name="schedule_hint_no_courses">课表还空空的呢，点一下空格子，就能加上第一门课啦</string>
+    <string name="schedule_hint_needs_sync">还没有同步到课表：点右上角「+」→「从教务系统导入」，或点空格子手动加课。</string>
+    <string name="schedule_hint_no_courses">课表还空空的呢。点右上角「+」→「从教务系统导入」，一键带入整学期课表；也可以点空格子手动加课。</string>
     <string name="schedule_hint_no_course_this_week">这一周没有课程安排，可以切换其他周，或点空格子加课。</string>
     <string name="schedule_empty_holiday_subtitle">这一天是假日，不安排课程，也不会发出课程闹钟。</string>
     <string name="schedule_empty_not_started_title">还没开学，先再睡会儿吧～</string>
@@ -693,7 +695,6 @@
     <string name="schedule_day_sheet_current_source">当前：按 %1$d月%2$d日 %3$s 的课上</string>
     <string name="schedule_day_sheet_current_today">当前：今天</string>
     <string name="schedule_overlap_pick_title">这一格有 %1$d 门课</string>
-    <string name="schedule_overlap_pick_body">选择要编辑的那一门。</string>
     <string name="schedule_same_slot_prev">上一门</string>
     <string name="schedule_same_slot_next">下一门</string>
     <string name="schedule_same_slot_position">第 %1$d / %2$d 门</string>
@@ -738,9 +739,16 @@
     <string name="schedule_overflow_in_minutes">%1$d 分钟后开始</string>
     <string name="schedule_overflow_in_hours">%1$d 小时 %2$d 分钟后开始</string>
     <string name="schedule_overflow_finished">已结束</string>
+    <string name="schedule_overflow_this_week">本周上课</string>
+    <plurals name="schedule_overflow_runs_weeks">
+        <item quantity="other">第 %1$s 周上课</item>
+    </plurals>
     <string name="schedule_event_group_close">关闭</string>
     <plurals name="schedule_course_more_description">
         <item quantity="other">这里有 %1$d 门课程，点开查看全部</item>
+    </plurals>
+    <plurals name="schedule_course_more_count">
+        <item quantity="other">%1$d 门</item>
     </plurals>
     <plurals name="schedule_event_group_count">
         <item quantity="other">%1$d 项</item>
@@ -961,6 +969,8 @@
     <string name="schedule_course_session_progress">上课次数 %1$d/%2$d</string>
     <string name="schedule_course_session_not_scheduled">本次不计 · 共 %1$d 次</string>
     <string name="schedule_course_session_needs_start">设置学期开始日期后显示上课次数</string>
+    <string name="schedule_course_end_near_badge">剩 1 周</string>
+    <string name="schedule_course_end_final_badge">最后一周</string>
     <string name="schedule_today_makeup_notice">调休补课：今日按 %1$s 课表上课</string>
     <string name="schedule_today_free_slots_title">今日自习与空闲时段</string>
     <string name="schedule_today_free_all_day">全天无课，整天都是自由自习时间</string>
@@ -984,4 +994,47 @@
     <string name="school_portal_import_done">已导入课表。</string>
     <string name="school_portal_plugin_no_portal">这个插件没有提供可用的教务系统地址。</string>
     <string name="stats_week_detail">第 %1$d 周：%2$d 节课</string>
+    <string name="stats_early_morning">早八</string>
+    <string name="stats_evening">晚间课</string>
+    <string name="stats_peak_week">课程最多周</string>
+    <string name="stats_peak_day">课程最多日</string>
+    <string name="stats_count_sessions">%1$d 节</string>
+    <string name="stats_week_value">第 %1$d 周，共 %2$d 节</string>
+    <string name="stats_none">暂无</string>
+    <string name="stats_monday">周一，共 %1$d 节</string>
+    <string name="stats_tuesday">周二，共 %1$d 节</string>
+    <string name="stats_wednesday">周三，共 %1$d 节</string>
+    <string name="stats_thursday">周四，共 %1$d 节</string>
+    <string name="stats_friday">周五，共 %1$d 节</string>
+    <string name="stats_saturday">周六，共 %1$d 节</string>
+    <string name="stats_sunday">周日，共 %1$d 节</string>
+    <string name="stats_peak_week_detail">课程最多的一周</string>
+    <string name="stats_peak_day_detail">课程最多的一天</string>
+    <string name="stats_early_morning_detail">早八课程</string>
+    <string name="stats_evening_detail">晚间课程</string>
+    <string name="schedule_course_session_label">上课次数</string>
+    <string name="schedule_course_end_final">最后一周</string>
+    <string name="schedule_course_end_near">倒数第二周</string>
+    <string name="schedule_library_bin_open">回收站（%1$d）</string>
+    <string name="schedule_library_bin_title">回收站（%1$d）</string>
+    <string name="schedule_library_bin_empty">回收站是空的</string>
+    <string name="schedule_library_bin_plugin_item">来自插件的课程</string>
+    <string name="schedule_library_bin_restore">恢复</string>
+    <string name="schedule_library_bin_restore_title">恢复这门课？</string>
+    <string name="schedule_library_bin_restore_body">「%1$s」会回到课表原来的位置。</string>
+    <string name="schedule_library_bin_clear">清空</string>
+    <string name="schedule_library_bin_clear_title">清空回收站？</string>
+    <string name="schedule_library_bin_clear_body">回收站里的课程会被彻底删除，无法恢复。</string>
+    <string name="schedule_library_bin_clear_confirm">清空</string>
+    <string name="schedule_library_bin_detail_time">时间：%1$s</string>
+    <string name="schedule_library_bin_detail_period">第 %1$d-%2$d 节</string>
+    <string name="schedule_library_bin_detail_weeks">周次：%1$s</string>
+    <string name="schedule_library_bin_detail_location">地点：%1$s</string>
+    <string name="schedule_library_bin_detail_teacher">老师：%1$s</string>
+    <string name="schedule_library_bin_detail_weeks_unknown">未设置周次</string>
+    <string name="schedule_library_bin_detail_weekday">星期：%1$s</string>
+    <string name="schedule_library_bin_detail_period_line">节次：%1$s</string>
+    <string name="schedule_library_bin_detail_clock">上课时间：%1$s</string>
+    <string name="schedule_library_bin_tag_location">地点 %1$s</string>
+    <string name="schedule_library_bin_tag_teacher">老师 %1$s</string>
 </resources>

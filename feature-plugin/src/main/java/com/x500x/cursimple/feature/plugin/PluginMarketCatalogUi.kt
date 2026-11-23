@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -33,13 +34,14 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
@@ -57,12 +59,18 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.AppSearchField
 import com.x500x.cursimple.core.plugin.market.github.MarketSourceCheck
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import androidx.compose.material.icons.rounded.Download
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -148,53 +156,49 @@ internal fun MarketCatalogControls(
                 }
             }
         }
-        OutlinedTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            modifier = Modifier.fillMaxWidth().testTag("catalog-search"),
-            singleLine = true,
-            shape = RoundedCornerShape(24.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+        AppSearchField(
+            query = query,
+            onQueryChange = onQueryChange,
+            hint = stringResource(R.string.plugin_catalog_search_hint),
+            clearLabel = stringResource(R.string.plugin_catalog_clear_search),
+            label = stringResource(
+                if (extensionMode) R.string.extension_search_label else R.string.plugin_catalog_search_label,
             ),
-            label = {
-                Text(stringResource(if (extensionMode) R.string.extension_search_label else R.string.plugin_catalog_search_label))
-            },
-            placeholder = { Text(stringResource(R.string.plugin_catalog_search_hint)) },
-            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-            trailingIcon = {
-                if (query.isNotEmpty()) {
-                    AppOutlinedButton(
-                        onClick = { onQueryChange("") },
-                        modifier = Modifier.padding(end = 8.dp).testTag("catalog-clear"),
-                        contentPadding = PaddingValues(8.dp),
-                    ) {
-                        Icon(
-                            Icons.Rounded.Close,
-                            contentDescription = stringResource(R.string.plugin_catalog_clear_search),
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-            },
+            fieldModifier = Modifier.testTag("catalog-search"),
+            clearModifier = Modifier.testTag("catalog-clear"),
+            cornerRadius = 26.dp,
+            minHeight = 52.dp,
+            borderWidth = 1.5.dp,
         )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
             AppOutlinedButton(
                 onClick = onImport,
                 enabled = !isLoading,
-                shape = RoundedCornerShape(50),
+                modifier = Modifier.height(38.dp),
+                shape = RoundedCornerShape(19.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
             ) {
                 Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.plugin_market_action_import_zip))
+                Text(
+                    text = stringResource(R.string.plugin_market_action_import_zip),
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                    fontWeight = FontWeight.Bold,
+                )
             }
             AppCircleIconButton(
                 onClick = onRefresh,
                 enabled = !isLoading && !isRefreshingReleases,
                 modifier = Modifier.testTag("catalog-refresh"),
+                size = 40.dp,
+                containerColor = Color.Transparent,
+                borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
             ) {
-                Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.plugin_market_action_refresh), modifier = Modifier.size(24.dp))
+                Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.plugin_market_action_refresh), modifier = Modifier.size(20.dp))
             }
         }
         AnimatedVisibility(
@@ -218,24 +222,39 @@ internal fun MarketSourceLabel(source: String) {
             R.string.plugin_catalog_source,
             if (isPublicMarketSource(source)) stringResource(R.string.plugin_catalog_public_source) else source,
         ),
-        style = MaterialTheme.typography.bodySmall,
+        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, lineHeight = 15.sp, letterSpacing = 0.sp),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
 
 @Composable
-internal fun MarketStatusBadge(label: String, attention: Boolean = false) {
+internal fun MarketStatusBadge(label: String, attention: Boolean = false, neutral: Boolean = false) {
+    val scheme = MaterialTheme.colorScheme
     Surface(
         shape = RoundedCornerShape(8.dp),
-        color = if (attention) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = if (attention) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSecondaryContainer,
+        // Neutral chips carry plain facts (install origin) beside the version pill.
+        color = when {
+            attention -> scheme.tertiaryContainer
+            neutral -> scheme.surfaceVariant
+            else -> scheme.secondaryContainer
+        },
+        contentColor = when {
+            attention -> scheme.tertiary
+            neutral -> scheme.onSurfaceVariant
+            else -> scheme.onSecondaryContainer
+        },
     ) {
-        Text(
-            label,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
-        )
+        Box(
+            modifier = Modifier.height(24.dp).padding(horizontal = 9.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, letterSpacing = 0.sp),
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+        }
     }
 }
 
@@ -243,10 +262,9 @@ internal fun MarketStatusBadge(label: String, attention: Boolean = false) {
 internal fun MarketItemSurface(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
     }
@@ -254,21 +272,31 @@ internal fun MarketItemSurface(modifier: Modifier = Modifier, content: @Composab
 
 @Composable
 internal fun MarketDetailTopBar(title: String, onBack: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    // The host already shows this title and back action in its own bar.
+    if (LocalPluginHostTopBar.current) return
+    Box(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp).height(44.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        AppOutlinedButton(
+        Text(
+            text = title,
+            modifier = Modifier.padding(horizontal = 44.dp),
+            style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp, letterSpacing = 0.5.sp),
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        IconButton(
             onClick = onBack,
-            modifier = Modifier.testTag("detail-back"),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.align(Alignment.CenterStart).size(44.dp).testTag("detail-back"),
         ) {
-            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.plugin_action_back))
+            Icon(
+                Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = stringResource(R.string.plugin_action_back),
+                modifier = Modifier.size(22.dp),
+            )
         }
-        Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -277,8 +305,12 @@ internal fun MarketDetailHeading(title: String, modifier: Modifier = Modifier) {
     Text(
         text = title,
         modifier = modifier.fillMaxWidth(),
-        style = MaterialTheme.typography.headlineSmall.copy(lineBreak = LineBreak.Heading),
-        fontWeight = FontWeight.SemiBold,
+        style = MaterialTheme.typography.titleSmall.copy(
+            fontSize = 15.5.sp,
+            lineHeight = 20.sp,
+            lineBreak = LineBreak.Heading,
+        ),
+        fontWeight = FontWeight.Bold,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
     )
@@ -290,25 +322,76 @@ internal fun MarketInfoBlock(
     value: String,
     singleLine: Boolean = false,
     valueModifier: Modifier = Modifier,
+    showDivider: Boolean = true,
+    dense: Boolean = false,
+    monospace: Boolean = false,
 ) {
     AppInfoBlock(
         label = label,
         value = value,
         singleLine = singleLine,
         valueModifier = valueModifier,
+        showDivider = showDivider,
+        dense = dense,
+        monospace = monospace,
     )
 }
 
+/** Collapsible technical section header: icon chip, title, summary and a chevron. */
 @Composable
 internal fun MarketDetailsToggle(expanded: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    AppOutlinedButton(onClick = onClick, modifier = modifier.fillMaxWidth()) {
-        Icon(
-            if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(stringResource(if (expanded) R.string.plugin_detail_collapse_technical else R.string.plugin_detail_expand_technical))
+    Surface(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Rounded.VerifiedUser,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    stringResource(
+                        if (expanded) R.string.plugin_detail_collapse_technical else R.string.plugin_detail_expand_technical,
+                    ),
+                    style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, lineHeight = 19.sp),
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    stringResource(R.string.plugin_detail_technical_summary),
+                    modifier = Modifier.padding(top = 2.dp),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.5.sp,
+                        lineHeight = 16.5.sp,
+                        letterSpacing = 0.sp,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                modifier = Modifier.size(18.dp),
+            )
+        }
     }
 }
 
@@ -328,10 +411,11 @@ internal fun MarketDownloadOverlay(
     val largePackage = if (total != null) total >= threshold else downloaded >= threshold
     if (!largePackage) return
     val context = LocalContext.current
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onCancel,
         modifier = Modifier.testTag("market-download"),
         properties = DialogProperties(dismissOnClickOutside = false),
+        icon = { Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(stringResource(if (extensionMode) R.string.extension_download_title else R.string.plugin_download_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -359,7 +443,7 @@ internal fun MarketDownloadOverlay(
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = onCancel, modifier = Modifier.testTag("download-cancel")) {
+            AppDialogPrimaryButton(onClick = onCancel, modifier = Modifier.testTag("download-cancel")) {
                 Text(stringResource(R.string.plugin_download_cancel))
             }
         },

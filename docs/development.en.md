@@ -11,8 +11,6 @@ Use JDK 17 and Android SDK platform 36. Configure `local.properties` with your S
 ```sh
 ./gradlew :app:assembleDebug
 ./gradlew testDebugUnitTest lintDebug
-node --test site/tests/*.test.cjs
-node site/check-links.cjs
 python3 -m unittest discover -s scripts/tests
 ```
 
@@ -58,7 +56,7 @@ Beta and stable releases come only from `main`; CI rejects ordinary tags that ar
 |---|---|
 | `.github/workflows/android-ci.yml` | Build and tests for pull requests and main-branch changes |
 | `.github/workflows/android-release.yml` | Signed APKs, release metadata and stable/beta update feeds |
-| `.github/workflows/pages.yml` | Validate and deploy the static website |
+| `.github/workflows/pages.yml` | Redirect page for the old website URL (`/cursimple-app/`); the website itself lives in the [cursimple.github.io](https://github.com/cursimple/cursimple.github.io) repository |
 
 ## Release announcements
 
@@ -85,7 +83,7 @@ Write concise English comments explaining constraints or non-obvious behavior. K
 
 Before removing code, check call sites, reflection, manifest registrations, persisted formats and plugin bridges. Keep compatibility paths that still read supported user data. Exclude caches, temporary reports and generated build output from the repository.
 
-Additional guides: [website](../site/README.md), [today overview](today-overview.md), [holiday alarm policy](holiday-alarm-policy.md).
+Additional guides: [website (separate repository)](https://github.com/cursimple/cursimple.github.io), [today overview](today-overview.md), [holiday alarm policy](holiday-alarm-policy.md).
 
 Widgets use native `RemoteViews`. Their historical receiver class names remain stable for existing launcher bindings. Shared QR encoding, camera scanning and crop calculations live in `feature-schedule/sharing` and serve both timetable and note import.
 

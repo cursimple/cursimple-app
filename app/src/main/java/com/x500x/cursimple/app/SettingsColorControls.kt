@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -28,7 +29,6 @@ import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import com.x500x.cursimple.feature.plugin.ui.AppSlider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -43,14 +43,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.x500x.cursimple.R
 import com.x500x.cursimple.core.data.adaptScheduleBackgroundColorArgb
 import com.x500x.cursimple.core.data.adaptScheduleForegroundColorArgb
 import kotlin.math.roundToInt
+import com.x500x.cursimple.feature.plugin.ui.AppAlertDialog
+import com.x500x.cursimple.feature.plugin.ui.AppDialogPrimaryButton
+import com.x500x.cursimple.feature.plugin.ui.AppDialogSecondaryButton
 
 @Composable
 internal fun ColorAlphaRow(
@@ -129,8 +134,9 @@ internal fun ColorPickerDialog(
         hexText = formatArgb(v)
     }
 
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Palette, contentDescription = null, modifier = Modifier.size(22.dp)) },
         title = { Text(title) },
         text = {
             Column(
@@ -189,7 +195,7 @@ internal fun ColorPickerDialog(
                     alpha = transparencyPercentToAlpha(it)
                     syncHex()
                 }
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = hexText,
                     onValueChange = { input ->
                         hexText = input
@@ -203,10 +209,10 @@ internal fun ColorPickerDialog(
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = { onConfirm(currentArgb()) }) { Text(stringResource(R.string.settings_apply)) }
+            AppDialogPrimaryButton(onClick = { onConfirm(currentArgb()) }) { Text(stringResource(R.string.settings_apply)) }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+            AppDialogSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }
@@ -228,47 +234,64 @@ internal fun ColorComponentSlider(
     }
 }
 
+/** Read-only echo of the colour the current theme resolves to, shown as a card row. */
 @Composable
 internal fun ColorPreviewRow(title: String, argb: Long) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(12.dp),
+    val inCard = LocalSettingsRowInCard.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(if (inCard) RectangleShape else RoundedCornerShape(16.dp))
+            .background(if (inCard) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        ) {
+        if (inCard) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Brightness7,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        } else {
             Icon(
                 imageVector = Icons.Rounded.Brightness7,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
             )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = stringResource(
-                        R.string.settings_color_transparency_summary,
-                        formatArgb(argb),
-                        argbTransparencyPercent(argb),
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Surface(
-                modifier = Modifier.size(28.dp),
-                color = Color(argb),
-                shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            ) {}
         }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall.copy(lineHeight = 18.sp, letterSpacing = 0.sp),
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = stringResource(
+                    R.string.settings_color_transparency_summary,
+                    formatArgb(argb),
+                    argbTransparencyPercent(argb),
+                ),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp, lineHeight = 16.5.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Surface(
+            modifier = Modifier.size(28.dp),
+            color = Color(argb),
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        ) {}
     }
 }
 

@@ -25,6 +25,17 @@ fun isTermWeekNumberActive(weekNumber: Int, weeks: List<Int>): Boolean {
 fun CourseItem.isActiveInTermWeekNumber(weekNumber: Int): Boolean =
     isTermWeekNumberActive(weekNumber, weeks)
 
+enum class CourseEndWarning { None, NearEnd, FinalWeek }
+
+fun courseEndWarning(currentWeek: Int?, courseWeeks: List<Int>): CourseEndWarning {
+    val endWeek = courseWeeks.filter { it > 0 }.maxOrNull() ?: return CourseEndWarning.None
+    return when (currentWeek) {
+        endWeek -> CourseEndWarning.FinalWeek
+        endWeek - 1 -> CourseEndWarning.NearEnd
+        else -> CourseEndWarning.None
+    }
+}
+
 fun isCurrentTermWeek(termStart: LocalDate?, displayedWeekIndex: Int, currentWeekIndex: Int): Boolean =
     termStart != null &&
         isTermWeekNumberStarted(currentWeekIndex) &&

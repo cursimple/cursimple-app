@@ -15,8 +15,11 @@ import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import com.x500x.cursimple.core.data.widget.courseSlotLabelText
 import com.x500x.cursimple.core.data.widget.resolveAccent
+import com.x500x.cursimple.core.data.widget.resolveThemeMode
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.CourseEndWarning
+import com.x500x.cursimple.core.kernel.model.courseEndWarning
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.ScheduleEvent
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
@@ -45,6 +48,7 @@ internal data class ScheduleWidgetCourseRow(
     val nodeNumbers: String = "",
     /** Event rows carry a tag in [nodeRange] and their own clock in [timeRange]. */
     val isEvent: Boolean = false,
+    val endWarning: CourseEndWarning = CourseEndWarning.None,
 ) {
     val stableId: Long = id.hashCode().toLong()
 }
@@ -104,6 +108,7 @@ internal object ScheduleWidgetDataSource {
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
         val widgetTheme = widgetPreferencesRepository.themePreferencesFlow.first()
             .resolveAccent(userPrefs.themeAccent, userPrefs.themeCustomColorArgb)
+            .resolveThemeMode(userPrefs.themeMode)
         val zone = BeijingTime.zone
         BeijingTime.setForcedNow(userPrefs.debugForcedDateTime)
         val today = BeijingTime.todayIn(zone)
@@ -143,6 +148,7 @@ internal object ScheduleWidgetDataSource {
             timingProfile = timingProfile,
             sources = sources,
             widgetTheme = widgetTheme,
+            courseEndWarningEnabled = userPrefs.scheduleDisplay.courseEndWarningEnabled,
         )
 
         if (manualOffset != 0) return dayAt(manualOffset).data
@@ -180,6 +186,7 @@ internal object ScheduleWidgetDataSource {
         timingProfile: TermTimingProfile?,
         sources: DaySources,
         widgetTheme: WidgetThemePreferences,
+        courseEndWarningEnabled: Boolean,
     ): LoadedDay {
         val day = resolveWidgetScheduleDay(
             targetDate = targetDate,
@@ -201,6 +208,11 @@ internal object ScheduleWidgetDataSource {
                     timingProfile = timingProfile,
                     onHoliday = day.onHoliday,
                 ),
+                endWarning = if (courseEndWarningEnabled) {
+                    courseEndWarning(day.weekIndex, it.weeks)
+                } else {
+                    CourseEndWarning.None
+                },
             )
         }
         // Events follow the calendar date, not the teaching day a holiday or swap resolves to.
@@ -266,6 +278,7 @@ internal object ScheduleWidgetDataSource {
         reminderRules: List<ReminderRule>,
         onHoliday: Boolean,
         status: CourseStatus?,
+        endWarning: CourseEndWarning = CourseEndWarning.None,
     ): ScheduleWidgetCourseRow {
         val nodeRange = context.widgetNodeRangeText(time.startNode, time.endNode)
         val timeRange = timingProfile?.courseClockRange(this) ?: nodeRange
@@ -288,6 +301,7 @@ internal object ScheduleWidgetDataSource {
             isExam = category == CourseCategory.Exam,
             slotLabel = context.courseSlotLabelText(timingProfile, time.startNode, time.endNode),
             nodeNumbers = widgetNodeNumbersText(timingProfile, time.startNode, time.endNode),
+            endWarning = endWarning,
         )
     }
 

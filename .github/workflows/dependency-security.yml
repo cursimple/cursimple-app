@@ -40,6 +40,8 @@ jobs:
       - name: Audit video tooling lockfile
         id: npm
         continue-on-error: true
+        # promo-video is not tracked in git; skip when its lockfile is absent rather than failing the job.
+        if: hashFiles('promo-video/package-lock.json') != ''
         working-directory: promo-video
         run: npm audit --package-lock-only --audit-level=low --json > ../build/reports/security/npm-audit.json
       - name: Upload audit evidence
