@@ -9,7 +9,7 @@
 An open-source, free Android timetable app without ads. Import courses with school plugins, connect learning platforms and notification services with components, and manage courses, events and tasks on your phone and home screen.
 
 [![CI](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml)
-[![Latest beta 0.7.10](https://img.shields.io/badge/Latest%20beta-0.7.10-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.10)
+[![Latest stable 1.0.0](https://img.shields.io/badge/Latest%20stable-1.0.0-2e8b57)](https://github.com/cursimple/cursimple-app/releases/tag/v1.0.0)
 [![Downloads](https://img.shields.io/github/downloads/cursimple/cursimple-app/total)](https://github.com/cursimple/cursimple-app/releases)
 [![License](https://img.shields.io/github/license/cursimple/cursimple-app)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-7.0%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com)
@@ -18,7 +18,7 @@ An open-source, free Android timetable app without ads. Import courses with scho
 
 </div>
 
-The current release channel is **beta / Pre-release**. This README describes the current code; locally added features are still being tested. Check each Release announcement for the capabilities of its published APK.
+The current release channel is **stable**. The v1.0.0 Release, update feed and release announcement describe the published build.
 
 ## How CurSimple fits together
 
@@ -32,7 +32,7 @@ Home screen widgets display courses, notes or component content. Components are 
 
 ## Download and get started
 
-Choose an APK from [Releases](https://github.com/cursimple/cursimple-app/releases) or the [website download section](https://cursimple.github.io/#download). Enable the beta update channel to receive test releases. The channel and GitHub Pre-release flag determine whether a build is a beta.
+Choose v1.0.0 from [Releases](https://github.com/cursimple/cursimple-app/releases) or use the [website download section](https://cursimple.github.io/#download). Stable updates are published through the stable feed.
 
 | APK | Device |
 |---|---|
@@ -50,6 +50,9 @@ Choose an APK from [Releases](https://github.com/cursimple/cursimple-app/release
 ## Features
 
 ### Timetables and events
+
+- **Academic-system import**: search the included school list and prefer an installed plugin. Schools without a plugin use General import, and plugin schools can fall back to it. If a school is not listed, enter its own externally reachable academic-system URL, sign in and tap “Upload timetable”.
+- **Import safety**: parse failures explain what could not be read. A course missing its title, weeks or periods is not saved, so a partial timetable cannot overwrite your data.
 
 - **Week and day views:** merged multi-period courses, odd/even/custom weeks, exams, cancellations and rescheduling.
 - **Today overview:** current and next class, countdowns, a full-day timeline and conflict details.
@@ -94,6 +97,9 @@ Date pickers support month swipes, arrows and date taps.
 Widgets refresh through system scheduling, background jobs and period boundaries. Timing depends on launcher and background restrictions. Native HarmonyOS service widgets remain in integration testing; Huawei launchers supporting Android widgets expose them under Widgets at the bottom of Service widgets.
 
 ### Import, sharing and backups
+
+- **Local backup**: Settings has a standalone Local backup page for exporting and importing ZIP files. You can export everything or selected categories, including timetables, courses, events, notes, memos, note images, terms, reminders, widgets and plugin records.
+- **Safe restore**: the preview shows only added, modified and removed data. Confirmation is required before overwriting matching data, and categories absent from a partial backup stay on the device. Passwords, tokens and notification credentials are excluded.
 
 - Timetable QR/code sharing, image export, system calendar writes and `.ics`; save QR images and preview images before sending.
 - AI screenshot/camera import with your own recognition API configuration.
@@ -155,7 +161,7 @@ Public sources work directly. Private repositories use a token with read permiss
 
 </div>
 
-Screenshots use demo data; some show previously published versions.
+Screenshots use fictional demo data and show the main screens of the current 1.0.0 release.
 
 ## Build from source
 
@@ -170,9 +176,9 @@ Use **JDK 17** and an Android SDK containing `platforms;android-36`:
 Maintain the version in `gradle.properties`:
 
 ```properties
-app.versionCode=35
-app.versionName=0.7.10
-app.releaseChannel=beta
+app.versionCode=45
+app.versionName=1.0.0
+app.releaseChannel=stable
 ```
 
 See [keystore.example.properties](keystore.example.properties) and [development notes](README_dev.md) for release signing. The current source supports component host **API 11**, with compatibility checks before installation.

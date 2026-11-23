@@ -9,7 +9,7 @@
 开源、免费、无广告的 Android 课表应用。用学校插件导入课表，用扩展组件接入学习平台和通知渠道，在手机与桌面管理课程、事务和待办。
 
 [![CI](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml)
-[![最新测试版 0.7.10](https://img.shields.io/badge/Latest%20beta-0.7.10-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.10)
+[![最新正式版 1.0.0](https://img.shields.io/badge/Latest%20stable-1.0.0-2e8b57)](https://github.com/cursimple/cursimple-app/releases/tag/v1.0.0)
 [![Downloads](https://img.shields.io/github/downloads/cursimple/cursimple-app/total)](https://github.com/cursimple/cursimple-app/releases)
 [![License](https://img.shields.io/github/license/cursimple/cursimple-app)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-7.0%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com)
@@ -18,7 +18,7 @@
 
 </div>
 
-当前发布渠道为 **测试版（beta / Pre-release）**。下文介绍当前代码能力；本地新增功能仍在测试，公开安装包请以对应 Release 公告为准。
+当前发布渠道为 **正式版（stable）**。公开安装包、更新公告和更新清单均以 v1.0.0 Release 为准。
 
 ## 先认识课简
 
@@ -32,7 +32,7 @@
 
 ## 下载安装与开始使用
 
-在 [Releases](https://github.com/cursimple/cursimple-app/releases) 选择对应版本，或从[官网的下载区](https://cursimple.github.io/#download)下载安装包。测试版需要在应用更新设置中开启对应渠道，是否为测试版以发布渠道和 GitHub 的 Pre-release 标记为准。
+在 [Releases](https://github.com/cursimple/cursimple-app/releases) 选择 v1.0.0，或从[官网的下载区](https://cursimple.github.io/#download)下载安装包。正式版会通过 stable 更新源提供。
 
 | APK | 适用设备 |
 |---|---|
@@ -50,6 +50,9 @@
 ## 功能特性
 
 ### 课表与事务
+
+- **教务导入**：收录学校可以直接搜索。没有插件的学校使用通用导入，插件学校也可以切换到通用导入。没有收录的学校可以输入自己的教务系统网址，登录后进入课表页面并点击“上传课表”。
+- **导入保护**：解析失败会显示原因，缺少课程名、周次或节次时不会保存残缺课表。成功导入后优先使用教务系统作息，无法确定开学日期时保留设置提醒。
 
 - **周视图与日视图**：连堂课合并展示，支持单双周、自选周次、考试、临时停课与调课。
 - **今日概览**：查看当前课程、下一节课、倒计时和全天时间线，点开检查冲突与课程详情。
@@ -94,6 +97,9 @@
 小组件在系统、后台任务和课时边界刷新，实际更新及时性受桌面与后台限制影响。鸿蒙原生服务卡片仍在接入测试；支持 Android 小工具的华为桌面可从「服务卡片」底部的「窗口小工具」查看。
 
 ### 导入、分享与备份
+
+- **本地备份**：设置里的“本地备份”支持导出和导入 ZIP，可以选择全部数据或指定类别。课表、课程、事务、笔记、备忘录、笔记图片、学期、提醒、小组件设置和插件记录都可以迁移。
+- **安全恢复**：导入前只显示新增、修改和删除的内容。确认后才覆盖匹配数据，备份没有包含的类别会保留。账号密码、令牌和通知绑定凭据不会写入普通备份。
 
 - 课表支持二维码、分享字符、图片、系统日历写入和 `.ics` 导出；二维码可保存，分享图片可先预览。
 - AI 识图支持选图和拍照，需要自行配置识别 API。
@@ -155,7 +161,7 @@
 
 </div>
 
-截图使用演示数据，部分界面来自已公开版本。
+截图使用虚构演示数据，展示当前 1.0.0 版本的主要界面。
 
 ## 从源码构建
 
@@ -170,9 +176,9 @@
 版本在 `gradle.properties` 中维护：
 
 ```properties
-app.versionCode=35
-app.versionName=0.7.10
-app.releaseChannel=beta
+app.versionCode=45
+app.versionName=1.0.0
+app.releaseChannel=stable
 ```
 
 Release 签名配置参考 [keystore.example.properties](keystore.example.properties)，详细步骤见 [开发说明](README_dev.md)。当前源码的宿主组件接口为 **API 11**，安装前会校验接口与最低版本要求。
