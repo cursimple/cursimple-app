@@ -1,6 +1,7 @@
 package com.x500x.cursimple.feature.schedule
 
 import com.x500x.cursimple.core.kernel.model.memoCourseKey
+import com.x500x.cursimple.core.data.EventReminderPreferences
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.requiredSize
@@ -229,6 +230,7 @@ fun ScheduleRoute(
     scheduleCardStyle: ScheduleCardStylePreferences = ScheduleCardStylePreferences(),
     scheduleBackground: ScheduleBackgroundPreferences = ScheduleBackgroundPreferences(),
     scheduleDisplay: ScheduleDisplayPreferences = ScheduleDisplayPreferences(),
+    scheduleEventReminder: EventReminderPreferences = EventReminderPreferences(),
     customColorsAdaptToTheme: Boolean = false,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
@@ -258,7 +260,10 @@ fun ScheduleRoute(
             },
         )
     }
-    CompositionLocalProvider(LocalEndWarningLegendSink provides onEndWarningLegendChange) {
+    CompositionLocalProvider(
+        LocalEndWarningLegendSink provides onEndWarningLegendChange,
+        LocalScheduleEventReminder provides scheduleEventReminder,
+    ) {
     ScheduleScreen(
         state = state,
         weekOffset = weekOffset,
@@ -299,6 +304,7 @@ fun ScheduleRoute(
         scheduleCardStyle = scheduleCardStyle,
         scheduleBackground = scheduleBackground,
         scheduleDisplay = scheduleDisplay,
+        scheduleEventReminder = scheduleEventReminder,
         customColorsAdaptToTheme = customColorsAdaptToTheme,
         temporaryScheduleOverrides = temporaryScheduleOverrides,
         holidayCalendar = holidayCalendar,
@@ -322,6 +328,7 @@ fun ScheduleRoute(
 
 /** Receives the end-of-course legend flags for the settled week page. */
 internal val LocalEndWarningLegendSink = androidx.compose.runtime.staticCompositionLocalOf<(Boolean, Boolean) -> Unit> { { _, _ -> } }
+internal val LocalScheduleEventReminder = androidx.compose.runtime.staticCompositionLocalOf { EventReminderPreferences() }
 
 @Composable
 fun ScheduleScreen(
@@ -361,6 +368,7 @@ fun ScheduleScreen(
     scheduleCardStyle: ScheduleCardStylePreferences = ScheduleCardStylePreferences(),
     scheduleBackground: ScheduleBackgroundPreferences = ScheduleBackgroundPreferences(),
     scheduleDisplay: ScheduleDisplayPreferences = ScheduleDisplayPreferences(),
+    scheduleEventReminder: EventReminderPreferences = EventReminderPreferences(),
     customColorsAdaptToTheme: Boolean = false,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
@@ -446,6 +454,8 @@ fun ScheduleScreen(
         ScheduleEventDetailDialog(
             event = event,
             date = date,
+            globalReminder = LocalScheduleEventReminder.current,
+            onReminderChange = { minutes -> onSaveEvent(event.copy(reminderMinutes = minutes)) },
             onEdit = {
                 eventDetail = null
                 eventEditingAsCopy = false
@@ -822,7 +832,7 @@ fun ScheduleScreen(
             }
             val previewSourceWeek = weekPreview?.sourceWeekForPageDate(zone.today(), request.targetDate, scheduleDisplay.weekStartDay)
             CourseDetailDialog(
-                courseEndWarningEnabled = scheduleDisplay.courseEndWarningEnabled,
+                courseEndWarningMode = scheduleDisplay.courseEndWarningMode,
                 courses = request.courses,
                 timingProfile = state.timingProfile,
                 visibleWeekNumber = previewSourceWeek ?: detailWeekNumber(
@@ -1441,10 +1451,10 @@ private fun WeeklyScheduleSection(
                     val legendSink = LocalEndWarningLegendSink.current
                     if (page == pagerState.currentPage) {
                         val warnWeek = pageWeek.weekIndex.coerceAtLeast(1)
-                        val warnings = remember(active, warnWeek, scheduleDisplay.courseEndWarningEnabled) {
-                            if (!scheduleDisplay.courseEndWarningEnabled) emptySet()
+                        val warnings = remember(active, warnWeek, scheduleDisplay.courseEndWarningMode) {
+                            if (scheduleDisplay.courseEndWarningMode == com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.Off) emptySet()
                             else active.filter { !it.inactive && !it.onHoliday }
-                                .map { courseEndWarning(warnWeek, it.course.weeks) }.toSet()
+                                .map { courseEndWarning(warnWeek, it.course.weeks, scheduleDisplay.courseEndWarningMode) }.toSet()
                         }
                         val hasFinal = CourseEndWarning.FinalWeek in warnings
                         val hasNear = CourseEndWarning.NearEnd in warnings
@@ -3222,8 +3232,8 @@ private fun ScheduleGrid(
                                 hasReminder = hasReminderForCourse(course, reminderRules, timingProfile),
                                 hasNote = courseNotes.hasNote(course.id),
                                 attendanceStatus = LocalAttendanceMarks.current[memoCourseKey(course.title) to columnDate.toString()],
-                                endWarning = if (scheduleDisplay.courseEndWarningEnabled) {
-                                    courseEndWarning(currentWeekIndex, course.weeks)
+                                endWarning = if (scheduleDisplay.courseEndWarningMode != com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.Off) {
+                                    courseEndWarning(currentWeekIndex, course.weeks, scheduleDisplay.courseEndWarningMode)
                                 } else {
                                     CourseEndWarning.None
                                 },
@@ -4940,7 +4950,7 @@ private fun CourseBlock(
                         val shortest = minOf(size.width, size.height)
                         val outer = (shortest * 0.06f).coerceIn(2.2.dp.toPx(), 2.8.dp.toPx())
                         val core = (outer * 0.5f).coerceAtLeast(1.2.dp.toPx())
-                        val ringAlpha = if (final) 0.34f else 0.26f
+                        val ringAlpha = if (final) 0.22f else 0.17f
                         drawRoundRect(
                             color = endWarningColor.copy(alpha = ringAlpha),
                             topLeft = androidx.compose.ui.geometry.Offset(outer / 2, outer / 2),
@@ -4949,7 +4959,7 @@ private fun CourseBlock(
                             style = androidx.compose.ui.graphics.drawscope.Stroke(width = outer),
                         )
                         drawRoundRect(
-                            color = endWarningColor.copy(alpha = 0.92f),
+                            color = endWarningColor.copy(alpha = 0.7f),
                             topLeft = androidx.compose.ui.geometry.Offset(core / 2, core / 2),
                             size = androidx.compose.ui.geometry.Size(size.width - core, size.height - core),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius((corner - core / 2).coerceAtLeast(0f)),
@@ -5449,45 +5459,21 @@ private fun CourseBlock(
         }
 
         if (endWarning != CourseEndWarning.None && !inactive) {
-            val badgeText = if (endWarning == CourseEndWarning.FinalWeek) "1" else "2"
-            val badgeContainer = if (endWarning == CourseEndWarning.FinalWeek) {
+            val dotColor = if (endWarning == CourseEndWarning.FinalWeek) {
                 MaterialTheme.colorScheme.error
             } else {
                 MaterialTheme.colorScheme.tertiary
             }
-            val badgeContent = if (endWarning == CourseEndWarning.FinalWeek) {
-                MaterialTheme.colorScheme.onError
-            } else {
-                MaterialTheme.colorScheme.onTertiary
-            }
-            // Sits on the card's top-right corner, mostly outside, so it never covers the title text.
+            // A small dot keeps the warning visible without covering a short course title.
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 3.dp, y = (-3).dp)
-                    .size(14.dp)
+                    .offset(x = (-4).dp, y = 4.dp)
+                    .size(7.dp)
                     .clip(androidx.compose.foundation.shape.CircleShape)
-                    .background(badgeContainer)
+                    .background(dotColor.copy(alpha = 0.9f))
                     .testTag("schedule-course-end-warning-${course.id}"),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = badgeText,
-                    color = badgeContent,
-                    fontSize = 9.sp,
-                    lineHeight = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    softWrap = false,
-                    style = androidx.compose.ui.text.TextStyle(
-                        platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false),
-                        lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
-                            alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
-                            trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.Both,
-                        ),
-                    ),
-                )
-            }
+            )
         }
     }
 }

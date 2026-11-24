@@ -32,6 +32,8 @@ data class ScheduleEvent(
     /** Outline color (ARGB); null keeps the default soft outline. */
     @SerialName("borderArgb") val borderArgb: Long? = null,
     @SerialName("source") val source: ScheduleEventSource? = null,
+    /** Null follows the global event-reminder preference, zero disables this event. */
+    @SerialName("reminderMinutes") val reminderMinutes: Int? = null,
 ) {
     val localDate: LocalDate? get() = runCatching { LocalDate.parse(date) }.getOrNull()
     val startLocalTime: LocalTime? get() = parseClock(startTime)

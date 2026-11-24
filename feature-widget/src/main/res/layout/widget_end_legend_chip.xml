@@ -7,21 +7,16 @@
 
     <TextView
         android:id="@+id/end_legend_badge"
-        android:layout_width="15dp"
-        android:layout_height="15dp"
-        android:gravity="center"
-        android:includeFontPadding="false"
-        android:textColor="#FFFFFFFF"
-        android:textSize="9sp"
-        android:textStyle="bold" />
+        android:layout_width="7dp"
+        android:layout_height="7dp" />
 
     <TextView
         android:id="@+id/end_legend_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="3dp"
+        android:layout_marginStart="4dp"
         android:includeFontPadding="false"
         android:maxLines="1"
         android:textColor="#66707F"
-        android:textSize="10sp" />
+        android:textSize="9sp" />
 </LinearLayout>

@@ -46,6 +46,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material3.AlertDialog
@@ -381,6 +382,8 @@ internal fun minuteText(minute: Int): String = "%02d:%02d".format(minute / 60, m
 internal fun ScheduleEventDetailDialog(
     event: ScheduleEvent,
     date: LocalDate,
+    globalReminder: com.x500x.cursimple.core.data.EventReminderPreferences = com.x500x.cursimple.core.data.EventReminderPreferences(),
+    onReminderChange: (Int?) -> Unit = {},
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
@@ -445,6 +448,11 @@ internal fun ScheduleEventDetailDialog(
                 if (event.location.isNotBlank()) {
                     EventDetailLine(Icons.Rounded.LocationOn, event.location)
                 }
+                EventReminderSettingLine(
+                    event = event,
+                    globalReminder = globalReminder,
+                    onChange = onReminderChange,
+                )
                 if (event.note.isNotBlank()) {
                     Text(
                         text = event.note,
@@ -463,6 +471,59 @@ internal fun ScheduleEventDetailDialog(
             }
         },
     )
+}
+
+@Composable
+private fun EventReminderSettingLine(
+    event: ScheduleEvent,
+    globalReminder: com.x500x.cursimple.core.data.EventReminderPreferences,
+    onChange: (Int?) -> Unit,
+) {
+    var open by rememberSaveable(event.id) { mutableStateOf(false) }
+    val reminderMinutes = event.reminderMinutes
+    val summary = when {
+        reminderMinutes == null -> stringResource(R.string.schedule_event_reminder_summary_global)
+        reminderMinutes == 0 -> stringResource(R.string.schedule_event_reminder_on_time)
+        reminderMinutes < 0 -> stringResource(R.string.schedule_event_reminder_summary_off)
+        else -> stringResource(R.string.schedule_event_reminder_summary_minutes, reminderMinutes)
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { open = !open },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Rounded.NotificationsActive, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.settings_dest_event_reminder), fontWeight = FontWeight.Medium)
+                Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (open) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                SettingsReminderChip(stringResource(R.string.schedule_event_reminder_follow_global), reminderMinutes == null) { onChange(null) }
+                SettingsReminderChip(stringResource(R.string.schedule_event_reminder_off), reminderMinutes == -1) { onChange(-1) }
+                listOf(0, 5, 10, 15, 20, 30, 60).forEach { minutes ->
+                    SettingsReminderChip(
+                        text = if (minutes == 0) stringResource(R.string.schedule_event_reminder_on_time)
+                        else stringResource(R.string.schedule_event_reminder_summary_minutes, minutes),
+                        selected = reminderMinutes == minutes,
+                    ) { onChange(minutes) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsReminderChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(14.dp),
+    ) {
+        Text(text, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelSmall)
+    }
 }
 
 @Composable
@@ -591,6 +652,7 @@ internal fun ScheduleEventEditorDialog(
                 colorArgb = appearance.fill,
                 colorEndArgb = appearance.fillEnd,
                 borderArgb = appearance.border,
+                reminderMinutes = initial?.reminderMinutes,
             ).withRepeat(repeat, repeatUntil, pickedWeeks, weekAnchor),
         )
     }

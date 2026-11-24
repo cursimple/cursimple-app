@@ -35,7 +35,7 @@ internal data class CalendarDay(
     val courses: List<CourseItem>,
     val eventCount: Int,
     val weekIndex: Int? = null,
-    val courseEndWarningEnabled: Boolean = false,
+    val courseEndWarningMode: com.x500x.cursimple.core.kernel.model.CourseEndWarningMode = com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.Off,
 ) {
     val hasExam: Boolean get() = !onHoliday && courses.any { it.category == CourseCategory.Exam }
     val classCount: Int get() = if (onHoliday) 0 else courses.count { it.category != CourseCategory.Exam }
@@ -153,8 +153,8 @@ internal fun calendarBlocksOf(day: CalendarDay): List<CalendarCourseBlock> {
             isExam = course.category == CourseCategory.Exam,
             colorSeed = course.title,
             inactive = day.onHoliday,
-            endWarning = if (day.courseEndWarningEnabled) {
-                courseEndWarning(day.weekIndex, course.weeks)
+            endWarning = if (day.courseEndWarningMode != com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.Off) {
+                courseEndWarning(day.weekIndex, course.weeks, day.courseEndWarningMode)
             } else {
                 CourseEndWarning.None
             },

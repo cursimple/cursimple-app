@@ -43,6 +43,7 @@ object ClassNoticeScheduler {
     private const val REQUEST_CODE_EVENING_BRIEFING = 0x0E11
     private const val REQUEST_CODE_TRANSIT = 0x0E12
     private const val REQUEST_CODE_EXAM = 0x0E13
+    private const val REQUEST_CODE_EVENT = 0x0E14
 
     private const val EXTRA_TITLE = "title"
     private const val EXTRA_LOCATION = "location"
@@ -230,6 +231,18 @@ object ClassNoticeScheduler {
             pendingIntent.cancel()
         }
     }
+
+    fun eventIntent(context: Context, eventId: String, occurrenceDate: String? = null, noCreate: Boolean = false): PendingIntent = PendingIntent.getBroadcast(
+        context.applicationContext,
+        REQUEST_CODE_EVENT xor eventId.hashCode(),
+        Intent(context.applicationContext, ScheduleEventReminderReceiver::class.java).apply {
+            action = ScheduleEventReminderScheduler.ACTION_EVENT_REMINDER
+            setPackage(context.packageName)
+            putExtra(ScheduleEventReminderScheduler.EXTRA_EVENT_ID, eventId)
+            occurrenceDate?.let { putExtra(ScheduleEventReminderScheduler.EXTRA_OCCURRENCE_DATE, it) }
+        },
+        PendingIntent.FLAG_IMMUTABLE or if (noCreate) PendingIntent.FLAG_NO_CREATE else PendingIntent.FLAG_UPDATE_CURRENT,
+    )
 
     fun scheduleEveningBriefing(context: Context, triggerAtMillis: Long) {
         val app = context.applicationContext

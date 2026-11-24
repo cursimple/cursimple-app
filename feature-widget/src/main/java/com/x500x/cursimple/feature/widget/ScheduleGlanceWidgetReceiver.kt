@@ -193,7 +193,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             views.removeAllViews(R.id.widget_end_legend_row)
             warningFlags.forEach { (final, _) ->
                 val chip = RemoteViews(context.packageName, R.layout.widget_end_legend_chip)
-                chip.setTextViewText(R.id.end_legend_badge, if (final) "1" else "2")
+                chip.setTextViewText(R.id.end_legend_badge, "")
                 chip.setInt(
                     R.id.end_legend_badge,
                     "setBackgroundResource",
@@ -201,7 +201,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                 )
                 chip.setTextViewText(
                     R.id.end_legend_label,
-                    context.getString(if (final) R.string.widget_legend_end_final else R.string.widget_legend_end_near),
+                    context.getString(if (final) R.string.widget_legend_end_final_short else R.string.widget_legend_end_near_short),
                 )
                 views.addView(R.id.widget_end_legend_row, chip)
             }

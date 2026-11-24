@@ -54,6 +54,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -1023,6 +1024,7 @@ class MainActivity : ComponentActivity() {
                                         if (onScheduleScreen) {
                                             Column(
                                                 horizontalAlignment = Alignment.CenterHorizontally,
+                                                modifier = Modifier.widthIn(max = 196.dp),
                                             ) {
                                                 val isCurrentWeek = isCurrentTermWeek(
                                                     termStart = effectiveTermStart,
@@ -1114,8 +1116,7 @@ class MainActivity : ComponentActivity() {
                                                                 maxLines = 1,
                                                             )
                                                         }
-                                                        if (legendFinal) EndWarningLegendEntry(final = true)
-                                                        if (legendNear) EndWarningLegendEntry(final = false)
+                                                        if (legendFinal || legendNear) EndWarningLegendEntry(final = legendFinal, near = legendNear)
                                                     }
                                                 }
                                             }
@@ -1472,6 +1473,7 @@ class MainActivity : ComponentActivity() {
                                         scheduleCardStyle = prefs.scheduleCardStyle,
                                         scheduleBackground = prefs.scheduleBackground,
                                         scheduleDisplay = prefs.scheduleDisplay,
+                                        scheduleEventReminder = prefs.scheduleEventReminder,
                                         customColorsAdaptToTheme = prefs.scheduleCustomColorsAdaptToTheme,
                                         temporaryScheduleOverrides = prefs.temporaryScheduleOverrides,
                                         holidayCalendar = prefs.holidayCalendar,
@@ -1542,7 +1544,10 @@ class MainActivity : ComponentActivity() {
 
                                     AppScreen.Reminders -> RemindersScreen(
                                         classNotice = prefs.classNotice,
+                                        scheduleEventReminder = prefs.scheduleEventReminder,
                                         onClassNoticeEnabledChange = prefsViewModel::setClassNoticeEnabled,
+                                        onScheduleEventReminderEnabledChange = prefsViewModel::setScheduleEventReminderEnabled,
+                                        onScheduleEventReminderAdvanceMinutesChange = prefsViewModel::setScheduleEventReminderAdvanceMinutes,
                                         onClassNoticeAdvanceMinutesChange =
                                             prefsViewModel::setClassNoticeAdvanceMinutes,
                                         onClassNoticeHeadsUpChange =
@@ -1692,7 +1697,7 @@ class MainActivity : ComponentActivity() {
                                         onSchedulePinchZoomEnabledChange =
                                             prefsViewModel::setSchedulePinchZoomEnabled,
                                         onTodayOverviewEnabledChange = prefsViewModel::setTodayOverviewEnabled,
-                                        onCourseEndWarningEnabledChange = prefsViewModel::setCourseEndWarningEnabled,
+                                        onCourseEndWarningModeChange = prefsViewModel::setCourseEndWarningMode,
                                         onCourseSessionCountIncludeHolidaysChange = prefsViewModel::setCourseSessionCountIncludeHolidays,
                                         onScheduleWeekendVisibleChange = prefsViewModel::setScheduleWeekendVisible,
                                         onScheduleRowFitModeChange = prefsViewModel::setScheduleRowFitMode,
@@ -2643,37 +2648,25 @@ private fun AppDrawer(
                     DrawerShortcut(Icons.Rounded.SystemUpdate, R.string.main_drawer_update_shortcut, onOpenUpdateCheck, updateBadgeVisible),
                 )
                 // Two columns match the design; narrow drawers or large text fall back to full-width chips so labels stay whole.
-                val twoColumns = (DRAWER_SHORTCUT_ROW_WIDTH_DP * LocalDensity.current.fontScale).dp
                 BoxWithConstraints {
                     val available = maxWidth
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (available >= twoColumns) {
-                            shortcuts.chunked(2).forEach { pair ->
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                ) {
-                                    pair.forEach { shortcut ->
-                                        DrawerAppearanceShortcut(
-                                            icon = shortcut.icon,
-                                            label = stringResource(shortcut.labelRes),
-                                            onClick = shortcut.onClick,
-                                            badge = shortcut.badge,
-                                            modifier = Modifier.weight(1f),
-                                        )
-                                    }
-                                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                        shortcuts.chunked(2).forEach { pair ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                pair.forEach { shortcut ->
+                                    DrawerAppearanceShortcut(
+                                        icon = shortcut.icon,
+                                        label = stringResource(shortcut.labelRes),
+                                        onClick = shortcut.onClick,
+                                        badge = shortcut.badge,
+                                        modifier = Modifier.weight(1f),
+                                    )
                                 }
-                            }
-                        } else {
-                            shortcuts.forEach { shortcut ->
-                                DrawerAppearanceShortcut(
-                                    icon = shortcut.icon,
-                                    label = stringResource(shortcut.labelRes),
-                                    onClick = shortcut.onClick,
-                                    badge = shortcut.badge,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
+                                if (pair.size == 1) Spacer(Modifier.weight(1f))
                             }
                         }
                     }
@@ -2868,9 +2861,6 @@ private data class DrawerShortcut(
     val onClick: () -> Unit,
     val badge: Boolean,
 )
-
-/** Narrowest row that still fits two chips with their labels at 1× font scale. */
-private const val DRAWER_SHORTCUT_ROW_WIDTH_DP = 250f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -3374,25 +3364,37 @@ private fun DrawerChooserRow(
 
 /** Top-bar legend entry that explains the round end-of-course badge drawn on timetable cards. */
 @Composable
-private fun EndWarningLegendEntry(final: Boolean) {
-    val color = if (final) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+private fun EndWarningLegendEntry(final: Boolean, near: Boolean) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalAlignment = Alignment.Start,
+    ) {
+        if (final) EndWarningLegendRow(
+            color = MaterialTheme.colorScheme.error,
+            label = stringResource(R.string.main_end_legend_final_short),
+        )
+        if (near) EndWarningLegendRow(
+            color = MaterialTheme.colorScheme.tertiary,
+            label = stringResource(R.string.main_end_legend_near_short),
+        )
+    }
+}
+
+@Composable
+private fun EndWarningLegendRow(color: Color, label: String) {
+    Row(
+        modifier = Modifier.heightIn(min = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         Box(
-            modifier = Modifier.size(13.dp).clip(CircleShape).background(color),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = if (final) "1" else "2",
-                color = if (final) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onTertiary,
-                fontSize = 9.sp,
-                lineHeight = 9.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                softWrap = false,
-            )
-        }
+            modifier = Modifier
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(color),
+        )
         Text(
-            text = stringResource(if (final) R.string.main_end_legend_final else R.string.main_end_legend_near),
+            text = label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,

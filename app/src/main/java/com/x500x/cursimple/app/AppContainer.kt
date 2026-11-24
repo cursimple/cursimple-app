@@ -401,6 +401,7 @@ class AppContainer(
 
     suspend fun refreshScheduleOutputs(recreateAppManagedAlarms: Boolean = false) {
         awaitBootstrap()
+        runCatching { com.x500x.cursimple.app.notice.ScheduleEventReminderScheduler.reschedule(app) }
         if (recreateAppManagedAlarms) {
             reminderCoordinator.recreateAppManagedAlarmsFromRegistry()
         }

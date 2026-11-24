@@ -3,7 +3,9 @@ package com.x500x.cursimple.app
 import androidx.compose.foundation.background
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.automirrored.rounded.EventNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -49,7 +52,10 @@ import com.x500x.cursimple.core.data.ClassNoticeSkin
 @Composable
 internal fun RemindersScreen(
     classNotice: ClassNoticePreferences,
+    scheduleEventReminder: com.x500x.cursimple.core.data.EventReminderPreferences = com.x500x.cursimple.core.data.EventReminderPreferences(),
     onClassNoticeEnabledChange: (Boolean) -> Unit,
+    onScheduleEventReminderEnabledChange: (Boolean) -> Unit = {},
+    onScheduleEventReminderAdvanceMinutesChange: (Int) -> Unit = {},
     onClassNoticeAdvanceMinutesChange: (Int) -> Unit,
     onClassNoticeHeadsUpChange: (Boolean) -> Unit,
     onClassNoticeVibrationChange: (Boolean) -> Unit = {},
@@ -105,6 +111,11 @@ internal fun RemindersScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
+                    EventReminderSettingsInline(
+                        preferences = scheduleEventReminder,
+                        onEnabledChange = onScheduleEventReminderEnabledChange,
+                        onAdvanceMinutesChange = onScheduleEventReminderAdvanceMinutesChange,
+                    )
                     ClassNoticeSettingsSection(
                         preferences = classNotice,
                         onEnabledChange = onClassNoticeEnabledChange,
@@ -123,6 +134,46 @@ internal fun RemindersScreen(
                         onExamAlertChange = onClassNoticeExamAlertChange,
                     )
                     Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EventReminderSettingsInline(
+    preferences: com.x500x.cursimple.core.data.EventReminderPreferences,
+    onEnabledChange: (Boolean) -> Unit,
+    onAdvanceMinutesChange: (Int) -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.AutoMirrored.Rounded.EventNote, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.settings_dest_event_reminder), fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.settings_event_reminder_enabled_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                androidx.compose.material3.Switch(checked = preferences.enabled, onCheckedChange = onEnabledChange)
+            }
+            if (preferences.enabled) {
+                Text(stringResource(R.string.settings_event_reminder_advance_title), style = MaterialTheme.typography.titleSmall)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    com.x500x.cursimple.core.data.EventReminderPreferences.SUPPORTED_ADVANCE_MINUTES.forEach { minutes ->
+                        Surface(
+                            modifier = Modifier.clip(RoundedCornerShape(14.dp)).clickable { onAdvanceMinutesChange(minutes) },
+                            color = if (preferences.advanceMinutes == minutes) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                            shape = RoundedCornerShape(14.dp),
+                        ) {
+                            Text(if (minutes == 0) stringResource(R.string.schedule_event_reminder_on_time) else stringResource(R.string.schedule_event_reminder_summary_minutes, minutes), modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
                 }
             }
         }

@@ -79,6 +79,7 @@ class DataStoreUserPreferencesRepository(
             scheduleCardStyle = prefs.toScheduleCardStyle(),
             scheduleBackground = prefs.toScheduleBackground(),
             scheduleDisplay = prefs.toScheduleDisplay(),
+            scheduleEventReminder = prefs.toEventReminderPreferences(),
             scheduleCustomColorsAdaptToTheme = prefs[KEY_SCHEDULE_CUSTOM_COLORS_ADAPT_TO_THEME] ?: true,
             enabledPluginIds = prefs[KEY_ENABLED_PLUGIN_IDS].orEmpty().toSet(),
             temporaryScheduleOverrides = decodeTemporaryScheduleOverrides(
@@ -276,6 +277,16 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_CLASS_NOTICE_ENABLED] = enabled }
     }
 
+    override suspend fun setScheduleEventReminderEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_EVENT_REMINDER_ENABLED] = enabled }
+    }
+
+    override suspend fun setScheduleEventReminderAdvanceMinutes(minutes: Int) {
+        store.edit { prefs ->
+            prefs[KEY_EVENT_REMINDER_ADVANCE_MINUTES] = EventReminderPreferences.coerceAdvanceMinutes(minutes)
+        }
+    }
+
     override suspend fun setClassNoticeAdvanceMinutes(minutes: Int) {
         store.edit { prefs ->
             prefs[KEY_CLASS_NOTICE_ADVANCE_MINUTES] =
@@ -446,8 +457,8 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_TODAY_OVERVIEW_ENABLED] = enabled }
     }
 
-    override suspend fun setCourseEndWarningEnabled(enabled: Boolean) {
-        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_COURSE_END_WARNING_ENABLED] = enabled }
+    override suspend fun setCourseEndWarningMode(mode: com.x500x.cursimple.core.kernel.model.CourseEndWarningMode) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_COURSE_END_WARNING_MODE] = mode.name }
     }
 
     override suspend fun setScheduleSaturdayVisible(visible: Boolean) {
@@ -1139,7 +1150,13 @@ class DataStoreUserPreferencesRepository(
                 ?.let { raw -> runCatching { InactiveCourseDisplayMode.valueOf(raw) }.getOrNull() }
                 ?: InactiveCourseDisplayMode.Dimmed,
             periodBreakDividersEnabled = this[KEY_SCHEDULE_DISPLAY_PERIOD_BREAK_DIVIDERS_ENABLED] ?: false,
-            courseEndWarningEnabled = this[KEY_SCHEDULE_DISPLAY_COURSE_END_WARNING_ENABLED] ?: true,
+            courseEndWarningMode = this[KEY_SCHEDULE_DISPLAY_COURSE_END_WARNING_MODE]
+                ?.let { runCatching { com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.valueOf(it) }.getOrNull() }
+                ?: if (this[KEY_SCHEDULE_DISPLAY_COURSE_END_WARNING_ENABLED] == true) {
+                    com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.FinalWeek
+                } else {
+                    com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.Off
+                },
         )
     }
 
@@ -1172,6 +1189,14 @@ class DataStoreUserPreferencesRepository(
             transitReminderEnabled = this[KEY_CLASS_NOTICE_TRANSIT_REMINDER_ENABLED] ?: false,
             examAlertEnabled = this[KEY_CLASS_NOTICE_EXAM_ALERT_ENABLED] ?: false,
             examAlertAdvanceMinutes = this[KEY_CLASS_NOTICE_EXAM_ALERT_ADVANCE_MINUTES] ?: 45,
+        )
+
+    private fun Preferences.toEventReminderPreferences(): EventReminderPreferences =
+        EventReminderPreferences(
+            enabled = this[KEY_EVENT_REMINDER_ENABLED] ?: true,
+            advanceMinutes = EventReminderPreferences.coerceAdvanceMinutes(
+                this[KEY_EVENT_REMINDER_ADVANCE_MINUTES] ?: EventReminderPreferences.DEFAULT_EVENT_REMINDER_ADVANCE_MINUTES,
+            ),
         )
 
     private fun Preferences.toAutoSilencePreferences(): AutoSilencePreferences = AutoSilencePreferences(
@@ -1380,6 +1405,9 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_DISPLAY_INACTIVE_COURSE_MODE = stringPreferencesKey("schedule_display_inactive_course_mode")
         val KEY_SCHEDULE_DISPLAY_PERIOD_BREAK_DIVIDERS_ENABLED = booleanPreferencesKey("schedule_display_period_break_dividers_enabled")
         val KEY_SCHEDULE_DISPLAY_COURSE_END_WARNING_ENABLED = booleanPreferencesKey("schedule_display_course_end_warning_enabled")
+        val KEY_EVENT_REMINDER_ENABLED = booleanPreferencesKey("event_reminder_enabled")
+        val KEY_EVENT_REMINDER_ADVANCE_MINUTES = intPreferencesKey("event_reminder_advance_minutes")
+        val KEY_SCHEDULE_DISPLAY_COURSE_END_WARNING_MODE = stringPreferencesKey("schedule_display_course_end_warning_mode")
         val KEY_CLASS_NOTICE_EVENING_BRIEFING_ENABLED = booleanPreferencesKey("class_notice_evening_briefing_enabled")
         val KEY_CLASS_NOTICE_EVENING_BRIEFING_HOUR = intPreferencesKey("class_notice_evening_briefing_hour")
         val KEY_CLASS_NOTICE_EVENING_BRIEFING_MINUTE = intPreferencesKey("class_notice_evening_briefing_minute")

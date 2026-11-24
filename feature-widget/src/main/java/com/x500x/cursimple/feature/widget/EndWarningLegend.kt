@@ -10,17 +10,16 @@ internal const val END_WARNING_FINAL_COLOR = 0xFFD93B4B.toInt()
 internal const val END_WARNING_NEAR_COLOR = 0xFFC98A12.toInt()
 
 /**
- * Appends a "(1) Last week" style entry. The circled digit is drawn larger and bold so its disc reads as the
- * same weight as the round corner badge on the course cards instead of a thin outline at legend size.
+ * Appends a compact colored dot and a short label for the course-ending marker.
  */
 internal fun SpannableStringBuilder.appendEndWarningEntry(context: Context, final: Boolean) {
     val start = length
-    append(if (final) "\u2776" else "\u2777")
+    append("●")
     val color = if (final) END_WARNING_FINAL_COLOR else END_WARNING_NEAR_COLOR
     setSpan(ForegroundColorSpan(color), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-    setSpan(RelativeSizeSpan(1.45f), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    setSpan(RelativeSizeSpan(0.72f), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
     setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-    append(" ").append(context.getString(if (final) R.string.widget_legend_end_final else R.string.widget_legend_end_near))
+    append(" ").append(context.getString(if (final) R.string.widget_legend_end_final_short else R.string.widget_legend_end_near_short))
 }
 
 /** Legend explaining the course-ending markers; null when none is on screen. */

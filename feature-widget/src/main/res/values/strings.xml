@@ -198,4 +198,6 @@
     <string name="widget_loading_text">正在读取…</string>
     <string name="widget_legend_end_final">最后一周</string>
     <string name="widget_legend_end_near">倒数第二周</string>
+    <string name="widget_legend_end_final_short">末周</string>
+    <string name="widget_legend_end_near_short">倒二周</string>
 </resources>

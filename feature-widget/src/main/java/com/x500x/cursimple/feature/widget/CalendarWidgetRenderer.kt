@@ -329,16 +329,13 @@ internal object CalendarWidgetRenderer {
         canvas.drawRoundRect(RectF(rect.left + b, rect.top + b, rect.right - b, rect.bottom - b), radius, radius, ring)
     }
 
-    /** Numeric badge on the block's top-right corner; drawn outside the text clip so it never hides the title. */
+    /** Small top-right marker that stays clear of the course title. */
     private fun drawEndWarningBadge(canvas: Canvas, rect: RectF, warning: CourseEndWarning, px: Float) {
         val color = endWarningColor(warning) ?: return
-        val text = if (warning == CourseEndWarning.FinalWeek) "1" else "2"
-        val r = 6f * px
-        val cx = rect.right - 3.5f * px
-        val cy = rect.top + 3.5f * px
-        canvas.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
-        val paint = textPaint(8f * px, 0xFFFFFFFF.toInt(), bold = true).apply { textAlign = Paint.Align.CENTER }
-        canvas.drawText(text, cx, cy - (paint.ascent() + paint.descent()) / 2f, paint)
+        val radius = 3.2f * px
+        val cx = rect.right - 5.5f * px
+        val cy = rect.top + 5.5f * px
+        canvas.drawCircle(cx, cy, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = withAlpha(color, 0xE6) })
     }
 
     private fun drawMonth(canvas: Canvas, month: CalendarMonthData, px: Float, accent: Int, accentText: Int, labels: CalendarRenderLabels, isDark: Boolean) {

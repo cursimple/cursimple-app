@@ -308,10 +308,12 @@ private enum class SettingsDestination {
     DisplayGridTime,
     DisplayInteraction,
     DisplayStats,
+    DisplayCourseEndWarning,
     TimingProfile,
     WidgetSettings,
     AutoSilence,
     ClassNotice,
+    EventReminder,
     Plugins,
     Sidebar,
     LocalBackup,
@@ -375,6 +377,7 @@ private fun SettingsDestination.parentChain(): List<SettingsDestination> = when 
     SettingsDestination.DisplayGridTime,
     SettingsDestination.DisplayInteraction,
     SettingsDestination.DisplayStats,
+    SettingsDestination.DisplayCourseEndWarning,
     -> listOf(SettingsDestination.ScheduleDisplay)
 
     else -> emptyList()
@@ -616,6 +619,7 @@ private fun settingsSearchEntries(
             stringResource(R.string.settings_subgroup_grid_time),
             stringResource(R.string.settings_subgroup_interaction),
             stringResource(R.string.settings_subgroup_stats),
+            stringResource(R.string.settings_course_end_warning_menu_title),
         ),
         words(stringResource(R.string.settings_search_kw_display)),
     )
@@ -685,6 +689,17 @@ private fun settingsSearchEntries(
         listOf(
             stringResource(R.string.settings_today_overview_title),
             stringResource(R.string.settings_course_session_holidays_title),
+        ),
+    )
+    page(
+        SettingsDestination.DisplayCourseEndWarning,
+        Icons.Rounded.EventAvailable,
+        stringResource(R.string.settings_course_end_warning_menu_title),
+        under(schedule, display),
+        listOf(
+            stringResource(R.string.settings_course_end_warning_title),
+            stringResource(R.string.settings_course_end_warning_final_week),
+            stringResource(R.string.settings_course_end_warning_two_weeks),
         ),
     )
     val scheduleStyle = stringResource(R.string.settings_dest_schedule_style)
@@ -846,6 +861,16 @@ private fun settingsSearchEntries(
         words(stringResource(R.string.settings_search_kw_notice)),
     )
     page(
+        SettingsDestination.EventReminder,
+        Icons.AutoMirrored.Rounded.EventNote,
+        stringResource(R.string.settings_dest_event_reminder),
+        reminder,
+        listOf(
+            stringResource(R.string.settings_event_reminder_enabled_title),
+            stringResource(R.string.settings_event_reminder_advance_title),
+        ),
+    )
+    page(
         SettingsDestination.AutoSilence,
         Icons.AutoMirrored.Rounded.VolumeOff,
         stringResource(R.string.settings_dest_auto_silence),
@@ -929,10 +954,12 @@ private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.DisplayGridTime -> stringResource(R.string.settings_subgroup_grid_time)
     SettingsDestination.DisplayInteraction -> stringResource(R.string.settings_subgroup_interaction)
     SettingsDestination.DisplayStats -> stringResource(R.string.settings_subgroup_stats)
+    SettingsDestination.DisplayCourseEndWarning -> stringResource(R.string.settings_course_end_warning_menu_title)
     SettingsDestination.TimingProfile -> stringResource(R.string.settings_dest_timing_profile)
     SettingsDestination.WidgetSettings -> stringResource(R.string.settings_dest_widget_settings)
     SettingsDestination.AutoSilence -> stringResource(R.string.settings_dest_auto_silence)
     SettingsDestination.ClassNotice -> stringResource(R.string.settings_dest_class_notice)
+    SettingsDestination.EventReminder -> stringResource(R.string.settings_dest_event_reminder)
     SettingsDestination.Plugins -> stringResource(R.string.settings_dest_plugins)
     SettingsDestination.Sidebar -> stringResource(R.string.settings_sidebar_title)
     SettingsDestination.LocalBackup -> stringResource(R.string.ie_local_backup_title)
@@ -1001,7 +1028,10 @@ fun AppSettingsRoute(
     onScheduleAutoShrinkLongTitlesChange: (Boolean) -> Unit,
     onScheduleTruncationEllipsisChange: (Boolean) -> Unit,
     classNotice: ClassNoticePreferences = ClassNoticePreferences(),
+    scheduleEventReminder: com.x500x.cursimple.core.data.EventReminderPreferences = com.x500x.cursimple.core.data.EventReminderPreferences(),
     onClassNoticeEnabledChange: (Boolean) -> Unit = {},
+    onScheduleEventReminderEnabledChange: (Boolean) -> Unit = {},
+    onScheduleEventReminderAdvanceMinutesChange: (Int) -> Unit = {},
     onClassNoticeAdvanceMinutesChange: (Int) -> Unit = {},
     onClassNoticeHeadsUpChange: (Boolean) -> Unit = {},
     onClassNoticeVibrationChange: (Boolean) -> Unit = {},
@@ -1039,7 +1069,7 @@ fun AppSettingsRoute(
     onCourseDragEnabledChange: (Boolean) -> Unit,
     onSchedulePinchZoomEnabledChange: (Boolean) -> Unit = {},
     onTodayOverviewEnabledChange: (Boolean) -> Unit = {},
-    onCourseEndWarningEnabledChange: (Boolean) -> Unit = {},
+    onCourseEndWarningModeChange: (com.x500x.cursimple.core.kernel.model.CourseEndWarningMode) -> Unit = {},
     onCourseSessionCountIncludeHolidaysChange: (Boolean) -> Unit = {},
     onScheduleLocationVisibleChange: (Boolean) -> Unit,
     onScheduleTeacherVisibleChange: (Boolean) -> Unit,
@@ -1551,6 +1581,20 @@ fun AppSettingsRoute(
                                         },
                                         tileActive = classNotice.enabled,
                                         quickId = "class_notice",
+                                    )
+                                    SettingsActionRow(
+                                        icon = Icons.AutoMirrored.Rounded.EventNote,
+                                        title = stringResource(R.string.settings_dest_event_reminder),
+                                        subtitle = if (scheduleEventReminder.enabled) {
+                                            stringResource(R.string.schedule_event_reminder_summary_minutes, scheduleEventReminder.advanceMinutes)
+                                        } else {
+                                            stringResource(R.string.schedule_event_reminder_summary_off)
+                                        },
+                                        onClick = { navigate(SettingsDestination.EventReminder) },
+                                        trailing = {
+                                            Switch(checked = scheduleEventReminder.enabled, onCheckedChange = onScheduleEventReminderEnabledChange)
+                                        },
+                                        tileActive = scheduleEventReminder.enabled,
                                     )
                                     SettingsActionRow(
                                         icon = Icons.AutoMirrored.Rounded.VolumeOff,
@@ -2193,6 +2237,18 @@ fun AppSettingsRoute(
                                     subtitle = displayStatsSummary(scheduleDisplay),
                                     onClick = { navigate(SettingsDestination.DisplayStats) },
                                 )
+                                SettingsActionRow(
+                                    icon = Icons.Rounded.EventAvailable,
+                                    title = stringResource(R.string.settings_course_end_warning_menu_title),
+                                    subtitle = if (scheduleDisplay.courseEndWarningMode == com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.Off) {
+                                        stringResource(R.string.settings_course_end_warning_off)
+                                    } else if (scheduleDisplay.courseEndWarningMode == com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.FinalWeek) {
+                                        stringResource(R.string.settings_course_end_warning_final_week)
+                                    } else {
+                                        stringResource(R.string.settings_course_end_warning_two_weeks)
+                                    },
+                                    onClick = { navigate(SettingsDestination.DisplayCourseEndWarning) },
+                                )
                             }
                         }
 
@@ -2364,13 +2420,37 @@ SettingsSwitchRow(
                                     checked = scheduleDisplay.courseSessionCountIncludeHolidays,
                                     onCheckedChange = onCourseSessionCountIncludeHolidaysChange,
                                 )
+                            }
+                        }
+
+                        SettingsDestination.DisplayCourseEndWarning -> {
+                            SettingsCard {
                                 SettingsSwitchRow(
                                     icon = Icons.Rounded.EventAvailable,
                                     title = stringResource(R.string.settings_course_end_warning_title),
                                     subtitle = stringResource(R.string.settings_course_end_warning_subtitle),
-                                    checked = scheduleDisplay.courseEndWarningEnabled,
-                                    onCheckedChange = onCourseEndWarningEnabledChange,
+                                    checked = scheduleDisplay.courseEndWarningMode != com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.Off,
+                                    onCheckedChange = { enabled ->
+                                        onCourseEndWarningModeChange(
+                                            if (enabled) com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.FinalWeek
+                                            else com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.Off,
+                                        )
+                                    },
                                 )
+                                if (scheduleDisplay.courseEndWarningMode != com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.Off) {
+                                    SettingsRadioRow(
+                                        title = stringResource(R.string.settings_course_end_warning_final_week),
+                                        subtitle = stringResource(R.string.settings_course_end_warning_range_subtitle),
+                                        selected = scheduleDisplay.courseEndWarningMode == com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.FinalWeek,
+                                        onSelect = { onCourseEndWarningModeChange(com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.FinalWeek) },
+                                    )
+                                    SettingsRadioRow(
+                                        title = stringResource(R.string.settings_course_end_warning_two_weeks),
+                                        subtitle = stringResource(R.string.settings_course_end_warning_two_weeks_subtitle),
+                                        selected = scheduleDisplay.courseEndWarningMode == com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.TwoWeeks,
+                                        onSelect = { onCourseEndWarningModeChange(com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.TwoWeeks) },
+                                    )
+                                }
                             }
                         }
 
@@ -2452,6 +2532,30 @@ SettingsSwitchRow(
                                 onTransitReminderChange = onClassNoticeTransitReminderChange,
                                 onExamAlertChange = onClassNoticeExamAlertChange,
                             )
+                        }
+
+                        SettingsDestination.EventReminder -> {
+                            SettingsCard {
+                                SettingsSwitchRow(
+                                    icon = Icons.AutoMirrored.Rounded.EventNote,
+                                    title = stringResource(R.string.settings_event_reminder_enabled_title),
+                                    subtitle = stringResource(R.string.settings_event_reminder_enabled_subtitle),
+                                    checked = scheduleEventReminder.enabled,
+                                    onCheckedChange = onScheduleEventReminderEnabledChange,
+                                )
+                                if (scheduleEventReminder.enabled) {
+                                    AlarmNumberSettingRow(
+                                        title = stringResource(R.string.settings_event_reminder_advance_title),
+                                        value = scheduleEventReminder.advanceMinutes,
+                                        unit = stringResource(R.string.settings_minutes_unit),
+                                        min = 0,
+                                        max = 60,
+                                        step = 5,
+                                        onValueChange = onScheduleEventReminderAdvanceMinutesChange,
+                                        icon = Icons.Rounded.AccessTime,
+                                    )
+                                }
+                            }
                         }
 
                         SettingsDestination.Plugins -> {
@@ -5098,6 +5202,7 @@ private fun SettingsDestination.showsSchedulePreview(): Boolean = when (this) {
     SettingsDestination.DisplayGridTime,
     SettingsDestination.DisplayInteraction,
     SettingsDestination.DisplayStats,
+    SettingsDestination.DisplayCourseEndWarning,
     -> true
     else -> false
 }

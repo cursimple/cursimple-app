@@ -93,7 +93,7 @@ internal fun buildScheduleCourseRow(
             if (final) R.drawable.widget_bg_end_warning_final else R.drawable.widget_bg_end_warning_near,
         )
         row.setViewVisibility(R.id.widget_course_end_warning_badge, View.VISIBLE)
-        row.setTextViewText(R.id.widget_course_end_warning_badge, if (final) "1" else "2")
+        row.setTextViewText(R.id.widget_course_end_warning_badge, "")
         row.setInt(
             R.id.widget_course_end_warning_badge,
             "setBackgroundResource",

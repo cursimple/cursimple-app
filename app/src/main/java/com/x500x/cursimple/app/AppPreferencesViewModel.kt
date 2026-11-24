@@ -129,6 +129,20 @@ class AppPreferencesViewModel(
         }
     }
 
+    fun setScheduleEventReminderEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setScheduleEventReminderEnabled(enabled)
+            refreshScheduleOutputs()
+        }
+    }
+
+    fun setScheduleEventReminderAdvanceMinutes(minutes: Int) {
+        viewModelScope.launch {
+            repository.setScheduleEventReminderAdvanceMinutes(minutes)
+            refreshScheduleOutputs()
+        }
+    }
+
     fun setClassNoticeAdvanceMinutes(minutes: Int) {
         viewModelScope.launch {
             repository.setClassNoticeAdvanceMinutes(minutes)
@@ -264,8 +278,8 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setTodayOverviewEnabled(enabled) }
     }
 
-    fun setCourseEndWarningEnabled(enabled: Boolean) {
-        viewModelScope.launch { repository.setCourseEndWarningEnabled(enabled) }
+    fun setCourseEndWarningMode(mode: com.x500x.cursimple.core.kernel.model.CourseEndWarningMode) {
+        viewModelScope.launch { repository.setCourseEndWarningMode(mode) }
     }
 
     fun setScheduleSaturdayVisible(visible: Boolean) {

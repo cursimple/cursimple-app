@@ -13,6 +13,13 @@
     <string name="schedule_category_course">Course</string>
     <string name="schedule_category_exam">Exam</string>
     <string name="schedule_category_event">Event</string>
+    <string name="settings_dest_event_reminder">Event reminders</string>
+    <string name="schedule_event_reminder_follow_global">Follow global event reminders</string>
+    <string name="schedule_event_reminder_off">Turn off this event reminder</string>
+    <string name="schedule_event_reminder_on_time">At event start</string>
+    <string name="schedule_event_reminder_summary_global">Follow global setting</string>
+    <string name="schedule_event_reminder_summary_off">Off</string>
+    <string name="schedule_event_reminder_summary_minutes">%1$d min early</string>
     <string name="schedule_add_course_time_label">Class time</string>
     <string name="schedule_node_start_label">Start period</string>
     <string name="schedule_course_time_by_node">By period</string>

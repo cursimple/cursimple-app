@@ -60,6 +60,8 @@ object ClassNoticeNotifier {
     enum class Kind {
         Class,
 
+        Event,
+
         /** For pre-alarm content, title names the alarm and startAtMillis is its ring time. */
         AlarmPreview,
     }
@@ -87,6 +89,7 @@ object ClassNoticeNotifier {
         fun subText(context: Context): String = when {
             headline.isNotBlank() -> headline
             kind == Kind.AlarmPreview -> context.getString(R.string.alarm_pre_notice_subtext, minutesUntilStart)
+            kind == Kind.Event -> context.getString(R.string.event_notice_subtext, minutesUntilStart)
             inProgress -> context.getString(R.string.class_notice_subtext_in_progress)
             else -> context.getString(R.string.class_notice_subtext, minutesUntilStart)
         }
@@ -98,6 +101,18 @@ object ClassNoticeNotifier {
         val whenText: String
             get() = listOf(slotLabel, timeRange).filter { it.isNotBlank() }.joinToString(" ")
     }
+
+    fun eventContent(event: com.x500x.cursimple.core.kernel.model.ScheduleEvent, minutes: Int): Content =
+        Content(
+            courseTitle = event.title,
+            location = event.location,
+            timeRange = "${event.startTime}–${event.endTime}",
+            minutesUntilStart = minutes,
+            kind = Kind.Event,
+            notificationIdOverride = EVENT_NOTIFICATION_ID_BASE xor event.id.hashCode(),
+        )
+
+    private const val EVENT_NOTIFICATION_ID_BASE = 0x1E00
 
     /** @param plain Developer preview without ongoing or promoted flags. */
     @Synchronized
@@ -174,6 +189,8 @@ object ClassNoticeNotifier {
         val title = when {
             content.kind == Kind.AlarmPreview ->
                 context.getString(R.string.alarm_pre_notice_title, content.minutesUntilStart, content.courseTitle)
+            content.kind == Kind.Event ->
+                context.getString(R.string.event_notice_title, content.minutesUntilStart, content.courseTitle)
             content.inProgress -> context.getString(R.string.class_notice_title_in_progress, content.courseTitle)
             else -> context.getString(R.string.class_notice_title, content.minutesUntilStart, content.courseTitle)
         }

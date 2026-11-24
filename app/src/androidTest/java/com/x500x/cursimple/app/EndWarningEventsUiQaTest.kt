@@ -1,13 +1,27 @@
 package com.x500x.cursimple.app
 
+import androidx.activity.compose.setContent
+import android.os.Environment
+import android.content.ContentValues
+import android.provider.MediaStore
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.unit.Density
 import androidx.test.platform.app.InstrumentationRegistry
 import com.x500x.cursimple.app.theme.ClassScheduleTheme
 import com.x500x.cursimple.core.data.ThemeMode
+import com.x500x.cursimple.core.data.ScheduleDisplayPreferences
+import com.x500x.cursimple.core.data.AppLanguage
+import com.x500x.cursimple.core.data.AppLocale
+import com.x500x.cursimple.core.kernel.model.CourseEndWarningMode
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
@@ -31,7 +45,7 @@ import java.time.LocalDate
  * Run with `-e endWarningQa true`.
  */
 class EndWarningEventsUiQaTest {
-    @get:Rule val compose = createComposeRule()
+    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val args get() = InstrumentationRegistry.getArguments()
     private val context get() = instrumentation.targetContext
@@ -68,19 +82,29 @@ class EndWarningEventsUiQaTest {
     private fun show(fontScale: Float? = null, scale: Float = 0.72f, dark: Boolean = false, showEvents: Boolean = true) {
         Thread.sleep(1500)
         BeijingTime.setForcedNow(monday.atTime(7, 0))
-        compose.setContent {
-            val base = LocalDensity.current
-            CompositionLocalProvider(LocalDensity provides Density(base.density * scale, fontScale ?: base.fontScale)) {
-                ClassScheduleTheme(themeMode = if (dark) ThemeMode.Dark else ThemeMode.Light) {
-                    ScheduleScreen(
-                        state = ScheduleUiState(initialized = true, timingProfile = timing, manualCourses = courses, events = events),
-                        onCreateCourseReminder = { _, _, _ -> }, onMuteExamReminder = {}, onRestoreExamReminder = {},
-                        onRemoveReminderRule = {}, onRemoveManualCourse = {}, onCreateBulkReminder = { _, _, _ -> },
-                        onPrevWeek = {}, onNextWeek = {}, onPrevDay = {}, onNextDay = {}, onResetDay = {},
-                        onOpenPluginMarket = {}, overrideTermStart = termStart,
-                        weekOffset = 0, minWeekOffset = -14, maxWeekOffset = 4, termWeekCount = 16,
-                        showEvents = showEvents,
-                    )
+        val fixtureContext = AppLocale.wrap(context, AppLanguage.Chinese)
+        compose.runOnUiThread {
+            compose.activity.setContent {
+                val base = LocalDensity.current
+                CompositionLocalProvider(
+                    LocalContext provides fixtureContext,
+                    LocalConfiguration provides fixtureContext.resources.configuration,
+                    LocalActivityResultRegistryOwner provides compose.activity,
+                    LocalDensity provides Density(base.density * scale, fontScale ?: base.fontScale),
+                ) {
+                    ClassScheduleTheme(themeMode = if (dark) ThemeMode.Dark else ThemeMode.Light) {
+                        ScheduleScreen(
+                            state = ScheduleUiState(initialized = true, timingProfile = timing, manualCourses = courses, events = events),
+                            onCreateCourseReminder = { _, _, _ -> }, onMuteExamReminder = {}, onRestoreExamReminder = {},
+                            onRemoveReminderRule = {}, onRemoveManualCourse = {}, onCreateBulkReminder = { _, _, _ -> },
+                            onPrevWeek = {}, onNextWeek = {}, onPrevDay = {}, onNextDay = {}, onResetDay = {},
+                            onOpenPluginMarket = {}, overrideTermStart = termStart,
+                            weekOffset = 0, minWeekOffset = -14, maxWeekOffset = 4, termWeekCount = 16,
+                            scheduleDisplay = ScheduleDisplayPreferences(courseEndWarningMode = CourseEndWarningMode.TwoWeeks),
+                            showEvents = showEvents,
+                            modifier = Modifier.fillMaxSize().safeDrawingPadding(),
+                        )
+                    }
                 }
             }
         }
@@ -90,7 +114,19 @@ class EndWarningEventsUiQaTest {
     private fun save(name: String) {
         compose.waitForIdle()
         Thread.sleep(400)
-        ScreenshotCapture.save(ScreenshotCapture.take(), File(context.filesDir, "end-warning-qa/$name.png"))
+        val bitmap = ScreenshotCapture.take()
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, "cursimple-end-warning-$name.png")
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/CurSimple QA")
+        }
+        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            ?: error("Could not create screenshot entry")
+        context.contentResolver.openOutputStream(uri).use { output ->
+            checkNotNull(output) { "Could not open screenshot entry" }
+                .also { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        }
+        bitmap.recycle()
     }
 
     private fun counts() = compose.onAllNodes(hasTestTag("schedule-day-event-count"), useUnmergedTree = true)

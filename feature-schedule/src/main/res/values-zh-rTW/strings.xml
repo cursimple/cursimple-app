@@ -13,6 +13,13 @@
     <string name="schedule_category_course">課程</string>
     <string name="schedule_category_exam">考試</string>
     <string name="schedule_category_event">事務</string>
+    <string name="settings_dest_event_reminder">事務提醒</string>
+    <string name="schedule_event_reminder_follow_global">跟隨全域事務提醒</string>
+    <string name="schedule_event_reminder_off">關閉此事務提醒</string>
+    <string name="schedule_event_reminder_on_time">事務開始時</string>
+    <string name="schedule_event_reminder_summary_global">跟隨全域設定</string>
+    <string name="schedule_event_reminder_summary_off">已關閉</string>
+    <string name="schedule_event_reminder_summary_minutes">提前 %1$d 分鐘</string>
     <string name="schedule_add_course_time_label">上課時間</string>
     <string name="schedule_node_start_label">起始節</string>
     <string name="schedule_course_time_by_node">按節次</string>

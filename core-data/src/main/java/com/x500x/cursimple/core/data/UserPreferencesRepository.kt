@@ -16,6 +16,7 @@ import com.x500x.cursimple.core.data.navigation.BottomBarSize
 import com.x500x.cursimple.core.data.navigation.DrawerLayout
 import com.x500x.cursimple.core.kernel.time.ScheduleRowFitMode
 import com.x500x.cursimple.core.kernel.time.WeekStartDay
+import com.x500x.cursimple.core.kernel.model.CourseEndWarningMode
 import com.x500x.cursimple.core.reminder.ReminderDayPolicy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -347,8 +348,26 @@ data class ScheduleDisplayPreferences(
     val dayViewEventsEnabled: Boolean = true,
     val periodBreakDividersEnabled: Boolean = false,
     /** Highlight courses in the final two teaching weeks before their declared end. */
-    val courseEndWarningEnabled: Boolean = true,
+    val courseEndWarningMode: CourseEndWarningMode = CourseEndWarningMode.Off,
 )
+
+data class EventReminderPreferences(
+    val enabled: Boolean = true,
+    var advanceMinutes: Int = DEFAULT_EVENT_REMINDER_ADVANCE_MINUTES,
+) {
+    init {
+        advanceMinutes = coerceAdvanceMinutes(advanceMinutes)
+    }
+
+    companion object {
+        const val DEFAULT_EVENT_REMINDER_ADVANCE_MINUTES = 20
+        val SUPPORTED_ADVANCE_MINUTES = listOf(0, 5, 10, 15, 20, 30, 60)
+
+        fun coerceAdvanceMinutes(value: Int): Int =
+            SUPPORTED_ADVANCE_MINUTES.minByOrNull { kotlin.math.abs(it - value) }
+                ?: DEFAULT_EVENT_REMINDER_ADVANCE_MINUTES
+    }
+}
 
 /** Bounds of a custom period column width. */
 const val MIN_TIME_COLUMN_WIDTH_DP = 20
@@ -415,6 +434,7 @@ data class UserPreferences(
     val scheduleCardStyle: ScheduleCardStylePreferences = ScheduleCardStylePreferences(),
     val scheduleBackground: ScheduleBackgroundPreferences = ScheduleBackgroundPreferences(),
     val scheduleDisplay: ScheduleDisplayPreferences = ScheduleDisplayPreferences(),
+    val scheduleEventReminder: EventReminderPreferences = EventReminderPreferences(),
     val pluginTimetableRowVisibility: Map<String, Map<String, Boolean>> = emptyMap(),
     val scheduleCustomColorsAdaptToTheme: Boolean = false,
     val enabledPluginIds: Set<String> = emptySet(),
@@ -528,6 +548,8 @@ interface UserPreferencesRepository {
     suspend fun setScheduleTruncationEllipsis(enabled: Boolean)
 
     suspend fun setClassNoticeEnabled(enabled: Boolean)
+    suspend fun setScheduleEventReminderEnabled(enabled: Boolean)
+    suspend fun setScheduleEventReminderAdvanceMinutes(minutes: Int)
 
     suspend fun setClassNoticeAdvanceMinutes(minutes: Int)
 
@@ -571,7 +593,7 @@ interface UserPreferencesRepository {
     suspend fun setScheduleCustomColorsAdaptToTheme(enabled: Boolean)
     suspend fun setScheduleNodeColumnTimeEnabled(enabled: Boolean)
     suspend fun setTodayOverviewEnabled(enabled: Boolean)
-    suspend fun setCourseEndWarningEnabled(enabled: Boolean)
+    suspend fun setCourseEndWarningMode(mode: CourseEndWarningMode)
     suspend fun setScheduleSaturdayVisible(visible: Boolean)
     suspend fun setScheduleWeekendVisible(visible: Boolean)
 

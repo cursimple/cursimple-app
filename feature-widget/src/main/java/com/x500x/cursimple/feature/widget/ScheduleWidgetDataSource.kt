@@ -148,7 +148,7 @@ internal object ScheduleWidgetDataSource {
             timingProfile = timingProfile,
             sources = sources,
             widgetTheme = widgetTheme,
-            courseEndWarningEnabled = userPrefs.scheduleDisplay.courseEndWarningEnabled,
+            courseEndWarningMode = userPrefs.scheduleDisplay.courseEndWarningMode,
         )
 
         if (manualOffset != 0) return dayAt(manualOffset).data
@@ -186,7 +186,7 @@ internal object ScheduleWidgetDataSource {
         timingProfile: TermTimingProfile?,
         sources: DaySources,
         widgetTheme: WidgetThemePreferences,
-        courseEndWarningEnabled: Boolean,
+        courseEndWarningMode: com.x500x.cursimple.core.kernel.model.CourseEndWarningMode,
     ): LoadedDay {
         val day = resolveWidgetScheduleDay(
             targetDate = targetDate,
@@ -208,8 +208,8 @@ internal object ScheduleWidgetDataSource {
                     timingProfile = timingProfile,
                     onHoliday = day.onHoliday,
                 ),
-                endWarning = if (courseEndWarningEnabled) {
-                    courseEndWarning(day.weekIndex, it.weeks)
+                endWarning = if (courseEndWarningMode != com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.Off) {
+                    courseEndWarning(day.weekIndex, it.weeks, courseEndWarningMode)
                 } else {
                     CourseEndWarning.None
                 },

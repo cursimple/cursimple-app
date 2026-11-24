@@ -16,10 +16,12 @@ import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Bundle
+import android.provider.MediaStore
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ListView
@@ -1245,7 +1247,19 @@ class WidgetQaTest {
     }
 
     private fun saveBitmap(bitmap: Bitmap, name: String) {
-        File(context.filesDir, name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        val safeName = name.replace('/', '_')
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, "widget-qa-$safeName")
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CurSimple QA")
+        }
+        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            ?: error("Could not create widget screenshot entry")
+        context.contentResolver.openOutputStream(uri).use { output ->
+            checkNotNull(output) { "Could not open widget screenshot entry" }
+                .also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
+        bitmap.recycle()
     }
 
     /** Capture only the test window without competing for UiAutomation. */

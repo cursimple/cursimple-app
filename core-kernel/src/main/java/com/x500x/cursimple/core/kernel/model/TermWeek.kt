@@ -27,11 +27,18 @@ fun CourseItem.isActiveInTermWeekNumber(weekNumber: Int): Boolean =
 
 enum class CourseEndWarning { None, NearEnd, FinalWeek }
 
-fun courseEndWarning(currentWeek: Int?, courseWeeks: List<Int>): CourseEndWarning {
+enum class CourseEndWarningMode { Off, FinalWeek, TwoWeeks }
+
+fun courseEndWarning(
+    currentWeek: Int?,
+    courseWeeks: List<Int>,
+    mode: CourseEndWarningMode = CourseEndWarningMode.TwoWeeks,
+): CourseEndWarning {
+    if (mode == CourseEndWarningMode.Off) return CourseEndWarning.None
     val endWeek = courseWeeks.filter { it > 0 }.maxOrNull() ?: return CourseEndWarning.None
     return when (currentWeek) {
         endWeek -> CourseEndWarning.FinalWeek
-        endWeek - 1 -> CourseEndWarning.NearEnd
+        endWeek - 1 -> if (mode == CourseEndWarningMode.TwoWeeks) CourseEndWarning.NearEnd else CourseEndWarning.None
         else -> CourseEndWarning.None
     }
 }

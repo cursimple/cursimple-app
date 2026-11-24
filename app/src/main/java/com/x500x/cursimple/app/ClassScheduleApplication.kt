@@ -272,6 +272,19 @@ class ClassScheduleApplication : Application() {
 
         appScope.launch {
             appContainer.bootstrapJob.join()
+            combine(
+                appContainer.scheduleEventRepository.eventsFlow,
+                appContainer.userPreferencesRepository.preferencesFlow.map { it.scheduleEventReminder },
+            ) { _, _ -> Unit }
+                .distinctUntilChanged()
+                .collect {
+                    runCatching { com.x500x.cursimple.app.notice.ScheduleEventReminderScheduler.reschedule(this@ClassScheduleApplication) }
+                        .onFailure { error -> ReminderLogger.warn("event_reminder.reschedule.failure", emptyMap(), error) }
+                }
+        }
+
+        appScope.launch {
+            appContainer.bootstrapJob.join()
             appContainer.widgetPreferencesRepository.themePreferencesFlow
                 .distinctUntilChanged()
                 .drop(1)

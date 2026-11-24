@@ -30,7 +30,7 @@ class CalendarWidgetModelTest {
             courses = listOf(course),
             eventCount = 0,
             weekIndex = weekIndex,
-            courseEndWarningEnabled = true,
+            courseEndWarningMode = com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.TwoWeeks,
         )
 
     private val monday = LocalDate.of(2026, 10, 5)

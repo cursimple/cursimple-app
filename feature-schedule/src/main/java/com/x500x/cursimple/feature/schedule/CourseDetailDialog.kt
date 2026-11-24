@@ -164,7 +164,7 @@ fun CourseDetailDialog(
     temporaryScheduleOverrides: List<com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride> = emptyList(),
     holidayCalendar: com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings = com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings.NONE,
     countHolidays: Boolean = true,
-    courseEndWarningEnabled: Boolean = true,
+    courseEndWarningMode: com.x500x.cursimple.core.kernel.model.CourseEndWarningMode = com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.Off,
     onSaveNote: (CourseItem, String) -> Unit = { _, _ -> },
     onSaveCourse: (CourseItem) -> Unit = {},
     sourceWeekOf: (CourseItem) -> Int? = { visibleWeekNumber },
@@ -425,8 +425,8 @@ fun CourseDetailDialog(
                                         modifier = Modifier.testTag("course-session-progress"),
                                     )
                                 }
-                                val endWarning = if (courseEndWarningEnabled) {
-                                    com.x500x.cursimple.core.kernel.model.courseEndWarning(visibleWeekNumber, course.weeks)
+                                val endWarning = if (courseEndWarningMode != com.x500x.cursimple.core.kernel.model.CourseEndWarningMode.Off) {
+                                    com.x500x.cursimple.core.kernel.model.courseEndWarning(visibleWeekNumber, course.weeks, courseEndWarningMode)
                                 } else {
                                     com.x500x.cursimple.core.kernel.model.CourseEndWarning.None
                                 }

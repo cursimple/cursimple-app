@@ -222,6 +222,10 @@
         </receiver>
 
         <receiver
+            android:name=".app.notice.ScheduleEventReminderReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".app.reminder.AutoSilenceReceiver"
             android:exported="false">
             <intent-filter>

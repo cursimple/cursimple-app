@@ -76,4 +76,19 @@ class ScheduleEventTest {
         val day = LocalDate.of(2026, 9, 29)
         assertEquals(listOf("a", "e"), listOf(base, early).occurrencesOn(day).map { it.id })
     }
+
+    @Test
+    fun legacyJsonWithoutReminderOverrideDefaultsToGlobal() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val legacy = json.decodeFromString(ScheduleEvent.serializer(),
+            "{\"id\":\"e\",\"title\":\"组会\",\"date\":\"2026-09-29\",\"startTime\":\"10:30\",\"endTime\":\"11:20\"}")
+        assertEquals(null, legacy.reminderMinutes)
+    }
+
+    @Test
+    fun reminderOverridePreservesFollowGlobalOffAndExplicitMinutes() {
+        assertEquals(null, base.reminderMinutes)
+        assertEquals(0, base.copy(reminderMinutes = 0).reminderMinutes)
+        assertEquals(30, base.copy(reminderMinutes = 30).reminderMinutes)
+    }
 }

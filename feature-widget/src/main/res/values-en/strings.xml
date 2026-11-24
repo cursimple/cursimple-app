@@ -197,4 +197,6 @@
     <string name="widget_loading_text">Loading…</string>
     <string name="widget_legend_end_final">Last week</string>
     <string name="widget_legend_end_near">2nd-to-last week</string>
+    <string name="widget_legend_end_final_short">Last</string>
+    <string name="widget_legend_end_near_short">Previous</string>
 </resources>

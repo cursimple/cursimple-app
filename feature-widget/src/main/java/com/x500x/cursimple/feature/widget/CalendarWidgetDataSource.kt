@@ -75,7 +75,7 @@ internal object CalendarWidgetDataSource {
                 courses = resolved.courses,
                 eventCount = events.occurrencesOn(date).size,
                 weekIndex = weekIndex,
-                courseEndWarningEnabled = userPrefs.scheduleDisplay.courseEndWarningEnabled,
+                courseEndWarningMode = userPrefs.scheduleDisplay.courseEndWarningMode,
             )
         }
 
